@@ -39,7 +39,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: '16px'
       }}
       onClick={onClose}
     >
@@ -59,7 +59,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         {/* Header */}
         <div
           style={{
-            padding: '20px 24px',
+            padding: '16px 20px',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
@@ -86,7 +86,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', maxHeight: '70vh', overflowY: 'auto' }}>
+        <div style={{ padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
           {/* YouTube API Key Setting */}
           <section>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>

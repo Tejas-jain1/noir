@@ -133,7 +133,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist }) {
 
       {/* Info & Metadata */}
       <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
           <h4
             style={{
               fontSize: '0.925rem',
@@ -142,7 +142,8 @@ export default function MusicCard({ track, onOpenAddToPlaylist }) {
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               color: isCurrent ? 'var(--accent-solid)' : 'var(--text-primary)',
-              flex: 1
+              flex: 1,
+              minWidth: 0
             }}
             title={track.title}
           >

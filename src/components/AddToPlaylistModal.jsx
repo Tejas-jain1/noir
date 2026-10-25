@@ -18,7 +18,7 @@ export default function AddToPlaylistModal({ track, isOpen, onClose, onOpenCreat
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: '16px'
       }}
       onClick={onClose}
     >
@@ -37,7 +37,7 @@ export default function AddToPlaylistModal({ track, isOpen, onClose, onOpenCreat
       >
         <div
           style={{
-            padding: '20px 24px',
+            padding: '16px 20px',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
@@ -59,7 +59,7 @@ export default function AddToPlaylistModal({ track, isOpen, onClose, onOpenCreat
         {/* Selected Track Preview */}
         <div
           style={{
-            padding: '14px 24px',
+            padding: '12px 20px',
             backgroundColor: 'var(--bg-card)',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
@@ -70,20 +70,20 @@ export default function AddToPlaylistModal({ track, isOpen, onClose, onOpenCreat
           <img
             src={track.thumbnail}
             alt={track.title}
-            style={{ width: '42px', height: '42px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
+            style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 }}
           />
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontWeight: 600, fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ overflow: 'hidden', minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {track.title}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {track.artist}
             </div>
           </div>
         </div>
 
         {/* Playlists List */}
-        <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button
             onClick={() => {
               onClose();

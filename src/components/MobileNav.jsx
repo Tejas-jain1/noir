@@ -28,7 +28,8 @@ export default function MobileNav() {
         position: 'sticky',
         bottom: 0,
         zIndex: 25,
-        userSelect: 'none'
+        userSelect: 'none',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
       {links.map(({ to, label, icon: Icon, badge }) => {

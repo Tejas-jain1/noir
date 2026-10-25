@@ -137,7 +137,7 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
         </div>
 
         {likedSongs.length > 0 && (
-          <div style={{ position: 'relative', width: '220px' }}>
+          <div className="banner-search-wrapper" style={{ position: 'relative', width: '220px' }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"

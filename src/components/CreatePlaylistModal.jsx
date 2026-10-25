@@ -36,7 +36,7 @@ export default function CreatePlaylistModal({ isOpen, onClose }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: '16px'
       }}
       onClick={onClose}
     >
@@ -55,7 +55,7 @@ export default function CreatePlaylistModal({ isOpen, onClose }) {
       >
         <div
           style={{
-            padding: '20px 24px',
+            padding: '16px 20px',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
@@ -74,7 +74,7 @@ export default function CreatePlaylistModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ fontSize: '0.825rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
               Playlist Name

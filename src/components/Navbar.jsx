@@ -127,7 +127,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
           >
             <Disc size={15} />
           </div>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1rem', letterSpacing: '0.04em' }}>
+          <span className="navbar-logo-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1rem', letterSpacing: '0.04em' }}>
             NOIR
           </span>
         </div>

@@ -29,7 +29,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Page container standard padding */
+/* Page container standard layout */
 .page-container {
   padding: 24px 32px 100px;
   display: flex;
@@ -45,7 +45,7 @@
   animation: spin 8s linear infinite;
 }
 
-/* Track Row Grid */
+/* Default Track Row 5-Column Grid */
 .track-row-grid {
   display: grid;
   grid-template-columns: 40px minmax(180px, 2fr) minmax(120px, 1fr) 90px 48px;
@@ -72,7 +72,55 @@
   gap: 12px;
 }
 
-/* Desktop styles */
+/* Floating Toast Notifications */
+.toast-container-root {
+  position: fixed;
+  bottom: 106px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-lg);
+  min-width: 280px;
+  max-width: 420px;
+  backdrop-filter: blur(12px);
+}
+
+/* Floating PiP Video Container */
+.yt-floating-pip {
+  position: fixed;
+  right: 24px;
+  bottom: 106px;
+  width: 340px;
+  height: 192px;
+  z-index: 100;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-lg);
+  background-color: #000000;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   DESKTOP ONLY (Width >= 769px) - Preserved exactly as existing
+   ========================================================================== */
 @media (min-width: 769px) {
   .mobile-only {
     display: none !important;
@@ -85,9 +133,30 @@
   .desktop-sidebar {
     display: flex !important;
   }
+
+  .music-player-grid {
+    height: 90px;
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) minmax(280px, 2fr) minmax(200px, 1fr);
+    align-items: center;
+    padding: 0 24px;
+  }
 }
 
-/* Mobile & Tablet Refinements (< 768px) */
+/* ==========================================================================
+   TABLET REFINEMENTS (768px <= Width <= 1024px)
+   ========================================================================== */
+@media (min-width: 481px) and (max-width: 1024px) {
+  .mobile-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 14px !important;
+  }
+}
+
+/* ==========================================================================
+   MOBILE REFINEMENTS (Width <= 768px)
+   Covers 320px, 360px, 375px, 390px, 414px, 430px
+   ========================================================================== */
 @media (max-width: 768px) {
   .desktop-only {
     display: none !important;
@@ -97,15 +166,20 @@
     display: flex !important;
   }
 
-  /* Hide only desktop sidebar; allow mobile drawer sidebar */
+  /* Hide desktop sidebar; allow mobile drawer sidebar */
   .desktop-sidebar {
     display: none !important;
   }
 
+  .mobile-sidebar {
+    display: flex !important;
+    width: 100% !important;
+  }
+
   /* Content bottom padding so floating mini-player & bottom nav don't block content */
   .page-container {
-    padding: 16px 14px 148px !important;
-    gap: 24px !important;
+    padding: 16px 14px 156px !important;
+    gap: 22px !important;
   }
 
   /* Track Row: Compact 4-column layout fitting all phone viewports */
@@ -121,7 +195,7 @@
     gap: 8px !important;
   }
 
-  /* Responsive Cards Grid */
+  /* 2-column cards grid on phones */
   .mobile-cards-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 12px !important;
@@ -130,8 +204,8 @@
   /* Compact Navbar on Mobile */
   .navbar-header {
     height: 60px !important;
-    padding: 0 14px !important;
-    gap: 10px !important;
+    padding: 0 12px !important;
+    gap: 8px !important;
   }
 
   /* Responsive Hero Spotlight */
@@ -140,7 +214,7 @@
   }
 
   .hero-spotlight-content {
-    padding: 24px 20px !important;
+    padding: 22px 16px !important;
     gap: 12px !important;
   }
 
@@ -151,21 +225,25 @@
 
   /* Responsive Playlist / Liked Header Banner */
   .playlist-header-banner {
-    padding: 20px 16px !important;
-    gap: 16px !important;
+    padding: 20px 14px !important;
+    gap: 14px !important;
     flex-direction: column !important;
     align-items: center !important;
     text-align: center !important;
   }
 
+  .banner-search-wrapper {
+    width: 100% !important;
+  }
+
   .playlist-header-artwork {
-    width: 100px !important;
-    height: 100px !important;
+    width: 96px !important;
+    height: 96px !important;
   }
 
   .playlist-header-artwork svg {
-    width: 44px !important;
-    height: 44px !important;
+    width: 40px !important;
+    height: 40px !important;
   }
 
   /* Mobile Mini Player Layout */
@@ -176,6 +254,46 @@
     justifyContent: space-between !important;
     padding: 0 12px !important;
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  /* Mobile Floating PiP Video */
+  .yt-floating-pip {
+    right: 12px !important;
+    bottom: 132px !important;
+    width: calc(100vw - 24px) !important;
+    max-width: 340px !important;
+    height: 190px !important;
+  }
+
+  /* Floating Toast Notifications on Mobile */
+  .toast-container-root {
+    bottom: 135px !important;
+    right: 12px !important;
+    left: 12px !important;
+    align-items: center !important;
+  }
+
+  .toast-item {
+    min-width: unset !important;
+    width: 100% !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 10px 14px !important;
+  }
+}
+
+/* Extra small mobile screens (<= 380px, e.g. 320px - 375px) */
+@media (max-width: 380px) {
+  .navbar-logo-text {
+    display: none !important;
+  }
+
+  .page-container {
+    padding: 12px 10px 156px !important;
+    gap: 18px !important;
+  }
+
+  .mobile-cards-grid {
+    gap: 8px !important;
   }
 }
 

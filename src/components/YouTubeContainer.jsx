@@ -7,23 +7,11 @@ export default function YouTubeContainer() {
 
   return (
     <div
+      className="yt-floating-pip"
       style={{
-        position: 'fixed',
-        right: '16px',
-        bottom: isVideoVisible ? '132px' : '-9999px',
-        width: isVideoVisible ? 'min(340px, calc(100vw - 32px))' : '160px',
-        height: isVideoVisible ? 'min(200px, 45vw)' : '160px',
+        bottom: isVideoVisible ? undefined : '-9999px',
         opacity: isVideoVisible ? 1 : 0.001,
-        pointerEvents: isVideoVisible ? 'auto' : 'none',
-        zIndex: isVideoVisible ? 200 : -10,
-        backgroundColor: '#000000',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-medium)',
-        boxShadow: 'var(--shadow-lg)',
-        overflow: 'hidden',
-        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        display: 'flex',
-        flexDirection: 'column'
+        pointerEvents: isVideoVisible ? 'auto' : 'none'
       }}
     >
       {/* Video Header Controls when visible */}
@@ -41,8 +29,8 @@ export default function YouTubeContainer() {
             fontWeight: 600
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-            <Tv size={13} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', minWidth: 0 }}>
+            <Tv size={13} style={{ flexShrink: 0 }} />
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentTrack?.title || 'YouTube Player'}
             </span>
@@ -55,7 +43,8 @@ export default function YouTubeContainer() {
               display: 'flex',
               alignItems: 'center',
               padding: '2px',
-              borderRadius: '4px'
+              borderRadius: '4px',
+              flexShrink: 0
             }}
             title="Minimize video player"
           >

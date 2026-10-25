@@ -139,7 +139,7 @@ export default function QueueModal({ isOpen, onClose }) {
                   }}
                 />
 
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
                   <div
                     style={{
                       fontWeight: 600,
@@ -152,7 +152,7 @@ export default function QueueModal({ isOpen, onClose }) {
                   >
                     {currentTrack.title}
                   </div>
-                  <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {currentTrack.artist}
                   </div>
                 </div>
@@ -236,7 +236,7 @@ export default function QueueModal({ isOpen, onClose }) {
                         }}
                       />
 
-                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
                         <div
                           style={{
                             fontWeight: 600,
@@ -249,7 +249,7 @@ export default function QueueModal({ isOpen, onClose }) {
                         >
                           {track.title}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {track.artist}
                         </div>
                       </div>
