@@ -1,0 +1,90 @@
+/* ==========================================================================
+   NOIR App Layout & Responsive Breakpoints
+   ========================================================================== */
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.main-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.content-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  position: relative;
+}
+
+/* Spin logo */
+.brand-logo-spin {
+  animation: spin 8s linear infinite;
+}
+
+/* Responsive Utilities */
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-only {
+    display: flex !important;
+  }
+
+  aside {
+    display: none !important;
+  }
+
+  .music-player-grid {
+    grid-template-columns: 1fr auto !important;
+    padding: 0 16px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
+
+  .desktop-only {
+    display: flex;
+  }
+}
+
+/* Mobile Sidebar Drawer */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+}
+
+.mobile-drawer-content {
+  width: 280px;
+  height: 100%;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}

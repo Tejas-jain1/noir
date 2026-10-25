@@ -1,0 +1,281 @@
+/* ==========================================================================
+   NOIR Design System - Black & White Theme
+   ========================================================================== */
+
+:root {
+  /* Common geometry */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 80px;
+  --navbar-height: 72px;
+  --player-height: 90px;
+  --mobile-nav-height: 64px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', var(--font-sans);
+}
+
+/* Dark Theme (Default) */
+[data-theme="dark"],
+:root:not([data-theme="light"]) {
+  --bg-primary: #0a0a0c;
+  --bg-secondary: #121215;
+  --bg-surface: #18181c;
+  --bg-surface-hover: #222228;
+  --bg-card: #141418;
+  --bg-card-hover: #1e1e24;
+  --bg-overlay: rgba(0, 0, 0, 0.75);
+  --bg-input: #1b1b20;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-inverse: #0a0a0c;
+  
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.25);
+  
+  --accent-solid: #ffffff;
+  --accent-text: #000000;
+  --accent-hover: #e4e4e7;
+  --accent-subtle: rgba(255, 255, 255, 0.1);
+  --accent-badge: #27272a;
+  
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.8);
+  --shadow-player: 0 -8px 30px rgba(0, 0, 0, 0.6);
+  
+  --scrollbar-thumb: #2e2e36;
+  --scrollbar-track: transparent;
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f1f3f5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f4f5f7;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+  --bg-input: #eef0f3;
+  
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #8c8c97;
+  --text-inverse: #ffffff;
+  
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.14);
+  --border-strong: rgba(0, 0, 0, 0.25);
+  
+  --accent-solid: #09090b;
+  --accent-text: #ffffff;
+  --accent-hover: #27272a;
+  --accent-subtle: rgba(0, 0, 0, 0.06);
+  --accent-badge: #e4e4e7;
+  
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.14);
+  --shadow-player: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  
+  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-track: transparent;
+}
+
+/* Reset and base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Typography elements */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Animations */
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes equalizerBar {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Equalizer Bars for Active Track */
+.audio-visualizer {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 16px;
+  width: 16px;
+}
+
+.audio-visualizer span {
+  display: block;
+  width: 2.5px;
+  background-color: var(--accent-solid);
+  border-radius: 1px;
+}
+
+.audio-visualizer.is-playing span:nth-child(1) {
+  animation: equalizerBar 0.8s ease-in-out infinite;
+}
+
+.audio-visualizer.is-playing span:nth-child(2) {
+  animation: equalizerBar 0.6s ease-in-out 0.2s infinite;
+}
+
+.audio-visualizer.is-playing span:nth-child(3) {
+  animation: equalizerBar 0.9s ease-in-out 0.4s infinite;
+}
+
+.audio-visualizer:not(.is-playing) span {
+  height: 4px !important;
+}
+
+/* Range input styling for sleek monochrome scrubbers */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 4px;
+  border-radius: 9999px;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--border-medium);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background-color: var(--accent-solid);
+  margin-top: -4px;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--border-medium);
+}
+
+input[type="range"]::-moz-range-thumb {
+  border: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background-color: var(--accent-solid);
+}

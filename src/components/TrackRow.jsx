@@ -1,0 +1,269 @@
+import React, { useState } from 'react';
+import { usePlayer } from '../context/PlayerContext';
+import { useLibrary } from '../context/LibraryContext';
+import { Play, Pause, Heart, MoreHorizontal, Trash2, ListPlus, FolderPlus } from 'lucide-react';
+
+export default function TrackRow({ 
+  track, 
+  index, 
+  playlistId = null, 
+  onRemoveFromPlaylist = null,
+  onOpenAddToPlaylist = null 
+}) {
+  const { currentTrack, isPlaying, playTrack, togglePlay, addToQueue } = usePlayer();
+  const { isLiked, toggleLike } = useLibrary();
+
+  const [isHovered, setIsHovered] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+
+  const isCurrent = currentTrack?.id === track.id;
+  const isThisPlaying = isCurrent && isPlaying;
+  const liked = isLiked(track.id);
+
+  const handlePlayToggle = (e) => {
+    e.stopPropagation();
+    if (isCurrent) {
+      togglePlay();
+    } else {
+      playTrack(track);
+    }
+  };
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setShowMenu(false);
+      }}
+      onClick={() => {
+        if (!isCurrent) playTrack(track);
+        else togglePlay();
+      }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '40px minmax(180px, 2fr) minmax(120px, 1fr) 90px 48px',
+        alignItems: 'center',
+        padding: '8px 12px',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: isCurrent ? 'var(--bg-surface-hover)' : isHovered ? 'var(--bg-surface)' : 'transparent',
+        border: '1px solid',
+        borderColor: isCurrent ? 'var(--border-medium)' : 'transparent',
+        cursor: 'pointer',
+        fontSize: '0.875rem',
+        gap: '12px',
+        transition: 'background var(--transition-fast)'
+      }}
+    >
+      {/* Index or Play icon or Visualizer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px' }}>
+        {isHovered ? (
+          <button
+            onClick={handlePlayToggle}
+            style={{
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {isThisPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+          </button>
+        ) : isCurrent ? (
+          <div className={`audio-visualizer ${isThisPlaying ? 'is-playing' : ''}`}>
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : (
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 500 }}>
+            {index + 1}
+          </span>
+        )}
+      </div>
+
+      {/* Title & Artist & Thumbnail */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+        <img
+          src={track.thumbnail}
+          alt={track.title}
+          style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: 'var(--radius-sm)',
+            objectFit: 'cover',
+            flexShrink: 0,
+            backgroundColor: 'var(--bg-surface)'
+          }}
+          onError={(e) => {
+            e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=80';
+          }}
+        />
+
+        <div style={{ overflow: 'hidden' }}>
+          <div
+            style={{
+              fontWeight: 600,
+              color: isCurrent ? 'var(--accent-solid)' : 'var(--text-primary)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+            title={track.title}
+          >
+            {track.title}
+          </div>
+          <div
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-secondary)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+            title={track.artist}
+          >
+            {track.artist}
+          </div>
+        </div>
+      </div>
+
+      {/* Album / Genre */}
+      <div
+        className="desktop-only"
+        style={{
+          color: 'var(--text-secondary)',
+          fontSize: '0.8rem',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {track.album || track.genre || 'Single'}
+      </div>
+
+      {/* Duration & Like Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleLike(track);
+          }}
+          style={{
+            color: liked ? 'var(--text-primary)' : 'var(--text-muted)',
+            opacity: liked || isHovered ? 1 : 0,
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'opacity var(--transition-fast)'
+          }}
+          title={liked ? 'Unlike' : 'Like'}
+        >
+          <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
+        </button>
+
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.775rem', fontVariantNumeric: 'tabular-nums' }}>
+          {track.durationFormatted || '3:30'}
+        </span>
+      </div>
+
+      {/* Options Menu */}
+      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          style={{
+            color: 'var(--text-muted)',
+            padding: '4px',
+            borderRadius: '4px',
+            opacity: isHovered || showMenu ? 1 : 0.4
+          }}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+
+        {showMenu && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              backgroundColor: 'var(--bg-surface)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-medium)',
+              boxShadow: 'var(--shadow-lg)',
+              padding: '6px',
+              minWidth: '170px',
+              zIndex: 50,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px'
+            }}
+          >
+            <button
+              onClick={() => {
+                addToQueue(track);
+                setShowMenu(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '8px 10px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                color: 'var(--text-primary)',
+                textAlign: 'left'
+              }}
+            >
+              <ListPlus size={15} />
+              <span>Add to Queue</span>
+            </button>
+
+            {onOpenAddToPlaylist && (
+              <button
+                onClick={() => {
+                  onOpenAddToPlaylist(track);
+                  setShowMenu(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-primary)',
+                  textAlign: 'left'
+                }}
+              >
+                <FolderPlus size={15} />
+                <span>Add to Playlist</span>
+              </button>
+            )}
+
+            {playlistId && onRemoveFromPlaylist && (
+              <button
+                onClick={() => {
+                  onRemoveFromPlaylist(playlistId, track.id);
+                  setShowMenu(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '8px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-primary)',
+                  textAlign: 'left'
+                }}
+              >
+                <Trash2 size={15} />
+                <span>Remove from Playlist</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
