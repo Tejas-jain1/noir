@@ -16,7 +16,21 @@ export default function MobileNav() {
   ];
 
   return (
-    <nav className="mobile-nav-bar mobile-only" style={{ userSelect: 'none' }}>
+    <nav
+      className="mobile-only"
+      style={{
+        height: 'var(--mobile-nav-height)',
+        backgroundColor: 'var(--bg-secondary)',
+        borderTop: '1px solid var(--border-subtle)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        alignItems: 'center',
+        position: 'sticky',
+        bottom: 0,
+        zIndex: 25,
+        userSelect: 'none'
+      }}
+    >
       {links.map(({ to, label, icon: Icon, badge }) => {
         const isActive = location.pathname === to;
         return (
@@ -28,24 +42,24 @@ export default function MobileNav() {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '3px',
+              gap: '4px',
               height: '100%',
               color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
               fontSize: '0.675rem',
-              fontWeight: isActive ? 700 : 500,
+              fontWeight: isActive ? 600 : 500,
               position: 'relative'
             }}
           >
             <div style={{ position: 'relative' }}>
-              <Icon size={19} style={{ color: isActive ? 'var(--accent-solid)' : 'currentColor' }} />
+              <Icon size={20} style={{ color: isActive ? 'var(--accent-solid)' : 'currentColor' }} />
               {badge !== undefined && badge > 0 && (
                 <span
                   style={{
                     position: 'absolute',
-                    top: '-3px',
-                    right: '-6px',
-                    width: '6px',
-                    height: '6px',
+                    top: '-4px',
+                    right: '-8px',
+                    width: '8px',
+                    height: '8px',
                     borderRadius: '50%',
                     backgroundColor: 'var(--accent-solid)'
                   }}
