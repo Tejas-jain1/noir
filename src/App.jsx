@@ -43,6 +43,7 @@ function MainLayout() {
     <div className="app-container">
       {/* 1. Desktop & Tablet Sidebar */}
       <Sidebar
+        className="desktop-sidebar"
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
         onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
@@ -59,14 +60,17 @@ function MainLayout() {
               <button
                 onClick={() => setIsMobileDrawerOpen(false)}
                 style={{ color: 'var(--text-secondary)', padding: '6px' }}
+                title="Close drawer"
               >
                 <X size={22} />
               </button>
             </div>
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <Sidebar
+                className="mobile-sidebar"
                 isCollapsed={false}
                 setIsCollapsed={() => {}}
+                onNavigate={() => setIsMobileDrawerOpen(false)}
                 onOpenCreatePlaylist={() => {
                   setIsMobileDrawerOpen(false);
                   setIsCreatePlaylistOpen(true);
@@ -97,11 +101,11 @@ function MainLayout() {
           </Routes>
         </main>
 
-        {/* 4. Bottom Navigation on Mobile */}
-        <MobileNav />
-
-        {/* 5. Persistent Music Player */}
+        {/* 4. Persistent Music Player (Desktop full footer bar / Mobile mini-player) */}
         <MusicPlayer onOpenQueue={() => setIsQueueOpen(true)} />
+
+        {/* 5. Mobile Bottom Tab Navigation */}
+        <MobileNav />
       </div>
 
       {/* 6. Expandable Fullscreen / Mobile Player Sheet */}

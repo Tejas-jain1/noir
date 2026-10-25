@@ -9,15 +9,15 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
   const [filter, setFilter] = useState('all'); // 'all' | 'playlists' | 'liked'
 
   return (
-    <div style={{ padding: '24px 32px 80px', display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+    <div className="page-container">
       {/* Title & Actions */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Library size={24} />
-            <h1 style={{ fontSize: '2rem', fontWeight: 800 }}>Your Library</h1>
+            <Library size={22} />
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Your Library</h1>
           </div>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
             All your saved collections, playlists, and favorite songs
           </p>
         </div>
@@ -27,16 +27,16 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
+            gap: '6px',
+            padding: '8px 16px',
             borderRadius: 'var(--radius-full)',
             backgroundColor: 'var(--accent-solid)',
             color: 'var(--accent-text)',
-            fontSize: '0.875rem',
+            fontSize: '0.825rem',
             fontWeight: 600
           }}
         >
-          <Plus size={18} />
+          <Plus size={16} />
           <span>New Playlist</span>
         </button>
       </div>
@@ -48,12 +48,12 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
             key={tab}
             onClick={() => setFilter(tab)}
             style={{
-              padding: '6px 16px',
+              padding: '6px 14px',
               borderRadius: 'var(--radius-full)',
               backgroundColor: filter === tab ? 'var(--accent-solid)' : 'var(--bg-card)',
               color: filter === tab ? 'var(--accent-text)' : 'var(--text-secondary)',
               border: `1px solid ${filter === tab ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
-              fontSize: '0.8rem',
+              fontSize: '0.775rem',
               fontWeight: 600,
               textTransform: 'capitalize'
             }}
@@ -65,10 +65,11 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
 
       {/* Grid */}
       <div
+        className="mobile-cards-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: '20px'
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap: '16px'
         }}
       >
         {/* Liked Songs Special Card */}
@@ -76,7 +77,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
           <div
             onClick={() => navigate('/liked')}
             style={{
-              padding: '24px',
+              padding: '20px',
               borderRadius: 'var(--radius-lg)',
               background: 'linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-hover) 100%)',
               border: '1px solid var(--border-medium)',
@@ -84,15 +85,15 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              minHeight: '220px',
+              minHeight: '190px',
               boxShadow: 'var(--shadow-sm)',
               position: 'relative'
             }}
           >
             <div
               style={{
-                width: '48px',
-                height: '48px',
+                width: '42px',
+                height: '42px',
                 borderRadius: 'var(--radius-md)',
                 backgroundColor: 'var(--accent-solid)',
                 color: 'var(--accent-text)',
@@ -101,14 +102,14 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                 justifyContent: 'center'
               }}
             >
-              <Heart size={24} fill="currentColor" />
+              <Heart size={20} fill="currentColor" />
             </div>
 
             <div>
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 4px' }}>
                 Liked Songs
               </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
                 {likedSongs.length} {likedSongs.length === 1 ? 'track' : 'tracks'} saved
               </p>
             </div>
@@ -124,7 +125,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
               key={pl.id}
               onClick={() => navigate(`/playlist/${pl.id}`)}
               style={{
-                padding: '20px',
+                padding: '18px',
                 borderRadius: 'var(--radius-lg)',
                 backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-subtle)',
@@ -132,14 +133,14 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                minHeight: '220px',
+                minHeight: '190px',
                 transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)'
               }}
             >
               <div
                 style={{
-                  width: '56px',
-                  height: '56px',
+                  width: '48px',
+                  height: '48px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: 'var(--bg-surface)',
                   border: '1px solid var(--border-medium)',
@@ -149,13 +150,13 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                   color: 'var(--text-primary)'
                 }}
               >
-                <Music2 size={26} />
+                <Music2 size={22} />
               </div>
 
               <div>
                 <h3
                   style={{
-                    fontSize: '1.1rem',
+                    fontSize: '1rem',
                     fontWeight: 700,
                     margin: '0 0 4px',
                     whiteSpace: 'nowrap',
@@ -168,7 +169,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                 </h3>
                 <p
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.75rem',
                     color: 'var(--text-secondary)',
                     margin: 0,
                     whiteSpace: 'nowrap',
@@ -178,7 +179,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                 >
                   {pl.description || `${songCount} songs`}
                 </p>
-                <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                   {songCount} {songCount === 1 ? 'song' : 'songs'}
                 </span>
               </div>

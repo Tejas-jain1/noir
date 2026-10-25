@@ -17,9 +17,10 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
   };
 
   return (
-    <div style={{ padding: '24px 32px 80px', display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+    <div className="page-container">
       {/* Header */}
       <div
+        className="playlist-header-banner"
         style={{
           display: 'flex',
           alignItems: 'flex-end',
@@ -33,6 +34,7 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
         }}
       >
         <div
+          className="playlist-header-artwork"
           style={{
             width: '120px',
             height: '120px',
@@ -53,7 +55,7 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
           <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
             Listening History
           </span>
-          <h1 style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', fontWeight: 800, margin: 0 }}>
+          <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', fontWeight: 800, margin: 0 }}>
             Recently Played
           </h1>
           <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -68,8 +70,8 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
           <button
             onClick={handlePlayAll}
             style={{
-              width: '50px',
-              height: '50px',
+              width: '48px',
+              height: '48px',
               borderRadius: '50%',
               backgroundColor: 'var(--accent-solid)',
               color: 'var(--accent-text)',
@@ -86,7 +88,7 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
       )}
 
       {/* Track List */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '16px', border: '1px solid var(--border-subtle)' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '12px', border: '1px solid var(--border-subtle)' }}>
         {recentlyPlayed.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
             <Music size={48} strokeWidth={1.5} />

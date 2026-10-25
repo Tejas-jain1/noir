@@ -18,47 +18,47 @@ export default function Explore({ onOpenAddToPlaylist }) {
     : MOCK_TRACKS.filter(t => t.genre.toLowerCase().includes(selectedGenre) || (t.album && t.album.toLowerCase().includes(selectedGenre)));
 
   return (
-    <div style={{ padding: '24px 32px 80px', display: 'flex', flexDirection: 'column', gap: '36px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+    <div className="page-container">
       {/* Page Title */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Compass size={24} />
-          <h1 style={{ fontSize: '2rem', fontWeight: 800 }}>Explore Genres & Moods</h1>
+          <Compass size={22} />
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Explore Genres & Moods</h1>
         </div>
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '6px 0 0' }}>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
           Curated musical textures crafted for monochrome aesthetics
         </p>
       </div>
 
       {/* Mood Showcase Banners */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
         {MOODS.map((mood, idx) => (
           <div
             key={mood.name}
             onClick={() => setSelectedGenre(mood.query)}
             style={{
-              padding: '24px',
-              borderRadius: 'var(--radius-xl)',
+              padding: '20px',
+              borderRadius: 'var(--radius-lg)',
               backgroundColor: 'var(--bg-secondary)',
               border: `1px solid ${selectedGenre === mood.query ? 'var(--accent-solid)' : 'var(--border-medium)'}`,
               cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              minHeight: '140px',
+              minHeight: '120px',
               boxShadow: 'var(--shadow-sm)',
               transition: 'transform var(--transition-fast), border-color var(--transition-fast)'
             }}
           >
             <div>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
                 Mood 0{idx + 1}
               </span>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '6px 0 4px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '4px 0 2px' }}>
                 {mood.name}
               </h3>
             </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
               {mood.desc}
             </p>
           </div>
@@ -67,7 +67,7 @@ export default function Explore({ onOpenAddToPlaylist }) {
 
       {/* Genre Filter Pills */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '6px', scrollbarWidth: 'none' }}>
           {EXPLORE_GENRES.map(genre => {
             const isActive = selectedGenre === genre.id;
             return (
@@ -75,12 +75,12 @@ export default function Explore({ onOpenAddToPlaylist }) {
                 key={genre.id}
                 onClick={() => setSelectedGenre(genre.id)}
                 style={{
-                  padding: '8px 18px',
+                  padding: '6px 14px',
                   borderRadius: 'var(--radius-full)',
                   backgroundColor: isActive ? 'var(--accent-solid)' : 'var(--bg-card)',
                   color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
                   border: `1px solid ${isActive ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
-                  fontSize: '0.825rem',
+                  fontSize: '0.775rem',
                   fontWeight: 600,
                   whiteSpace: 'nowrap',
                   transition: 'all var(--transition-fast)'
@@ -95,16 +95,17 @@ export default function Explore({ onOpenAddToPlaylist }) {
 
       {/* Track Grid */}
       <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
             {selectedGenre === 'all' ? 'All Soundscapes' : `Filtered: ${selectedGenre.toUpperCase()}`}
           </h2>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             {filteredTracks.length} tracks
           </span>
         </div>
 
         <div
+          className="mobile-cards-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',

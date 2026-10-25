@@ -26,14 +26,68 @@
   overflow-x: hidden;
   scroll-behavior: smooth;
   position: relative;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Spin logo */
+/* Page container standard padding */
+.page-container {
+  padding: 24px 32px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Spin logo animation */
 .brand-logo-spin {
   animation: spin 8s linear infinite;
 }
 
-/* Responsive Utilities */
+/* Track Row Grid */
+.track-row-grid {
+  display: grid;
+  grid-template-columns: 40px minmax(180px, 2fr) minmax(120px, 1fr) 90px 48px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  gap: 12px;
+  font-size: 0.875rem;
+  transition: background var(--transition-fast);
+}
+
+.track-table-header {
+  display: grid;
+  grid-template-columns: 40px minmax(180px, 2fr) minmax(120px, 1fr) 90px 48px;
+  align-items: center;
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+  gap: 12px;
+}
+
+/* Desktop styles */
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
+
+  .desktop-only {
+    display: flex;
+  }
+
+  .desktop-sidebar {
+    display: flex !important;
+  }
+}
+
+/* Mobile & Tablet Refinements (< 768px) */
 @media (max-width: 768px) {
   .desktop-only {
     display: none !important;
@@ -43,33 +97,95 @@
     display: flex !important;
   }
 
-  aside {
+  /* Hide only desktop sidebar; allow mobile drawer sidebar */
+  .desktop-sidebar {
     display: none !important;
   }
 
+  /* Content bottom padding so floating mini-player & bottom nav don't block content */
+  .page-container {
+    padding: 16px 14px 148px !important;
+    gap: 24px !important;
+  }
+
+  /* Track Row: Compact 4-column layout fitting all phone viewports */
+  .track-row-grid {
+    grid-template-columns: 28px minmax(0, 1fr) auto auto !important;
+    padding: 8px 8px !important;
+    gap: 8px !important;
+  }
+
+  .track-table-header {
+    grid-template-columns: 28px minmax(0, 1fr) auto auto !important;
+    padding: 8px 8px !important;
+    gap: 8px !important;
+  }
+
+  /* Responsive Cards Grid */
+  .mobile-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  /* Compact Navbar on Mobile */
+  .navbar-header {
+    height: 60px !important;
+    padding: 0 14px !important;
+    gap: 10px !important;
+  }
+
+  /* Responsive Hero Spotlight */
+  .hero-spotlight {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-spotlight-content {
+    padding: 24px 20px !important;
+    gap: 12px !important;
+  }
+
+  .hero-spotlight-img {
+    height: 180px !important;
+    min-height: 180px !important;
+  }
+
+  /* Responsive Playlist / Liked Header Banner */
+  .playlist-header-banner {
+    padding: 20px 16px !important;
+    gap: 16px !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .playlist-header-artwork {
+    width: 100px !important;
+    height: 100px !important;
+  }
+
+  .playlist-header-artwork svg {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* Mobile Mini Player Layout */
   .music-player-grid {
-    grid-template-columns: 1fr auto !important;
-    padding: 0 16px !important;
+    height: 64px !important;
+    display: flex !important;
+    align-items: center !important;
+    justifyContent: space-between !important;
+    padding: 0 12px !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25) !important;
   }
 }
 
-@media (min-width: 769px) {
-  .mobile-only {
-    display: none !important;
-  }
-
-  .desktop-only {
-    display: flex;
-  }
-}
-
-/* Mobile Sidebar Drawer */
+/* Mobile Sidebar Drawer Overlay */
 .mobile-drawer-overlay {
   position: fixed;
   inset: 0;
   background-color: var(--bg-overlay);
   backdrop-filter: blur(8px);
-  z-index: 100;
+  z-index: 1000;
   display: flex;
 }
 

@@ -142,7 +142,10 @@ export default function FullscreenPlayer() {
         <div
           style={{
             width: '100%',
+            maxWidth: '360px',
+            maxHeight: 'min(42vh, 360px)',
             aspectRatio: '1/1',
+            margin: '0 auto',
             borderRadius: 'var(--radius-xl)',
             overflow: 'hidden',
             boxShadow: 'var(--shadow-lg)',

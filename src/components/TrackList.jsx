@@ -31,22 +31,7 @@ export default function TrackList({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
       {/* Table Header */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '40px minmax(180px, 2fr) minmax(120px, 1fr) 90px 48px',
-          alignItems: 'center',
-          padding: '8px 12px',
-          color: 'var(--text-muted)',
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          borderBottom: '1px solid var(--border-subtle)',
-          marginBottom: '4px',
-          gap: '12px'
-        }}
-      >
+      <div className="track-table-header">
         <div style={{ textAlign: 'center' }}>#</div>
         <div>Title</div>
         <div className="desktop-only">Album</div>

@@ -35,9 +35,10 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
   };
 
   return (
-    <div style={{ padding: '24px 32px 80px', display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+    <div className="page-container">
       {/* Hero Header */}
       <div
+        className="playlist-header-banner"
         style={{
           display: 'flex',
           alignItems: 'flex-end',
@@ -51,6 +52,7 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
         }}
       >
         <div
+          className="playlist-header-artwork"
           style={{
             width: '140px',
             height: '140px',
@@ -71,7 +73,7 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
           <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
             Playlist
           </span>
-          <h1 style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 800, margin: 0 }}>
+          <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 3rem)', fontWeight: 800, margin: 0 }}>
             Liked Songs
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -89,14 +91,14 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
       </div>
 
       {/* Action Controls & Search Within */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={handlePlayAll}
             disabled={likedSongs.length === 0}
             style={{
-              width: '52px',
-              height: '52px',
+              width: '48px',
+              height: '48px',
               borderRadius: '50%',
               backgroundColor: 'var(--accent-solid)',
               color: 'var(--accent-text)',
@@ -109,34 +111,34 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
             }}
             title="Play All"
           >
-            <Play size={24} fill="currentColor" style={{ marginLeft: '2px' }} />
+            <Play size={22} fill="currentColor" style={{ marginLeft: '2px' }} />
           </button>
 
           <button
             onClick={handleShuffleAll}
             disabled={likedSongs.length === 0}
             style={{
-              padding: '12px 20px',
+              padding: '10px 18px',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--bg-surface)',
               border: '1px solid var(--border-medium)',
               color: 'var(--text-primary)',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.875rem',
+              gap: '6px',
+              fontSize: '0.85rem',
               fontWeight: 600,
               opacity: likedSongs.length === 0 ? 0.5 : 1
             }}
           >
-            <Shuffle size={17} />
+            <Shuffle size={16} />
             <span>Shuffle</span>
           </button>
         </div>
 
         {likedSongs.length > 0 && (
-          <div style={{ position: 'relative', width: '260px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <div style={{ position: 'relative', width: '220px' }}>
+            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Search in liked songs..."
@@ -144,13 +146,13 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
               onChange={(e) => setFilterQuery(e.target.value)}
               style={{
                 width: '100%',
-                height: '38px',
-                padding: '0 12px 0 36px',
+                height: '36px',
+                padding: '0 12px 0 34px',
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-subtle)',
                 color: 'var(--text-primary)',
-                fontSize: '0.825rem'
+                fontSize: '0.8rem'
               }}
             />
           </div>
@@ -158,7 +160,7 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
       </div>
 
       {/* Track List */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '16px', border: '1px solid var(--border-subtle)' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '12px', border: '1px solid var(--border-subtle)' }}>
         {likedSongs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
             <Heart size={48} strokeWidth={1.5} />

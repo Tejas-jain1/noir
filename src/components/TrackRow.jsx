@@ -31,6 +31,7 @@ export default function TrackRow({
 
   return (
     <div
+      className="track-row-grid"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
@@ -41,22 +42,14 @@ export default function TrackRow({
         else togglePlay();
       }}
       style={{
-        display: 'grid',
-        gridTemplateColumns: '40px minmax(180px, 2fr) minmax(120px, 1fr) 90px 48px',
-        alignItems: 'center',
-        padding: '8px 12px',
-        borderRadius: 'var(--radius-md)',
         backgroundColor: isCurrent ? 'var(--bg-surface-hover)' : isHovered ? 'var(--bg-surface)' : 'transparent',
         border: '1px solid',
         borderColor: isCurrent ? 'var(--border-medium)' : 'transparent',
-        cursor: 'pointer',
-        fontSize: '0.875rem',
-        gap: '12px',
-        transition: 'background var(--transition-fast)'
+        cursor: 'pointer'
       }}
     >
-      {/* Index or Play icon or Visualizer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px' }}>
+      {/* 1. Index or Play icon or Visualizer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {isHovered ? (
           <button
             onClick={handlePlayToggle}
@@ -82,14 +75,14 @@ export default function TrackRow({
         )}
       </div>
 
-      {/* Title & Artist & Thumbnail */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+      {/* 2. Title & Artist & Thumbnail */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', minWidth: 0 }}>
         <img
           src={track.thumbnail}
           alt={track.title}
           style={{
-            width: '42px',
-            height: '42px',
+            width: '40px',
+            height: '40px',
             borderRadius: 'var(--radius-sm)',
             objectFit: 'cover',
             flexShrink: 0,
@@ -100,14 +93,15 @@ export default function TrackRow({
           }}
         />
 
-        <div style={{ overflow: 'hidden' }}>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <div
             style={{
               fontWeight: 600,
               color: isCurrent ? 'var(--accent-solid)' : 'var(--text-primary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              fontSize: '0.875rem'
             }}
             title={track.title}
           >
@@ -128,7 +122,7 @@ export default function TrackRow({
         </div>
       </div>
 
-      {/* Album / Genre */}
+      {/* 3. Album / Genre (Desktop only) */}
       <div
         className="desktop-only"
         style={{
@@ -142,8 +136,8 @@ export default function TrackRow({
         {track.album || track.genre || 'Single'}
       </div>
 
-      {/* Duration & Like Button */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+      {/* 4. Duration & Like Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -151,22 +145,22 @@ export default function TrackRow({
           }}
           style={{
             color: liked ? 'var(--text-primary)' : 'var(--text-muted)',
-            opacity: liked || isHovered ? 1 : 0,
+            opacity: liked || isHovered ? 1 : 0.6,
             display: 'flex',
             alignItems: 'center',
-            transition: 'opacity var(--transition-fast)'
+            padding: '4px'
           }}
           title={liked ? 'Unlike' : 'Like'}
         >
           <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
         </button>
 
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.775rem', fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
           {track.durationFormatted || '3:30'}
         </span>
       </div>
 
-      {/* Options Menu */}
+      {/* 5. Options Menu */}
       <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={() => setShowMenu(!showMenu)}
@@ -174,7 +168,7 @@ export default function TrackRow({
             color: 'var(--text-muted)',
             padding: '4px',
             borderRadius: '4px',
-            opacity: isHovered || showMenu ? 1 : 0.4
+            opacity: isHovered || showMenu ? 1 : 0.7
           }}
         >
           <MoreHorizontal size={16} />

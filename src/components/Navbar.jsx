@@ -33,6 +33,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
 
   return (
     <header
+      className="navbar-header"
       style={{
         height: 'var(--navbar-height)',
         backgroundColor: 'var(--bg-secondary)',
@@ -48,12 +49,12 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
       }}
     >
       {/* Left: Mobile hamburger & History Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <button
           onClick={onToggleMobileMenu}
           className="mobile-only"
           style={{
-            padding: '8px',
+            padding: '7px',
             color: 'var(--text-primary)',
             display: 'flex',
             alignItems: 'center',
@@ -63,7 +64,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
           }}
           title="Open menu"
         >
-          <Menu size={20} />
+          <Menu size={19} />
         </button>
 
         <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -110,12 +111,12 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
         <div 
           onClick={() => navigate('/')}
           className="mobile-only" 
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
         >
           <div
             style={{
-              width: '28px',
-              height: '28px',
+              width: '26px',
+              height: '26px',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--accent-solid)',
               color: 'var(--accent-text)',
@@ -124,9 +125,9 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
               justifyContent: 'center'
             }}
           >
-            <Disc size={16} />
+            <Disc size={15} />
           </div>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.1rem' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1rem', letterSpacing: '0.04em' }}>
             NOIR
           </span>
         </div>
@@ -140,14 +141,15 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
           maxWidth: '460px',
           position: 'relative',
           display: 'flex',
-          alignItems: 'center'
+          alignItems: 'center',
+          minWidth: 0
         }}
       >
         <Search
-          size={17}
+          size={16}
           style={{
             position: 'absolute',
-            left: '14px',
+            left: '12px',
             color: 'var(--text-muted)',
             pointerEvents: 'none'
           }}
@@ -156,16 +158,16 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search songs, artists, or keywords..."
+          placeholder="Search songs, artists..."
           style={{
             width: '100%',
-            height: '42px',
-            padding: '0 16px 0 42px',
+            height: '38px',
+            padding: '0 14px 0 36px',
             borderRadius: 'var(--radius-full)',
             backgroundColor: 'var(--bg-input)',
             border: '1px solid var(--border-subtle)',
             color: 'var(--text-primary)',
-            fontSize: '0.875rem',
+            fontSize: '0.85rem',
             transition: 'border-color var(--transition-fast), background var(--transition-fast)'
           }}
           onFocus={() => {
@@ -177,13 +179,13 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
       </form>
 
       {/* Right: Theme Toggle, Settings & Profile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {/* Working Theme Toggle */}
         <button
           onClick={toggleTheme}
           style={{
-            width: '40px',
-            height: '40px',
+            width: '36px',
+            height: '36px',
             borderRadius: '50%',
             backgroundColor: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
@@ -195,15 +197,15 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
           }}
           title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
         >
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          {isDark ? <Sun size={17} /> : <Moon size={17} />}
         </button>
 
         {/* Settings Button */}
         <button
           onClick={onOpenSettings}
           style={{
-            width: '40px',
-            height: '40px',
+            width: '36px',
+            height: '36px',
             borderRadius: '50%',
             backgroundColor: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
@@ -215,7 +217,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
           }}
           title="Application Settings & YouTube API"
         >
-          <Settings size={18} />
+          <Settings size={17} />
         </button>
 
         {/* User Profile Pill */}

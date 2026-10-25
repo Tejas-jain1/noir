@@ -39,7 +39,6 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
     );
   }
 
-  // Resolve tracks if playlist has trackIds or tracks array
   let tracks = playlist.tracks || [];
   if (tracks.length === 0 && playlist.trackIds && playlist.trackIds.length > 0) {
     tracks = playlist.trackIds.map(tid => getTrackById(tid)).filter(Boolean);
@@ -80,9 +79,10 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
   };
 
   return (
-    <div style={{ padding: '24px 32px 80px', display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+    <div className="page-container">
       {/* Header Banner */}
       <div
+        className="playlist-header-banner"
         style={{
           display: 'flex',
           alignItems: 'flex-end',
@@ -96,6 +96,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
         }}
       >
         <div
+          className="playlist-header-artwork"
           style={{
             width: '140px',
             height: '140px',
@@ -126,7 +127,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
                 onChange={(e) => setEditName(e.target.value)}
                 autoFocus
                 style={{
-                  fontSize: '1.5rem',
+                  fontSize: '1.4rem',
                   fontWeight: 800,
                   padding: '6px 12px',
                   borderRadius: 'var(--radius-md)',
@@ -193,11 +194,11 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
                 {playlist.name}
               </h1>
               {playlist.description && (
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.4 }}>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.4 }}>
                   {playlist.description}
                 </p>
               )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Personal Collection</span>
                 <span>•</span>
                 <span>{tracks.length} {tracks.length === 1 ? 'song' : 'songs'}</span>
@@ -214,14 +215,14 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
       </div>
 
       {/* Action Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={handlePlayAll}
             disabled={tracks.length === 0}
             style={{
-              width: '52px',
-              height: '52px',
+              width: '48px',
+              height: '48px',
               borderRadius: '50%',
               backgroundColor: 'var(--accent-solid)',
               color: 'var(--accent-text)',
@@ -234,27 +235,27 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
             }}
             title="Play All"
           >
-            <Play size={24} fill="currentColor" style={{ marginLeft: '2px' }} />
+            <Play size={22} fill="currentColor" style={{ marginLeft: '2px' }} />
           </button>
 
           <button
             onClick={handleShuffleAll}
             disabled={tracks.length === 0}
             style={{
-              padding: '12px 20px',
+              padding: '10px 18px',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--bg-surface)',
               border: '1px solid var(--border-medium)',
               color: 'var(--text-primary)',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.875rem',
+              gap: '6px',
+              fontSize: '0.85rem',
               fontWeight: 600,
               opacity: tracks.length === 0 ? 0.5 : 1
             }}
           >
-            <Shuffle size={17} />
+            <Shuffle size={16} />
             <span>Shuffle</span>
           </button>
         </div>
@@ -270,7 +271,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '8px 14px',
+              padding: '8px 12px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'var(--bg-surface)',
               border: '1px solid var(--border-subtle)',
@@ -289,7 +290,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '8px 14px',
+              padding: '8px 12px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'var(--bg-surface)',
               border: '1px solid var(--border-subtle)',
@@ -305,7 +306,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
       </div>
 
       {/* Tracks Table */}
-      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '16px', border: '1px solid var(--border-subtle)' }}>
+      <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '12px', border: '1px solid var(--border-subtle)' }}>
         {tracks.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
             <Music2 size={48} strokeWidth={1.5} />

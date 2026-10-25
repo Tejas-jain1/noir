@@ -9,13 +9,13 @@ export default function YouTubeContainer() {
     <div
       style={{
         position: 'fixed',
-        right: '24px',
-        bottom: isVideoVisible ? '106px' : '-9999px',
-        width: isVideoVisible ? '340px' : '200px',
-        height: isVideoVisible ? '192px' : '200px',
+        right: '16px',
+        bottom: isVideoVisible ? '132px' : '-9999px',
+        width: isVideoVisible ? 'min(340px, calc(100vw - 32px))' : '160px',
+        height: isVideoVisible ? 'min(200px, 45vw)' : '160px',
         opacity: isVideoVisible ? 1 : 0.001,
         pointerEvents: isVideoVisible ? 'auto' : 'none',
-        zIndex: isVideoVisible ? 100 : -10,
+        zIndex: isVideoVisible ? 200 : -10,
         backgroundColor: '#000000',
         borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-medium)',

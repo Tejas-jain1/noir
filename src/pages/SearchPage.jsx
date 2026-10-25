@@ -81,11 +81,11 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
   const isTopPlaying = topResult && currentTrack?.id === topResult.id && isPlaying;
 
   return (
-    <div style={{ padding: '24px 32px 80px', display: 'flex', flexDirection: 'column', gap: '30px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+    <div className="page-container">
       {/* Search Header Input */}
       <div>
         <div style={{ position: 'relative', maxWidth: '640px' }}>
-          <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             type="text"
             value={query}
@@ -94,33 +94,33 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
             autoFocus
             style={{
               width: '100%',
-              height: '52px',
-              padding: '0 20px 0 52px',
+              height: '48px',
+              padding: '0 16px 0 46px',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-medium)',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               boxShadow: 'var(--shadow-sm)'
             }}
           />
           {loading && (
             <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-              <Loader2 size={20} className="brand-logo-spin" />
+              <Loader2 size={18} className="brand-logo-spin" />
             </div>
           )}
         </div>
 
         {/* Suggestion Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)', fontWeight: 600 }}>Try:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Try:</span>
           {SUGGESTIONS.map((tag) => (
             <button
               key={tag}
               onClick={() => handleSuggestionClick(tag)}
               style={{
-                fontSize: '0.775rem',
-                padding: '4px 12px',
+                fontSize: '0.75rem',
+                padding: '4px 10px',
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: 'var(--bg-surface)',
                 border: '1px solid var(--border-subtle)',
@@ -139,19 +139,20 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
       {searchInfo && searchInfo.source === 'fallback' && (
         <div
           style={{
-            padding: '12px 18px',
+            padding: '12px 16px',
             borderRadius: 'var(--radius-lg)',
             backgroundColor: 'var(--bg-surface)',
             border: '1px solid var(--border-medium)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '14px'
+            gap: '12px',
+            flexWrap: 'wrap'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertCircle size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               {searchInfo.error || 'YouTube API search limit reached. Showing matching curated audio catalog.'}
             </span>
           </div>
@@ -162,7 +163,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-subtle)',
@@ -171,8 +172,8 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               whiteSpace: 'nowrap'
             }}
           >
-            <Key size={14} />
-            <span>Configure Key</span>
+            <Key size={13} />
+            <span>Settings</span>
           </button>
         </div>
       )}
@@ -190,12 +191,12 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
           <p style={{ fontSize: '0.875rem' }}>Please try searching by artist, title, or try one of the suggestions above.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Top Result Card (if there is a query) */}
           {query.trim() && topResult && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
               <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '14px' }}>Top Result</h3>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>Top Result</h3>
                 <div
                   onClick={() => {
                     if (currentTrack?.id === topResult.id) togglePlay();
@@ -204,12 +205,12 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                   style={{
                     backgroundColor: 'var(--bg-card)',
                     borderRadius: 'var(--radius-xl)',
-                    padding: '24px',
+                    padding: '20px',
                     border: '1px solid var(--border-medium)',
                     boxShadow: 'var(--shadow-sm)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '16px',
+                    gap: '14px',
                     cursor: 'pointer',
                     position: 'relative'
                   }}
@@ -218,23 +219,23 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                     src={topResult.thumbnail}
                     alt={topResult.title}
                     style={{
-                      width: '100px',
-                      height: '100px',
+                      width: '84px',
+                      height: '84px',
                       borderRadius: 'var(--radius-md)',
                       objectFit: 'cover'
                     }}
                   />
 
                   <div>
-                    <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 4px', lineHeight: 1.2 }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 4px', lineHeight: 1.2 }}>
                       {topResult.title}
                     </h2>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                      {topResult.artist} • <span style={{ textTransform: 'uppercase', fontSize: '0.75rem', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)' }}>Song</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {topResult.artist} • <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)' }}>Song</span>
                     </span>
                   </div>
 
-                  <div style={{ position: 'absolute', bottom: '24px', right: '24px' }}>
+                  <div style={{ position: 'absolute', bottom: '20px', right: '20px' }}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -242,8 +243,8 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                         else playTrack(topResult, results);
                       }}
                       style={{
-                        width: '48px',
-                        height: '48px',
+                        width: '44px',
+                        height: '44px',
                         borderRadius: '50%',
                         backgroundColor: 'var(--accent-solid)',
                         color: 'var(--accent-text)',
@@ -253,7 +254,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                         boxShadow: 'var(--shadow-md)'
                       }}
                     >
-                      <Play size={22} fill="currentColor" style={{ marginLeft: isTopPlaying ? 0 : '2px' }} />
+                      <Play size={20} fill="currentColor" style={{ marginLeft: isTopPlaying ? 0 : '2px' }} />
                     </button>
                   </div>
                 </div>
@@ -263,11 +264,11 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
 
           {/* Songs List */}
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>
               {query.trim() ? 'Songs' : 'All Catalog Tracks'}
             </h3>
 
-            <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '16px', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '10px', border: '1px solid var(--border-subtle)' }}>
               <TrackList
                 tracks={results}
                 onOpenAddToPlaylist={onOpenAddToPlaylist}

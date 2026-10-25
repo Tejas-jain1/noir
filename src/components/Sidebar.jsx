@@ -15,10 +15,21 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlaylist }) {
+export default function Sidebar({ 
+  isCollapsed = false, 
+  setIsCollapsed = () => {}, 
+  onOpenCreatePlaylist,
+  onNavigate = null,
+  className = ''
+}) {
   const { playlists, likedSongs } = useLibrary();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleLinkClick = (to) => {
+    navigate(to);
+    if (onNavigate) onNavigate();
+  };
 
   const navLinks = [
     { to: '/', label: 'Home', icon: Home },
@@ -31,6 +42,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
 
   return (
     <aside
+      className={className}
       style={{
         width: isCollapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)',
         backgroundColor: 'var(--bg-secondary)',
@@ -56,7 +68,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
         }}
       >
         <div
-          onClick={() => navigate('/')}
+          onClick={() => handleLinkClick('/')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -140,6 +152,9 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
             <NavLink
               key={to}
               to={to}
+              onClick={() => {
+                if (onNavigate) onNavigate();
+              }}
               title={label}
               style={{
                 display: 'flex',
@@ -203,7 +218,10 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
           >
             <span>Playlists</span>
             <button
-              onClick={onOpenCreatePlaylist}
+              onClick={() => {
+                if (onOpenCreatePlaylist) onOpenCreatePlaylist();
+                if (onNavigate) onNavigate();
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -239,6 +257,9 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
               <NavLink
                 key={pl.id}
                 to={`/playlist/${pl.id}`}
+                onClick={() => {
+                  if (onNavigate) onNavigate();
+                }}
                 title={pl.name}
                 style={{
                   display: 'flex',
@@ -275,7 +296,10 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
       {isCollapsed ? (
         <div style={{ padding: '12px', display: 'flex', justifyContent: 'center', borderTop: '1px solid var(--border-subtle)' }}>
           <button
-            onClick={onOpenCreatePlaylist}
+            onClick={() => {
+              if (onOpenCreatePlaylist) onOpenCreatePlaylist();
+              if (onNavigate) onNavigate();
+            }}
             style={{
               padding: '10px',
               borderRadius: 'var(--radius-md)',
@@ -290,7 +314,10 @@ export default function Sidebar({ isCollapsed, setIsCollapsed, onOpenCreatePlayl
       ) : (
         <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
           <button
-            onClick={onOpenCreatePlaylist}
+            onClick={() => {
+              if (onOpenCreatePlaylist) onOpenCreatePlaylist();
+              if (onNavigate) onNavigate();
+            }}
             style={{
               width: '100%',
               display: 'flex',

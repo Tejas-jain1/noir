@@ -74,33 +74,60 @@ export default function MusicPlayer({ onOpenQueue }) {
 
   return (
     <footer
+      className="music-player-grid"
       style={{
-        height: 'var(--player-height)',
         backgroundColor: 'var(--bg-secondary)',
         borderTop: '1px solid var(--border-subtle)',
-        display: 'grid',
-        gridTemplateColumns: 'minmax(200px, 1fr) minmax(280px, 2fr) minmax(200px, 1fr)',
-        alignItems: 'center',
-        padding: '0 24px',
         position: 'relative',
         zIndex: 30,
         boxShadow: 'var(--shadow-player)',
         userSelect: 'none'
       }}
-      className="music-player-grid"
     >
-      {/* 1. Track Info (Left) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, overflow: 'hidden' }}>
+      {/* Slim progress bar line at top for mobile mini-player */}
+      <div 
+        className="mobile-only"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2.5px',
+          backgroundColor: 'var(--border-subtle)',
+          overflow: 'hidden'
+        }}
+      >
         <div
-          onClick={() => setIsMobilePlayerOpen(true)}
+          style={{
+            height: '100%',
+            width: `${progressPercent}%`,
+            backgroundColor: 'var(--accent-solid)',
+            transition: 'width 0.2s linear'
+          }}
+        />
+      </div>
+
+      {/* 1. Track Info (Left on Desktop, Left on Mobile) */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px', 
+          minWidth: 0, 
+          overflow: 'hidden',
+          flex: 1,
+          cursor: 'pointer'
+        }}
+        onClick={() => setIsMobilePlayerOpen(true)}
+      >
+        <div
           style={{
             position: 'relative',
-            width: '56px',
-            height: '56px',
-            borderRadius: 'var(--radius-md)',
+            width: '44px',
+            height: '44px',
+            borderRadius: 'var(--radius-sm)',
             overflow: 'hidden',
             flexShrink: 0,
-            cursor: 'pointer',
             backgroundColor: 'var(--bg-surface)'
           }}
           title="Click to view full player"
@@ -126,22 +153,20 @@ export default function MusicPlayer({ onOpenQueue }) {
                 color: '#ffffff'
               }}
             >
-              <Loader2 size={20} className="brand-logo-spin" />
+              <Loader2 size={16} className="brand-logo-spin" />
             </div>
           )}
         </div>
 
-        <div style={{ minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ minWidth: 0, overflow: 'hidden', flex: 1 }}>
           <div
-            onClick={() => setIsMobilePlayerOpen(true)}
             style={{
               fontWeight: 600,
-              fontSize: '0.875rem',
+              fontSize: '0.85rem',
               color: 'var(--text-primary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              cursor: 'pointer'
+              textOverflow: 'ellipsis'
             }}
             title={currentTrack.title}
           >
@@ -149,7 +174,7 @@ export default function MusicPlayer({ onOpenQueue }) {
           </div>
           <div
             style={{
-              fontSize: '0.75rem',
+              fontSize: '0.725rem',
               color: 'var(--text-secondary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -161,9 +186,13 @@ export default function MusicPlayer({ onOpenQueue }) {
           </div>
         </div>
 
-        {/* Like Heart */}
+        {/* Desktop Like Heart */}
         <button
-          onClick={() => toggleLike(currentTrack)}
+          className="desktop-only"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleLike(currentTrack);
+          }}
           style={{
             color: liked ? 'var(--text-primary)' : 'var(--text-muted)',
             padding: '6px',
@@ -180,8 +209,83 @@ export default function MusicPlayer({ onOpenQueue }) {
         </button>
       </div>
 
-      {/* 2. Controls & Scrubber (Center) */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', maxWidth: '640px', margin: '0 auto', width: '100%' }}>
+      {/* Mobile Mini-Player Action Controls (Right on Mobile only) */}
+      <div 
+        className="mobile-only"
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px',
+          flexShrink: 0
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Like Button */}
+        <button
+          onClick={() => toggleLike(currentTrack)}
+          style={{
+            color: liked ? 'var(--text-primary)' : 'var(--text-muted)',
+            padding: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          title={liked ? 'Unlike' : 'Like'}
+        >
+          <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
+        </button>
+
+        {/* Play / Pause Button */}
+        <button
+          onClick={togglePlay}
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '50%',
+            backgroundColor: 'var(--accent-solid)',
+            color: 'var(--accent-text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+          title={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? (
+            <Pause size={18} fill="currentColor" />
+          ) : (
+            <Play size={18} fill="currentColor" style={{ marginLeft: '2px' }} />
+          )}
+        </button>
+
+        {/* Next Track Button */}
+        <button
+          onClick={nextTrack}
+          style={{
+            color: 'var(--text-primary)',
+            padding: '8px',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          title="Next Track"
+        >
+          <SkipForward size={18} />
+        </button>
+      </div>
+
+      {/* 2. Controls & Scrubber (Center on Desktop) */}
+      <div 
+        className="desktop-only"
+        style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          gap: '6px', 
+          maxWidth: '640px', 
+          margin: '0 auto', 
+          width: '100%' 
+        }}
+      >
         {/* Playback Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
           {/* Shuffle Button */}
@@ -345,8 +449,16 @@ export default function MusicPlayer({ onOpenQueue }) {
         </div>
       </div>
 
-      {/* 3. Extras & Volume (Right) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '14px' }}>
+      {/* 3. Extras & Volume (Right on Desktop) */}
+      <div 
+        className="desktop-only"
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'flex-end', 
+          gap: '14px' 
+        }}
+      >
         {/* Equalizer Visualizer Indicator */}
         <div className={`audio-visualizer ${isPlaying ? 'is-playing' : ''}`} style={{ marginRight: '6px' }} title="Frequency visualizer">
           <span />
@@ -386,7 +498,7 @@ export default function MusicPlayer({ onOpenQueue }) {
         </button>
 
         {/* Volume Controls */}
-        <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={toggleMute}
             style={{
@@ -420,7 +532,7 @@ export default function MusicPlayer({ onOpenQueue }) {
           />
         </div>
 
-        {/* Mobile Fullscreen Expander */}
+        {/* Fullscreen Expander */}
         <button
           onClick={() => setIsMobilePlayerOpen(true)}
           style={{
