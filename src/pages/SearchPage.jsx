@@ -194,10 +194,11 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Top Result Card (if there is a query) */}
           {query.trim() && topResult && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+            <div className="search-top-result-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
               <div>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>Top Result</h3>
                 <div
+                  className="search-top-result-card"
                   onClick={() => {
                     if (currentTrack?.id === topResult.id) togglePlay();
                     else playTrack(topResult, results);

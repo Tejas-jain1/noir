@@ -31,7 +31,7 @@ export default function Explore({ onOpenAddToPlaylist }) {
       </div>
 
       {/* Mood Showcase Banners */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+      <div className="explore-moods-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
         {MOODS.map((mood, idx) => (
           <div
             key={mood.name}
@@ -66,8 +66,8 @@ export default function Explore({ onOpenAddToPlaylist }) {
       </div>
 
       {/* Genre Filter Pills */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '6px', scrollbarWidth: 'none' }}>
+      <div style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}>
+        <div className="explore-pills-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '6px', scrollbarWidth: 'none', width: '100%', maxWidth: '100%', minWidth: 0 }}>
           {EXPLORE_GENRES.map(genre => {
             const isActive = selectedGenre === genre.id;
             return (

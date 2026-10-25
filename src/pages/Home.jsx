@@ -71,7 +71,7 @@ export default function Home({ onOpenAddToPlaylist }) {
             {heroTrack.artist} • {heroTrack.album || 'Featured Single'}
           </p>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+          <div className="hero-spotlight-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
             <button
               onClick={() => {
                 if (currentTrack?.id === heroTrack.id) togglePlay();
@@ -226,6 +226,7 @@ export default function Home({ onOpenAddToPlaylist }) {
         </div>
 
         <div
+          className="artists-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
@@ -235,6 +236,7 @@ export default function Home({ onOpenAddToPlaylist }) {
           {POPULAR_ARTISTS.map((artist) => (
             <div
               key={artist.id}
+              className="artist-card"
               onClick={() => navigate(`/search?q=${encodeURIComponent(artist.name)}`)}
               style={{
                 backgroundColor: 'var(--bg-card)',

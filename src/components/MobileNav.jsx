@@ -17,7 +17,7 @@ export default function MobileNav() {
 
   return (
     <nav
-      className="mobile-only"
+      className="mobile-only mobile-bottom-nav"
       style={{
         height: 'var(--mobile-nav-height)',
         backgroundColor: 'var(--bg-secondary)',

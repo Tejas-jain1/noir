@@ -69,7 +69,7 @@ export default function LikedSongs({ onOpenAddToPlaylist }) {
           <Heart size={64} fill="currentColor" />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="playlist-header-content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
             Playlist
           </span>

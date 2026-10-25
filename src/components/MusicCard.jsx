@@ -24,6 +24,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist }) {
 
   return (
     <div
+      className="music-card"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);

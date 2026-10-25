@@ -121,6 +121,7 @@ export default function MusicPlayer({ onOpenQueue }) {
         onClick={() => setIsMobilePlayerOpen(true)}
       >
         <div
+          className="mini-player-art"
           style={{
             position: 'relative',
             width: '44px',
@@ -211,7 +212,7 @@ export default function MusicPlayer({ onOpenQueue }) {
 
       {/* Mobile Mini-Player Action Controls (Right on Mobile only) */}
       <div 
-        className="mobile-only"
+        className="mobile-only mini-player-actions"
         style={{ 
           display: 'flex', 
           alignItems: 'center', 

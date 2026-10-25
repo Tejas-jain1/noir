@@ -114,7 +114,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
           <Music2 size={64} />
         </div>
 
-        <div style={{ flex: 1, minWidth: '240px' }}>
+        <div className="playlist-header-content" style={{ flex: 1, minWidth: '240px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
             Playlist
           </span>

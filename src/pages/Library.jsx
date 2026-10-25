@@ -65,7 +65,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
 
       {/* Grid */}
       <div
-        className="mobile-cards-grid"
+        className="mobile-cards-grid library-cards-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
@@ -75,6 +75,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
         {/* Liked Songs Special Card */}
         {(filter === 'all' || filter === 'liked') && (
           <div
+            className="library-card"
             onClick={() => navigate('/liked')}
             style={{
               padding: '20px',
@@ -123,6 +124,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
           return (
             <div
               key={pl.id}
+              className="library-card"
               onClick={() => navigate(`/playlist/${pl.id}`)}
               style={{
                 padding: '18px',

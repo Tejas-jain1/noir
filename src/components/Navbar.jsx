@@ -156,6 +156,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu }) {
         />
         <input
           type="text"
+          className="navbar-search-input"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search songs, artists..."

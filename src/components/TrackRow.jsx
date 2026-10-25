@@ -155,7 +155,7 @@ export default function TrackRow({
           <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
         </button>
 
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
+        <span className="track-duration-text" style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums' }}>
           {track.durationFormatted || '3:30'}
         </span>
       </div>
