@@ -29,7 +29,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Page container standard padding */
+/* Page container standard layout */
 .page-container {
   padding: 24px 32px 100px;
   display: flex;
@@ -43,6 +43,13 @@
 /* Spin logo animation */
 .brand-logo-spin {
   animation: spin 8s linear infinite;
+}
+
+/* Default Cards Grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
 }
 
 /* Track Row Grid */
@@ -72,7 +79,18 @@
   gap: 12px;
 }
 
-/* Desktop styles */
+/* Music Player Layout on Desktop */
+.music-player-grid {
+  height: 90px;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(280px, 2fr) minmax(200px, 1fr);
+  align-items: center;
+  padding: 0 24px;
+}
+
+/* ==========================================================================
+   DESKTOP ONLY (Width > 768px)
+   ========================================================================== */
 @media (min-width: 769px) {
   .mobile-only {
     display: none !important;
@@ -87,50 +105,85 @@
   }
 }
 
-/* Mobile & Tablet Refinements (< 768px) */
+/* ==========================================================================
+   MOBILE & TABLET ONLY (Width <= 768px)
+   ========================================================================== */
 @media (max-width: 768px) {
-  .desktop-only {
-    display: none !important;
-  }
-  
-  .mobile-only {
-    display: flex !important;
-  }
-
-  /* Hide only desktop sidebar; allow mobile drawer sidebar */
+  .desktop-only,
   .desktop-sidebar {
     display: none !important;
   }
 
-  /* Content bottom padding so floating mini-player & bottom nav don't block content */
+  /* Make sure mobile elements are not blocked */
+  .mobile-sidebar {
+    display: flex !important;
+  }
+
+  /* Scrollable padding so content is NEVER blocked by bottom player + nav */
+  .content-scrollable {
+    padding-bottom: 130px !important;
+  }
+
   .page-container {
-    padding: 16px 14px 148px !important;
+    padding: 16px 14px 140px !important;
     gap: 24px !important;
   }
 
-  /* Track Row: Compact 4-column layout fitting all phone viewports */
-  .track-row-grid {
-    grid-template-columns: 28px minmax(0, 1fr) auto auto !important;
-    padding: 8px 8px !important;
-    gap: 8px !important;
+  /* Fixed Mobile Mini-Player (floats permanently above bottom nav) */
+  .music-player-grid {
+    position: fixed !important;
+    bottom: 60px !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    justifyContent: space-between !important;
+    padding: 0 12px !important;
+    background-color: var(--bg-surface) !important;
+    border-top: 1px solid var(--border-medium) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.45) !important;
+    z-index: 40 !important;
   }
 
-  .track-table-header {
-    grid-template-columns: 28px minmax(0, 1fr) auto auto !important;
-    padding: 8px 8px !important;
-    gap: 8px !important;
+  /* Fixed Mobile Bottom Navigation Bar (floats at very bottom) */
+  .mobile-nav-bar {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 60px !important;
+    background-color: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-subtle) !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+    align-items: center !important;
+    z-index: 50 !important;
   }
 
-  /* Responsive Cards Grid */
-  .mobile-cards-grid {
+  /* Compact 2-column cards grid on phones */
+  .cards-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 12px !important;
   }
 
+  /* Track Row: Compact 4-column layout fitting phone screens cleanly */
+  .track-row-grid {
+    grid-template-columns: 26px minmax(0, 1fr) auto auto !important;
+    padding: 6px 6px !important;
+    gap: 8px !important;
+  }
+
+  .track-table-header {
+    grid-template-columns: 26px minmax(0, 1fr) auto auto !important;
+    padding: 6px 6px !important;
+    gap: 8px !important;
+  }
+
   /* Compact Navbar on Mobile */
   .navbar-header {
-    height: 60px !important;
-    padding: 0 14px !important;
+    height: 56px !important;
+    padding: 0 12px !important;
     gap: 10px !important;
   }
 
@@ -140,42 +193,32 @@
   }
 
   .hero-spotlight-content {
-    padding: 24px 20px !important;
+    padding: 20px 16px !important;
     gap: 12px !important;
   }
 
   .hero-spotlight-img {
-    height: 180px !important;
-    min-height: 180px !important;
+    height: 160px !important;
+    min-height: 160px !important;
   }
 
   /* Responsive Playlist / Liked Header Banner */
   .playlist-header-banner {
-    padding: 20px 16px !important;
-    gap: 16px !important;
+    padding: 20px 14px !important;
+    gap: 14px !important;
     flex-direction: column !important;
     align-items: center !important;
     text-align: center !important;
   }
 
   .playlist-header-artwork {
-    width: 100px !important;
-    height: 100px !important;
+    width: 90px !important;
+    height: 90px !important;
   }
 
   .playlist-header-artwork svg {
-    width: 44px !important;
-    height: 44px !important;
-  }
-
-  /* Mobile Mini Player Layout */
-  .music-player-grid {
-    height: 64px !important;
-    display: flex !important;
-    align-items: center !important;
-    justifyContent: space-between !important;
-    padding: 0 12px !important;
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25) !important;
+    width: 40px !important;
+    height: 40px !important;
   }
 }
 

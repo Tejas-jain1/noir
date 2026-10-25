@@ -153,14 +153,7 @@ export default function Home({ onOpenAddToPlaylist }) {
             </button>
           </div>
 
-          <div
-            className="mobile-cards-grid"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '16px'
-            }}
-          >
+          <div className="cards-grid">
             {recentlyPlayed.slice(0, 5).map((track) => (
               <MusicCard
                 key={track.id}
@@ -193,14 +186,7 @@ export default function Home({ onOpenAddToPlaylist }) {
           </button>
         </div>
 
-        <div
-          className="mobile-cards-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '16px'
-          }}
-        >
+        <div className="cards-grid">
           {(trendingTracks.length > 0 ? trendingTracks : MOCK_TRACKS).slice(0, 10).map((track) => (
             <MusicCard
               key={track.id}
@@ -286,14 +272,7 @@ export default function Home({ onOpenAddToPlaylist }) {
           </div>
         </div>
 
-        <div
-          className="mobile-cards-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '16px'
-          }}
-        >
+        <div className="cards-grid">
           {MOCK_TRACKS.slice(6, 14).map((track) => (
             <MusicCard
               key={track.id}

@@ -64,14 +64,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
       </div>
 
       {/* Grid */}
-      <div
-        className="mobile-cards-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '16px'
-        }}
-      >
+      <div className="cards-grid">
         {/* Liked Songs Special Card */}
         {(filter === 'all' || filter === 'liked') && (
           <div

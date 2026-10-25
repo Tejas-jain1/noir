@@ -104,14 +104,7 @@ export default function Explore({ onOpenAddToPlaylist }) {
           </span>
         </div>
 
-        <div
-          className="mobile-cards-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '16px'
-          }}
-        >
+        <div className="cards-grid">
           {filteredTracks.map(track => (
             <MusicCard
               key={track.id}
