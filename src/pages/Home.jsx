@@ -237,7 +237,7 @@ export default function Home({ onOpenAddToPlaylist }) {
             <div
               key={artist.id}
               className="artist-card"
-              onClick={() => navigate(`/search?q=${encodeURIComponent(artist.name)}`)}
+              onClick={() => navigate(`/artist/${encodeURIComponent(artist.name)}`)}
               style={{
                 backgroundColor: 'var(--bg-card)',
                 borderRadius: 'var(--radius-lg)',

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
-import { Play, Pause, Heart, MoreVertical, ListPlus, FolderPlus } from 'lucide-react';
+import { Play, Pause, Heart, MoreVertical, ListPlus, FolderPlus, User, Disc } from 'lucide-react';
 
 export default function MusicCard({ track, onOpenAddToPlaylist }) {
+  const navigate = useNavigate();
   const { currentTrack, isPlaying, playTrack, togglePlay, addToQueue } = usePlayer();
   const { isLiked, toggleLike } = useLibrary();
 
@@ -245,19 +247,67 @@ export default function MusicCard({ track, onOpenAddToPlaylist }) {
                   <Heart size={15} fill={liked ? 'currentColor' : 'none'} />
                   <span>{liked ? 'Unlike' : 'Like'}</span>
                 </button>
+
+                <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', margin: '4px 0' }} />
+
+                <button
+                  onClick={() => {
+                    navigate(`/artist/${encodeURIComponent(track.artist)}`);
+                    setShowMenu(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-primary)',
+                    textAlign: 'left'
+                  }}
+                >
+                  <User size={15} />
+                  <span>View Artist</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const albumId = track.album ? track.album.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'featured';
+                    navigate(`/album/${albumId}`);
+                    setShowMenu(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.8rem',
+                    color: 'var(--text-primary)',
+                    textAlign: 'left'
+                  }}
+                >
+                  <Disc size={15} />
+                  <span>View Album</span>
+                </button>
               </div>
             )}
           </div>
         </div>
 
         <p
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/artist/${encodeURIComponent(track.artist)}`);
+          }}
           style={{
             fontSize: '0.8rem',
             color: 'var(--text-secondary)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            margin: 0
+            margin: 0,
+            cursor: 'pointer'
           }}
           title={track.artist}
         >

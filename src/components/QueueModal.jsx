@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
-import { X, Trash2, Play, ListX } from 'lucide-react';
+import { X, Trash2, Play, ListX, ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function QueueModal({ isOpen, onClose }) {
   const { 
@@ -10,6 +10,7 @@ export default function QueueModal({ isOpen, onClose }) {
     playTrack, 
     removeFromQueue, 
     clearQueue,
+    reorderQueue,
     isPlaying 
   } = usePlayer();
 
@@ -254,19 +255,53 @@ export default function QueueModal({ isOpen, onClose }) {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => removeFromQueue(idx)}
-                        style={{
-                          color: 'var(--text-muted)',
-                          padding: '6px',
-                          borderRadius: '4px',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                        title="Remove from queue"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <button
+                          onClick={() => idx > 0 && reorderQueue(idx, idx - 1)}
+                          disabled={idx === 0}
+                          style={{
+                            color: idx === 0 ? 'var(--border-subtle)' : 'var(--text-muted)',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: idx === 0 ? 'default' : 'pointer'
+                          }}
+                          title="Move up"
+                        >
+                          <ChevronUp size={15} />
+                        </button>
+
+                        <button
+                          onClick={() => idx < queue.length - 1 && reorderQueue(idx, idx + 1)}
+                          disabled={idx === queue.length - 1}
+                          style={{
+                            color: idx === queue.length - 1 ? 'var(--border-subtle)' : 'var(--text-muted)',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: idx === queue.length - 1 ? 'default' : 'pointer'
+                          }}
+                          title="Move down"
+                        >
+                          <ChevronDown size={15} />
+                        </button>
+
+                        <button
+                          onClick={() => removeFromQueue(idx)}
+                          style={{
+                            color: 'var(--text-muted)',
+                            padding: '6px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                          title="Remove from queue"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

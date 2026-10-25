@@ -1,6 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useLibrary } from './LibraryContext';
 import { MOCK_TRACKS } from '../services/mockCatalog';
+import { 
+  updateMediaSessionMetadata, 
+  setMediaSessionActionHandlers, 
+  setMediaSessionPlaybackState, 
+  updateMediaSessionPositionState 
+} from '../services/mediaSession';
+import { useWakeLock } from '../hooks/useWakeLock';
+import { fetchLyricsForTrack, findCurrentLyricIndex } from '../services/lyricsService';
+import { supabaseService } from '../services/supabaseClient';
+import { offlineStorage } from '../services/offlineStorage';
 
 const PlayerContext = createContext();
 
@@ -26,22 +36,65 @@ export function PlayerProvider({ children }) {
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [shuffle, setShuffle] = useState(false);
+  const [preShuffleQueue, setPreShuffleQueue] = useState(null);
   const [repeatMode, setRepeatMode] = useState('all'); // 'off' | 'all' | 'one'
   const [queue, setQueue] = useState(() => MOCK_TRACKS.slice(0, 10));
   const [queueIndex, setQueueIndex] = useState(0);
   const [isVideoVisible, setIsVideoVisible] = useState(false);
   const [isMobilePlayerOpen, setIsMobilePlayerOpen] = useState(false);
 
+  // Synchronized Lyrics State
+  const [lyricsData, setLyricsData] = useState(null);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
+
+  // Screen Wake Lock Hook during active playback
+  useWakeLock(isPlaying);
+
   // References
   const ytPlayerRef = useRef(null);
   const progressTimerRef = useRef(null);
-  const stateRef = useRef({ currentTrack, queue, queueIndex, repeatMode, shuffle });
+  const stateRef = useRef({ currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue });
   const nextTrackRef = useRef(null);
+  const prevTrackRef = useRef(null);
+  const seekToRef = useRef(null);
 
   // Keep stateRef updated for callbacks
   useEffect(() => {
-    stateRef.current = { currentTrack, queue, queueIndex, repeatMode, shuffle };
-  }, [currentTrack, queue, queueIndex, repeatMode, shuffle]);
+    stateRef.current = { currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue };
+  }, [currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue]);
+
+  // Load lyrics whenever currentTrack changes
+  useEffect(() => {
+    if (!currentTrack) {
+      setLyricsData(null);
+      return;
+    }
+
+    let isMounted = true;
+    setLyricsLoading(true);
+
+    fetchLyricsForTrack(currentTrack.title, currentTrack.artist, currentTrack.duration)
+      .then((res) => {
+        if (isMounted) {
+          setLyricsData(res.success ? res.lyrics : null);
+          setLyricsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setLyricsData(null);
+          setLyricsLoading(false);
+        }
+      });
+
+    return () => { isMounted = false; };
+  }, [currentTrack?.id, currentTrack?.title, currentTrack?.artist, currentTrack?.duration]);
+
+  // Calculate active synchronized lyric line via binary search
+  const activeLyricIndex = lyricsData?.syncedLyrics
+    ? findCurrentLyricIndex(lyricsData.syncedLyrics, currentTime)
+    : -1;
 
   // Core Play Track Function
   const playTrack = useCallback((track, newQueue = null) => {
@@ -52,8 +105,16 @@ export function PlayerProvider({ children }) {
     setDuration(track.duration || 200);
     addToRecent(track);
 
+    // Record listening history to Supabase (if signed in) or IndexedDB
+    supabaseService.getCurrentUser().then((user) => {
+      if (user) {
+        supabaseService.recordHistory(track, user.id);
+      }
+    });
+
     if (newQueue && Array.isArray(newQueue)) {
       setQueue(newQueue);
+      setPreShuffleQueue(null);
       const index = newQueue.findIndex(t => t.id === track.id);
       setQueueIndex(index !== -1 ? index : 0);
     } else {
@@ -83,24 +144,16 @@ export function PlayerProvider({ children }) {
 
   // Next Track Logic
   const nextTrack = useCallback(() => {
-    const { queue, queueIndex, shuffle, repeatMode } = stateRef.current;
+    const { queue, queueIndex, repeatMode } = stateRef.current;
     if (!queue || queue.length === 0) return;
 
-    let nextIndex;
-    if (shuffle) {
-      nextIndex = Math.floor(Math.random() * queue.length);
-      if (queue.length > 1 && nextIndex === queueIndex) {
-        nextIndex = (nextIndex + 1) % queue.length;
-      }
-    } else {
-      nextIndex = queueIndex + 1;
-      if (nextIndex >= queue.length) {
-        if (repeatMode === 'all') {
-          nextIndex = 0;
-        } else {
-          setIsPlaying(false);
-          return;
-        }
+    let nextIndex = queueIndex + 1;
+    if (nextIndex >= queue.length) {
+      if (repeatMode === 'all') {
+        nextIndex = 0;
+      } else {
+        setIsPlaying(false);
+        return;
       }
     }
 
@@ -111,10 +164,79 @@ export function PlayerProvider({ children }) {
     }
   }, [playTrack]);
 
-  // Keep nextTrackRef updated
+  // Seek Function
+  const seekTo = useCallback((seconds) => {
+    setCurrentTime(seconds);
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+      try {
+        ytPlayerRef.current.seekTo(seconds, true);
+      } catch (e) {
+        console.error('Error seeking:', e);
+      }
+    }
+    updateMediaSessionPositionState({ duration, position: seconds });
+  }, [duration]);
+
+  // Previous Track
+  const prevTrack = useCallback(() => {
+    if (currentTime > 3) {
+      seekTo(0);
+      return;
+    }
+
+    const { queue, queueIndex } = stateRef.current;
+    if (!queue || queue.length === 0) return;
+
+    let prevIndex = queueIndex - 1;
+    if (prevIndex < 0) {
+      prevIndex = queue.length - 1;
+    }
+
+    const prev = queue[prevIndex];
+    if (prev) {
+      setQueueIndex(prevIndex);
+      playTrack(prev);
+    }
+  }, [currentTime, playTrack, seekTo]);
+
+  // Keep refs updated for event listeners & Media Session
   useEffect(() => {
     nextTrackRef.current = nextTrack;
-  }, [nextTrack]);
+    prevTrackRef.current = prevTrack;
+    seekToRef.current = seekTo;
+  }, [nextTrack, prevTrack, seekTo]);
+
+  // Media Session API Setup
+  useEffect(() => {
+    if (currentTrack) {
+      updateMediaSessionMetadata(currentTrack);
+      setMediaSessionActionHandlers({
+        play: () => togglePlay(),
+        pause: () => pause(),
+        previousTrack: () => prevTrackRef.current && prevTrackRef.current(),
+        nextTrack: () => nextTrackRef.current && nextTrackRef.current(),
+        seekTo: (details) => {
+          if (details.seekTime !== undefined && seekToRef.current) {
+            seekToRef.current(details.seekTime);
+          }
+        },
+        seekBackward: (details) => {
+          const offset = details.seekOffset || 10;
+          if (seekToRef.current) seekToRef.current(Math.max(0, currentTime - offset));
+        },
+        seekForward: (details) => {
+          const offset = details.seekOffset || 10;
+          if (seekToRef.current) seekToRef.current(Math.min(duration, currentTime + offset));
+        }
+      });
+    }
+  }, [currentTrack]);
+
+  // Update Media Session Playback State
+  useEffect(() => {
+    setMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
+    updateMediaSessionPositionState({ duration, position: currentTime });
+  }, [isPlaying, duration, currentTime]);
 
   // YouTube Player Event Handlers
   const handleTrackEnded = useCallback(() => {
@@ -277,38 +399,6 @@ export function PlayerProvider({ children }) {
     setIsPlaying(false);
   }, []);
 
-  const seekTo = useCallback((seconds) => {
-    setCurrentTime(seconds);
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
-      try {
-        ytPlayerRef.current.seekTo(seconds, true);
-      } catch (e) {
-        console.error('Error seeking:', e);
-      }
-    }
-  }, []);
-
-  const prevTrack = useCallback(() => {
-    if (currentTime > 3) {
-      seekTo(0);
-      return;
-    }
-
-    const { queue, queueIndex } = stateRef.current;
-    if (!queue || queue.length === 0) return;
-
-    let prevIndex = queueIndex - 1;
-    if (prevIndex < 0) {
-      prevIndex = queue.length - 1;
-    }
-
-    const prev = queue[prevIndex];
-    if (prev) {
-      setQueueIndex(prevIndex);
-      playTrack(prev);
-    }
-  }, [currentTime, playTrack, seekTo]);
-
   const setVolumeLevel = useCallback((val) => {
     const level = Math.max(0, Math.min(100, Number(val)));
     setVolume(level);
@@ -341,13 +431,39 @@ export function PlayerProvider({ children }) {
     }
   }, [isMuted, volume]);
 
+  // Fisher-Yates shuffle with pre-shuffle restoration
   const toggleShuffle = useCallback(() => {
-    setShuffle(prev => {
-      const next = !prev;
-      showToast(next ? 'Shuffle enabled' : 'Shuffle disabled', 'info');
-      return next;
+    setShuffle((prev) => {
+      const willShuffle = !prev;
+      if (willShuffle) {
+        // Save current queue order snapshot
+        setPreShuffleQueue([...queue]);
+        // Shuffle queue keeping currently playing track at top
+        const remaining = queue.filter((_, i) => i !== queueIndex);
+        for (let i = remaining.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const temp = remaining[i];
+          remaining[i] = remaining[j];
+          remaining[j] = temp;
+        }
+        const newQueue = currentTrack ? [currentTrack, ...remaining] : remaining;
+        setQueue(newQueue);
+        setQueueIndex(0);
+        showToast('Shuffle enabled', 'info');
+      } else {
+        // Restore pre-shuffle queue order
+        if (preShuffleQueue && preShuffleQueue.length > 0) {
+          const currentId = currentTrack?.id;
+          const restoredIndex = preShuffleQueue.findIndex(t => t.id === currentId);
+          setQueue(preShuffleQueue);
+          setQueueIndex(restoredIndex !== -1 ? restoredIndex : 0);
+          setPreShuffleQueue(null);
+        }
+        showToast('Shuffle disabled', 'info');
+      }
+      return willShuffle;
     });
-  }, [showToast]);
+  }, [queue, queueIndex, currentTrack, preShuffleQueue, showToast]);
 
   const cycleRepeat = useCallback(() => {
     setRepeatMode(prev => {
@@ -389,6 +505,15 @@ export function PlayerProvider({ children }) {
     showToast('Queue cleared', 'info');
   }, [currentTrack, showToast]);
 
+  const reorderQueue = useCallback((fromIndex, toIndex) => {
+    setQueue((prev) => {
+      const copy = [...prev];
+      const [moved] = copy.splice(fromIndex, 1);
+      copy.splice(toIndex, 0, moved);
+      return copy;
+    });
+  }, []);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -407,6 +532,11 @@ export function PlayerProvider({ children }) {
         setIsVideoVisible,
         isMobilePlayerOpen,
         setIsMobilePlayerOpen,
+        lyricsData,
+        lyricsLoading,
+        showLyrics,
+        setShowLyrics,
+        activeLyricIndex,
         playTrack,
         togglePlay,
         pause,
@@ -419,7 +549,8 @@ export function PlayerProvider({ children }) {
         cycleRepeat,
         addToQueue,
         removeFromQueue,
-        clearQueue
+        clearQueue,
+        reorderQueue
       }}
     >
       {children}

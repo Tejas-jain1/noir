@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { formatTime } from '../services/youtubeApi';
@@ -15,7 +15,10 @@ import {
   Volume2,
   VolumeX,
   Tv,
-  Share2
+  Share2,
+  Mic2,
+  Music2,
+  Loader2
 } from 'lucide-react';
 
 export default function FullscreenPlayer() {
@@ -39,10 +42,27 @@ export default function FullscreenPlayer() {
     isMobilePlayerOpen,
     setIsMobilePlayerOpen,
     isVideoVisible,
-    setIsVideoVisible
+    setIsVideoVisible,
+    lyricsData,
+    lyricsLoading,
+    showLyrics,
+    setShowLyrics,
+    activeLyricIndex
   } = usePlayer();
 
   const { isLiked, toggleLike, showToast } = useLibrary();
+  const lyricsContainerRef = useRef(null);
+  const activeLineRef = useRef(null);
+
+  // Auto-scroll to active lyric line
+  useEffect(() => {
+    if (showLyrics && activeLineRef.current && lyricsContainerRef.current) {
+      activeLineRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [activeLyricIndex, showLyrics]);
 
   if (!isMobilePlayerOpen || !currentTrack) return null;
 
@@ -55,6 +75,8 @@ export default function FullscreenPlayer() {
       showToast('Track link copied to clipboard!', 'success');
     }
   };
+
+  const hasSyncedLyrics = lyricsData?.syncedLyrics && lyricsData.syncedLyrics.length > 0;
 
   return (
     <div
@@ -102,26 +124,46 @@ export default function FullscreenPlayer() {
             Playing From
           </span>
           <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>
-            {currentTrack.album || 'Noir Soundscape'}
+            {currentTrack.album || 'NOIR Soundscape'}
           </div>
         </div>
 
-        <button
-          onClick={handleShare}
-          style={{
-            color: 'var(--text-secondary)',
-            padding: '8px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          title="Share song"
-        >
-          <Share2 size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setShowLyrics(!showLyrics)}
+            style={{
+              color: showLyrics ? 'var(--accent-solid)' : 'var(--text-secondary)',
+              padding: '8px',
+              borderRadius: '50%',
+              backgroundColor: showLyrics ? 'var(--accent-subtle)' : 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all var(--transition-fast)'
+            }}
+            title={showLyrics ? 'Show Artwork' : 'Show Synchronized Lyrics'}
+          >
+            <Mic2 size={18} />
+          </button>
+
+          <button
+            onClick={handleShare}
+            style={{
+              color: 'var(--text-secondary)',
+              padding: '8px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Share song"
+          >
+            <Share2 size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Main Body */}
@@ -131,71 +173,136 @@ export default function FullscreenPlayer() {
           maxWidth: '520px',
           width: '100%',
           margin: '0 auto',
-          padding: '24px 24px 40px',
+          padding: '24px 20px 40px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          gap: '28px'
+          gap: '24px',
+          boxBox: 'border-box'
         }}
       >
-        {/* Large Cover Art with Vinyl Record effect */}
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '360px',
-            maxHeight: 'min(42vh, 360px)',
-            aspectRatio: '1/1',
-            margin: '0 auto',
-            borderRadius: 'var(--radius-xl)',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-lg)',
-            position: 'relative',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-medium)'
-          }}
-        >
-          <img
-            src={currentTrack.thumbnail}
-            alt={currentTrack.title}
+        {/* Center: Flip between Cover Art and Synchronized Lyrics */}
+        {showLyrics ? (
+          <div
+            ref={lyricsContainerRef}
             style={{
               width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }}
-          />
-
-          {/* Overlay Visualizer */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '16px',
-              left: '16px',
-              backgroundColor: 'rgba(0, 0, 0, 0.75)',
-              backdropFilter: 'blur(8px)',
-              padding: '8px 12px',
-              borderRadius: 'var(--radius-full)',
+              height: 'min(44vh, 380px)',
+              margin: '0 auto',
+              borderRadius: 'var(--radius-xl)',
+              overflowY: 'auto',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-medium)',
+              padding: '28px 20px',
               display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
+              flexDirection: 'column',
+              gap: '20px',
+              boxShadow: 'var(--shadow-md)',
+              position: 'relative',
+              boxSizing: 'border-box'
             }}
           >
-            <div className={`audio-visualizer ${isPlaying ? 'is-playing' : ''}`}>
-              <span />
-              <span />
-              <span />
-            </div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ffffff' }}>
-              {isPlaying ? 'NOW PLAYING' : 'PAUSED'}
-            </span>
+            {lyricsLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: 'var(--text-muted)' }}>
+                <Loader2 size={24} className="brand-logo-spin" />
+                <span style={{ fontSize: '0.85rem' }}>Fetching synchronized lyrics...</span>
+              </div>
+            ) : hasSyncedLyrics ? (
+              lyricsData.syncedLyrics.map((line, idx) => {
+                const isActive = idx === activeLyricIndex;
+                return (
+                  <p
+                    key={`${line.time}-${idx}`}
+                    ref={isActive ? activeLineRef : null}
+                    onClick={() => seekTo(line.time)}
+                    style={{
+                      margin: 0,
+                      fontSize: isActive ? '1.25rem' : '0.95rem',
+                      fontWeight: isActive ? 800 : 500,
+                      color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                      opacity: isActive ? 1 : 0.6,
+                      cursor: 'pointer',
+                      transition: 'all 0.25s ease',
+                      lineHeight: 1.4,
+                      textAlign: 'center'
+                    }}
+                  >
+                    {line.text}
+                  </p>
+                );
+              })
+            ) : lyricsData?.plainLyrics ? (
+              <div style={{ textAlign: 'center', whiteSpace: 'pre-line', fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+                {lyricsData.plainLyrics}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                <Music2 size={36} strokeWidth={1.5} />
+                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>No synchronized lyrics available</p>
+                <span style={{ fontSize: '0.75rem', maxWidth: '280px' }}>Lyrics are sourced from the global open LRCLIB database.</span>
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          /* Large Cover Art with Vinyl Record effect */
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '360px',
+              maxHeight: 'min(42vh, 360px)',
+              aspectRatio: '1/1',
+              margin: '0 auto',
+              borderRadius: 'var(--radius-xl)',
+              overflow: 'hidden',
+              boxShadow: 'var(--shadow-lg)',
+              position: 'relative',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-medium)'
+            }}
+          >
+            <img
+              src={currentTrack.thumbnail}
+              alt={currentTrack.title}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+
+            {/* Overlay Visualizer */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '16px',
+                left: '16px',
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(8px)',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-full)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <div className={`audio-visualizer ${isPlaying ? 'is-playing' : ''}`}>
+                <span />
+                <span />
+                <span />
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ffffff' }}>
+                {isPlaying ? 'NOW PLAYING' : 'PAUSED'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Track Info & Like */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-          <div style={{ overflow: 'hidden' }}>
+          <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
             <h2
               style={{
-                fontSize: '1.5rem',
+                fontSize: '1.4rem',
                 fontWeight: 800,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -208,7 +315,7 @@ export default function FullscreenPlayer() {
             </h2>
             <p
               style={{
-                fontSize: '1rem',
+                fontSize: '0.95rem',
                 color: 'var(--text-secondary)',
                 fontWeight: 500,
                 whiteSpace: 'nowrap',
@@ -259,7 +366,7 @@ export default function FullscreenPlayer() {
           </div>
         </div>
 
-        {/* Controls */}
+        {/* Playback Controls */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
           <button
             onClick={toggleShuffle}
@@ -269,6 +376,7 @@ export default function FullscreenPlayer() {
               display: 'flex',
               alignItems: 'center'
             }}
+            title={shuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
           >
             <Shuffle size={20} />
           </button>
@@ -281,6 +389,7 @@ export default function FullscreenPlayer() {
               display: 'flex',
               alignItems: 'center'
             }}
+            title="Previous Track"
           >
             <SkipBack size={26} />
           </button>
@@ -298,6 +407,7 @@ export default function FullscreenPlayer() {
               justifyContent: 'center',
               boxShadow: 'var(--shadow-md)'
             }}
+            title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
               <Pause size={28} fill="currentColor" />
@@ -314,6 +424,7 @@ export default function FullscreenPlayer() {
               display: 'flex',
               alignItems: 'center'
             }}
+            title="Next Track"
           >
             <SkipForward size={26} />
           </button>
@@ -326,39 +437,64 @@ export default function FullscreenPlayer() {
               display: 'flex',
               alignItems: 'center'
             }}
+            title={`Repeat mode: ${repeatMode}`}
           >
             {repeatMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
           </button>
         </div>
 
-        {/* Secondary controls: Video toggle & Volume */}
+        {/* Secondary controls: Lyrics toggle, Video toggle & Volume */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '14px 18px',
+            padding: '12px 16px',
             borderRadius: 'var(--radius-lg)',
             backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)'
+            border: '1px solid var(--border-subtle)',
+            gap: '12px'
           }}
         >
-          <button
-            onClick={() => setIsVideoVisible(!isVideoVisible)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              color: isVideoVisible ? 'var(--accent-solid)' : 'var(--text-secondary)',
-              fontSize: '0.85rem',
-              fontWeight: 600
-            }}
-          >
-            <Tv size={18} />
-            <span>{isVideoVisible ? 'Hide Video' : 'Watch Video'}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setShowLyrics(!showLyrics)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: showLyrics ? 'var(--accent-solid)' : 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: showLyrics ? 'var(--accent-subtle)' : 'transparent'
+              }}
+            >
+              <Mic2 size={16} />
+              <span>{showLyrics ? 'Artwork' : 'Lyrics'}</span>
+            </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setIsVideoVisible(!isVideoVisible)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: isVideoVisible ? 'var(--accent-solid)' : 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: isVideoVisible ? 'var(--accent-subtle)' : 'transparent'
+              }}
+            >
+              <Tv size={16} />
+              <span>{isVideoVisible ? 'Hide Video' : 'Video'}</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button onClick={toggleMute} style={{ color: 'var(--text-secondary)', display: 'flex' }}>
               {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
@@ -368,7 +504,7 @@ export default function FullscreenPlayer() {
               max={100}
               value={isMuted ? 0 : volume}
               onChange={(e) => setVolumeLevel(e.target.value)}
-              style={{ width: '90px' }}
+              style={{ width: '80px' }}
             />
           </div>
         </div>

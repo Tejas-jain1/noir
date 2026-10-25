@@ -23,6 +23,9 @@ import LibraryPage from './pages/Library';
 import LikedSongs from './pages/LikedSongs';
 import RecentlyPlayed from './pages/RecentlyPlayed';
 import PlaylistDetail from './pages/PlaylistDetail';
+import ArtistPage from './pages/ArtistPage';
+import AlbumPage from './pages/AlbumPage';
+import AuthModal from './components/AuthModal';
 
 import { X } from 'lucide-react';
 import './App.css';
@@ -33,6 +36,7 @@ function MainLayout() {
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
 
   const handleOpenAddToPlaylist = (track) => {
@@ -86,6 +90,7 @@ function MainLayout() {
         <Navbar
           onOpenSettings={() => setIsSettingsOpen(true)}
           onToggleMobileMenu={() => setIsMobileDrawerOpen(true)}
+          onOpenAuth={() => setIsAuthOpen(true)}
         />
 
         <main className="content-scrollable">
@@ -97,6 +102,8 @@ function MainLayout() {
             <Route path="/liked" element={<LikedSongs onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
             <Route path="/recent" element={<RecentlyPlayed onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
             <Route path="/playlist/:id" element={<PlaylistDetail onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
+            <Route path="/artist/:name" element={<ArtistPage onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
+            <Route path="/album/:id" element={<AlbumPage onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -141,6 +148,11 @@ function MainLayout() {
       />
 
       <ToastContainer />
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
     </div>
   );
 }

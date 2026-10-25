@@ -17,7 +17,8 @@ import {
   ListMusic,
   Tv,
   Maximize2,
-  Loader2
+  Loader2,
+  Mic2
 } from 'lucide-react';
 
 export default function MusicPlayer({ onOpenQueue }) {
@@ -41,7 +42,10 @@ export default function MusicPlayer({ onOpenQueue }) {
     cycleRepeat,
     isVideoVisible,
     setIsVideoVisible,
-    setIsMobilePlayerOpen
+    isMobilePlayerOpen,
+    setIsMobilePlayerOpen,
+    showLyrics,
+    setShowLyrics
   } = usePlayer();
 
   const { isLiked, toggleLike } = useLibrary();
@@ -481,6 +485,24 @@ export default function MusicPlayer({ onOpenQueue }) {
           title={isVideoVisible ? 'Hide YouTube video' : 'Show YouTube video'}
         >
           <Tv size={17} />
+        </button>
+
+        {/* Synchronized Lyrics Toggle Button */}
+        <button
+          onClick={() => {
+            setShowLyrics(true);
+            setIsMobilePlayerOpen(true);
+          }}
+          style={{
+            color: 'var(--text-secondary)',
+            padding: '6px',
+            borderRadius: 'var(--radius-sm)',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          title="Synchronized Lyrics"
+        >
+          <Mic2 size={17} />
         </button>
 
         {/* Queue Drawer Button */}

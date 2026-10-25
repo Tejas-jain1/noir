@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info } from 'lucide-react';
+import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw } from 'lucide-react';
+import { offlineStorage } from '../services/offlineStorage';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 
 export default function SettingsModal({ isOpen, onClose }) {
-  const { settings, updateSettings } = useLibrary();
+  const { settings, updateSettings, user } = useLibrary();
   const { toggleTheme, isDark } = useTheme();
 
   const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey || '');
   const [isSaved, setIsSaved] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   if (!isOpen) return null;
 
@@ -19,8 +22,14 @@ export default function SettingsModal({ isOpen, onClose }) {
     setTimeout(() => setIsSaved(false), 2000);
   };
 
-  const handleClearData = () => {
-    if (window.confirm('Are you sure you want to reset all playlists and saved liked songs? This cannot be undone.')) {
+  const handleClearData = async () => {
+    if (window.confirm('Are you sure you want to reset all playlists and cached data? This cannot be undone.')) {
+      setIsClearing(true);
+      try {
+        await offlineStorage.clear();
+      } catch (e) {
+        console.error('IndexedDB clear error', e);
+      }
       localStorage.removeItem('noir_liked_songs');
       localStorage.removeItem('noir_playlists');
       localStorage.removeItem('noir_recently_played');
@@ -206,6 +215,51 @@ export default function SettingsModal({ isOpen, onClose }) {
             </div>
           </section>
 
+          {/* Cloud Database & Offline Storage Status */}
+          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              Cloud Sync & Database
+            </label>
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-medium)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Cloud size={16} style={{ color: isSupabaseConfigured() ? 'var(--accent-solid)' : 'var(--text-muted)' }} />
+                  <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>
+                    {isSupabaseConfigured() ? 'Supabase Cloud: Connected' : 'Storage Engine: IndexedDB Local'}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: isSupabaseConfigured() ? 'var(--accent-subtle)' : 'var(--bg-card)',
+                    color: isSupabaseConfigured() ? 'var(--accent-solid)' : 'var(--text-muted)'
+                  }}
+                >
+                  {isSupabaseConfigured() ? 'Synced' : 'Offline Mode'}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                {isSupabaseConfigured()
+                  ? (user ? `Synchronizing library & history to user account: ${user.email}` : 'Supabase configured. Sign in via navbar to sync playlists and liked songs.')
+                  : 'Library, playlists, and history are preserved in offline browser IndexedDB storage. Add VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY to .env for multi-device sync.'}
+              </p>
+            </div>
+          </section>
+
           {/* Compliance & Storage Notice */}
           <div
             style={{
@@ -219,7 +273,7 @@ export default function SettingsModal({ isOpen, onClose }) {
           >
             <Info size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '2px' }} />
             <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Playback utilizes the official <strong>YouTube IFrame Player API</strong> in compliance with YouTube terms. Audio is never ripped or extracted. Playlists & liked tracks are stored locally in your browser.
+              Playback utilizes the official <strong>YouTube IFrame Player API</strong> in compliance with YouTube terms. Audio is never ripped or extracted. Synchronized lyrics are provided via LRCLIB.
             </div>
           </div>
 
@@ -230,6 +284,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             </label>
             <button
               onClick={handleClearData}
+              disabled={isClearing}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -240,11 +295,12 @@ export default function SettingsModal({ isOpen, onClose }) {
                 border: '1px solid var(--border-medium)',
                 color: 'var(--text-secondary)',
                 fontSize: '0.85rem',
-                fontWeight: 600
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
             >
-              <Trash2 size={16} />
-              <span>Reset Local Playlists & Liked Songs</span>
+              {isClearing ? <RefreshCw size={16} className="spin" /> : <Trash2 size={16} />}
+              <span>{isClearing ? 'Clearing Storage...' : 'Reset Local Storage & IndexedDB Cache'}</span>
             </button>
           </section>
         </div>
