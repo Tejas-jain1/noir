@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/saavn/(.*)",
+      "destination": "https://www.jiosaavn.com/api.php?$1"
+    },
+    {
+      "source": "/api/saavn",
+      "destination": "https://www.jiosaavn.com/api.php"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

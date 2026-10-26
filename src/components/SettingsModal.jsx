@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { usePlayer } from '../context/PlayerContext';
-import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw, Radio, Music } from 'lucide-react';
+import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw } from 'lucide-react';
 import { offlineStorage } from '../services/offlineStorage';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 
 export default function SettingsModal({ isOpen, onClose }) {
   const { settings, updateSettings, user } = useLibrary();
   const { toggleTheme, isDark } = useTheme();
-  const { activeEngine } = usePlayer();
 
   const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey || '');
   const [isSaved, setIsSaved] = useState(false);
@@ -98,69 +96,30 @@ export default function SettingsModal({ isOpen, onClose }) {
 
         {/* Body */}
         <div style={{ padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
-          {/* YouTube API Key Setting */}
+          {/* Audio Engine & Metadata Provider */}
           <section>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>
-                YouTube Data API v3 Key
+              <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Music Engine: JioSaavn CDN Audio</span>
               </label>
-              <a
-                href="https://console.cloud.google.com/apis/credentials"
-                target="_blank"
-                rel="noreferrer"
+              <span
                 style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  textDecoration: 'underline'
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--accent-subtle)',
+                  color: 'var(--accent-solid)'
                 }}
               >
-                <span>Get a Free Key</span>
-                <ExternalLink size={12} />
-              </a>
+                Active • 320kbps
+              </span>
             </div>
 
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
-              Enter your Google Cloud YouTube Data API v3 key for live music searching. If omitted or quota is exceeded, NOIR uses the authentic internal curated catalog automatically.
+              NOIR is connected to the high-speed <strong>JioSaavn CDN Engine</strong>. Streaming operates at up to 320kbps CD-quality audio directly via native HTML5 audio with reliable mobile background playback and zero API quotas.
             </p>
-
-            <form onSubmit={handleSaveApiKey} style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                style={{
-                  flex: 1,
-                  height: '40px',
-                  padding: '0 14px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-medium)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <button
-                type="submit"
-                style={{
-                  padding: '0 18px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--accent-solid)',
-                  color: 'var(--accent-text)',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {isSaved ? <Check size={16} /> : null}
-                <span>{isSaved ? 'Saved' : 'Save'}</span>
-              </button>
-            </form>
           </section>
 
           {/* Theme Preference */}
@@ -214,50 +173,6 @@ export default function SettingsModal({ isOpen, onClose }) {
                 <Sun size={16} />
                 <span>Light Theme</span>
               </button>
-            </div>
-          </section>
-
-          {/* Playback Architecture: Hybrid Dual-Engine */}
-          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-              Audio Playback Architecture
-            </label>
-            <div
-              style={{
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-medium)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Radio size={16} style={{ color: 'var(--accent-solid)' }} />
-                  <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>
-                    Hybrid Dual-Engine Mode
-                  </span>
-                </div>
-                <span
-                  style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    padding: '2px 8px',
-                    borderRadius: 'var(--radius-full)',
-                    backgroundColor: 'var(--accent-subtle)',
-                    color: 'var(--accent-solid)'
-                  }}
-                >
-                  {activeEngine === 'html5' ? 'Active: HTML5 320k' : 'Active: YouTube Fallback'}
-                </span>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                • <strong>HTML5 Audio Engine:</strong> Plays 320kbps MP3 audio via Audius and your Supabase Storage bucket with full lock-screen controls and native background playback on mobile.<br />
-                • <strong>YouTube IFrame Engine:</strong> Remains available as a compliant fallback engine for embedded YouTube catalog tracks.
-              </p>
             </div>
           </section>
 
@@ -319,7 +234,7 @@ export default function SettingsModal({ isOpen, onClose }) {
           >
             <Info size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '2px' }} />
             <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Playback utilizes the official <strong>YouTube IFrame Player API</strong> in compliance with YouTube terms. Audio is never ripped or extracted. Synchronized lyrics are provided via LRCLIB.
+              Audio streams directly in 320kbps CD-quality via high-speed CDNs with native lock-screen controls. Synchronized lyrics are provided via LRCLIB.
             </div>
           </div>
 

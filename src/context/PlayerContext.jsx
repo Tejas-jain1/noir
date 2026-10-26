@@ -11,21 +11,9 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { fetchLyricsForTrack, findCurrentLyricIndex } from '../services/lyricsService';
 import { supabaseService } from '../services/supabaseClient';
 import { offlineStorage } from '../services/offlineStorage';
-import { audioEngine } from '../services/audioEngine';
-import { audiusService } from '../services/audiusService';
+import { saavnApi } from '../services/saavnApi';
 
 const PlayerContext = createContext();
-
-// Helper to determine if a track is powered by the HTML5 Audio Engine
-export function isHtml5Track(track) {
-  if (!track) return false;
-  return Boolean(
-    track.streamUrl ||
-    track.source === 'audius' ||
-    track.source === 'supabase' ||
-    (typeof track.id === 'string' && (track.id.startsWith('audius-') || track.id.startsWith('supabase-')))
-  );
-}
 
 // YouTube IFrame Player API State Enums
 const YT_STATE = {
@@ -42,7 +30,6 @@ export function PlayerProvider({ children }) {
 
   // Playback state
   const [currentTrack, setCurrentTrack] = useState(() => MOCK_TRACKS[0]);
-  const [activeEngine, setActiveEngine] = useState(() => isHtml5Track(MOCK_TRACKS[0]) ? 'html5' : 'youtube');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -66,18 +53,76 @@ export function PlayerProvider({ children }) {
   useWakeLock(isPlaying);
 
   // References
+  const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const progressTimerRef = useRef(null);
   const stateRef = useRef({ currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue });
   const nextTrackRef = useRef(null);
   const prevTrackRef = useRef(null);
   const seekToRef = useRef(null);
-  const handleTrackEndedRef = useRef(null);
 
   // Keep stateRef updated for callbacks
   useEffect(() => {
     stateRef.current = { currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue };
   }, [currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue]);
+
+  // Initialize native HTML5 Audio Element for direct 320kbps CDN playback
+  useEffect(() => {
+    const audio = new Audio();
+    audioRef.current = audio;
+
+    const handleTime = () => {
+      if (audio.currentTime !== undefined && !isNaN(audio.currentTime)) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
+
+    const handleDur = () => {
+      if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+        setDuration(Math.round(audio.duration));
+      }
+    };
+
+    const handleEnd = () => {
+      const { repeatMode } = stateRef.current;
+      if (repeatMode === 'one') {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      } else if (nextTrackRef.current) {
+        nextTrackRef.current();
+      }
+    };
+
+    const handleWait = () => setIsBuffering(true);
+    const handlePlay = () => {
+      setIsBuffering(false);
+      setIsPlaying(true);
+    };
+    const handlePause = () => setIsPlaying(false);
+    const handleErr = (e) => {
+      console.warn('Native audio element error:', e);
+      setIsBuffering(false);
+    };
+
+    audio.addEventListener('timeupdate', handleTime);
+    audio.addEventListener('loadedmetadata', handleDur);
+    audio.addEventListener('ended', handleEnd);
+    audio.addEventListener('waiting', handleWait);
+    audio.addEventListener('playing', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleErr);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('timeupdate', handleTime);
+      audio.removeEventListener('loadedmetadata', handleDur);
+      audio.removeEventListener('ended', handleEnd);
+      audio.removeEventListener('waiting', handleWait);
+      audio.removeEventListener('playing', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleErr);
+    };
+  }, []);
 
   // Load lyrics whenever currentTrack changes
   useEffect(() => {
@@ -111,23 +156,7 @@ export function PlayerProvider({ children }) {
     ? findCurrentLyricIndex(lyricsData.syncedLyrics, currentTime)
     : -1;
 
-  // Track Completion Handler
-  const handleTrackEnded = useCallback(() => {
-    const { repeatMode, currentTrack } = stateRef.current;
-    if (repeatMode === 'one') {
-      if (isHtml5Track(currentTrack)) {
-        audioEngine.seek(0);
-        audioEngine.play().catch(console.warn);
-      } else if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
-        ytPlayerRef.current.seekTo(0, true);
-        ytPlayerRef.current.playVideo();
-      }
-    } else if (nextTrackRef.current) {
-      nextTrackRef.current();
-    }
-  }, []);
-
-  // Core Play Track Function
+  // Core Play Track Function (Primary: JioSaavn 320kbps CDN stream)
   const playTrack = useCallback((track, newQueue = null) => {
     if (!track || !track.id) return;
 
@@ -160,71 +189,37 @@ export function PlayerProvider({ children }) {
       });
     }
 
-    if (isHtml5Track(track)) {
-      setActiveEngine('html5');
-      // Pause YouTube player if active
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
-        try { ytPlayerRef.current.pauseVideo(); } catch {}
-      }
-
-      const streamUrl = track.streamUrl || audiusService.getStreamUrl(track.rawId || track.id);
-
-      audioEngine.load(streamUrl, {
-        onLoading: () => {
-          setIsBuffering(true);
-        },
-        onReady: (dur) => {
-          setIsBuffering(false);
-          if (dur && Number.isFinite(dur) && dur > 0) setDuration(dur);
-        },
-        onProgress: (pos, dur) => {
-          setCurrentTime(pos);
-          if (dur && Number.isFinite(dur) && dur > 0) setDuration(dur);
-        },
-        onPlaying: () => {
-          setIsBuffering(false);
-          setIsPlaying(true);
-        },
-        onPaused: () => {
-          setIsPlaying(false);
-        },
-        onEnded: () => {
-          handleTrackEndedRef.current?.();
-        },
-        onError: (err) => {
-          console.warn('[PlayerContext] HTML5 stream error:', err);
-          setIsBuffering(false);
-          showToast('Audio stream temporarily unavailable. Skipping...', 'warning');
-          nextTrackRef.current?.();
+    const startNativeAudio = (url) => {
+      if (audioRef.current) {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+          try { ytPlayerRef.current.pauseVideo(); } catch {}
         }
-      });
+        audioRef.current.src = url;
+        audioRef.current.currentTime = 0;
+        audioRef.current.volume = volume / 100;
+        audioRef.current.muted = isMuted;
+        audioRef.current.play().catch(e => console.warn('Audio playback prevented by autoplay policy:', e));
+        setIsPlaying(true);
+      }
+    };
 
-      audioEngine.setVolume(volume);
-      audioEngine.setMuted(isMuted);
-
-      audioEngine.play()
-        .then(() => setIsPlaying(true))
-        .catch((err) => {
-          console.warn('[PlayerContext] HTML5 play request deferred:', err?.message || err);
-        });
+    if (track.audioUrl) {
+      startNativeAudio(track.audioUrl);
     } else {
-      setActiveEngine('youtube');
-      // Pause HTML5 audio engine if active
-      audioEngine.pause();
-
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
-        try {
+      // Resolve 320kbps CDN stream from JioSaavn
+      saavnApi.resolveAudioUrl(track).then((resolvedUrl) => {
+        if (resolvedUrl) {
+          startNativeAudio(resolvedUrl);
+        } else if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
           ytPlayerRef.current.loadVideoById(track.id);
           ytPlayerRef.current.playVideo();
           setIsPlaying(true);
-        } catch (err) {
-          console.error('Failed to load video in YouTube player:', err);
+        } else {
+          setIsPlaying(true);
         }
-      } else {
-        setIsPlaying(true);
-      }
+      });
     }
-  }, [addToRecent, isMuted, showToast, volume]);
+  }, [addToRecent, isMuted, volume]);
 
   // Next Track Logic
   const nextTrack = useCallback(() => {
@@ -251,14 +246,17 @@ export function PlayerProvider({ children }) {
   // Seek Function
   const seekTo = useCallback((seconds) => {
     setCurrentTime(seconds);
-    const current = stateRef.current.currentTrack;
-    if (isHtml5Track(current)) {
-      audioEngine.seek(seconds);
+    if (audioRef.current && audioRef.current.src) {
+      try {
+        audioRef.current.currentTime = seconds;
+      } catch (e) {
+        console.error('Error seeking audio:', e);
+      }
     } else if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
       try {
         ytPlayerRef.current.seekTo(seconds, true);
       } catch (e) {
-        console.error('Error seeking in YouTube player:', e);
+        console.error('Error seeking:', e);
       }
     }
     updateMediaSessionPositionState({ duration, position: seconds });
@@ -291,8 +289,7 @@ export function PlayerProvider({ children }) {
     nextTrackRef.current = nextTrack;
     prevTrackRef.current = prevTrack;
     seekToRef.current = seekTo;
-    handleTrackEndedRef.current = handleTrackEnded;
-  }, [nextTrack, prevTrack, seekTo, handleTrackEnded]);
+  }, [nextTrack, prevTrack, seekTo]);
 
   // Media Session API Setup
   useEffect(() => {
@@ -325,6 +322,19 @@ export function PlayerProvider({ children }) {
     setMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
     updateMediaSessionPositionState({ duration, position: currentTime });
   }, [isPlaying, duration, currentTime]);
+
+  // YouTube Player Event Handlers
+  const handleTrackEnded = useCallback(() => {
+    const { repeatMode } = stateRef.current;
+    if (repeatMode === 'one') {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        ytPlayerRef.current.seekTo(0, true);
+        ytPlayerRef.current.playVideo();
+      }
+    } else if (nextTrackRef.current) {
+      nextTrackRef.current();
+    }
+  }, []);
 
   const handlePlayerStateChange = useCallback((event) => {
     const state = event.data;
@@ -420,9 +430,9 @@ export function PlayerProvider({ children }) {
     };
   }, [currentTrack?.id, handlePlayerError, handlePlayerStateChange]);
 
-  // Poll current playback time while playing YouTube tracks
+  // Poll current playback time while playing
   useEffect(() => {
-    if (isPlaying && activeEngine === 'youtube') {
+    if (isPlaying) {
       progressTimerRef.current = setInterval(() => {
         if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
           try {
@@ -446,37 +456,37 @@ export function PlayerProvider({ children }) {
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
-  }, [isPlaying, activeEngine]);
+  }, [isPlaying]);
 
   const togglePlay = useCallback(() => {
-    const current = stateRef.current.currentTrack;
-    if (isHtml5Track(current)) {
+    if (audioRef.current && audioRef.current.src) {
       if (isPlaying) {
-        audioEngine.pause();
+        audioRef.current.pause();
         setIsPlaying(false);
       } else {
-        audioEngine.play()
-          .then(() => setIsPlaying(true))
-          .catch((e) => console.warn('HTML5 play error:', e));
+        audioRef.current.play().catch(e => console.warn('Play prevented:', e));
+        setIsPlaying(true);
       }
-    } else {
-      if (!ytPlayerRef.current) return;
-      try {
-        if (isPlaying) {
-          ytPlayerRef.current.pauseVideo();
-          setIsPlaying(false);
-        } else {
-          ytPlayerRef.current.playVideo();
-          setIsPlaying(true);
-        }
-      } catch (e) {
-        console.error('Error toggling play/pause:', e);
+      return;
+    }
+    if (!ytPlayerRef.current) return;
+    try {
+      if (isPlaying) {
+        ytPlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
       }
+    } catch (e) {
+      console.error('Error toggling play/pause:', e);
     }
   }, [isPlaying]);
 
   const pause = useCallback(() => {
-    audioEngine.pause();
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+    }
     if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
       try {
         ytPlayerRef.current.pauseVideo();
@@ -491,7 +501,10 @@ export function PlayerProvider({ children }) {
     const level = Math.max(0, Math.min(100, Number(val)));
     setVolume(level);
     setIsMuted(level === 0);
-    audioEngine.setVolume(level);
+    if (audioRef.current) {
+      audioRef.current.volume = level / 100;
+      audioRef.current.muted = level === 0;
+    }
     if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
       try {
         ytPlayerRef.current.setVolume(level);
@@ -505,12 +518,14 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const toggleMute = useCallback(() => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    audioEngine.setMuted(nextMuted);
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (audioRef.current) {
+      audioRef.current.muted = newMuted;
+    }
     if (ytPlayerRef.current) {
       try {
-        if (nextMuted) {
+        if (newMuted) {
           ytPlayerRef.current.mute();
         } else {
           ytPlayerRef.current.unMute();
@@ -609,7 +624,6 @@ export function PlayerProvider({ children }) {
     <PlayerContext.Provider
       value={{
         currentTrack,
-        activeEngine,
         isPlaying,
         isBuffering,
         currentTime,
