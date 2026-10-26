@@ -9,14 +9,16 @@ import { offlineStorage } from './offlineStorage';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const isSupabaseConfigured = Boolean(
+const _configured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
   supabaseUrl.startsWith('https://') &&
   !supabaseUrl.includes('placeholder')
 );
 
-export const supabase = isSupabaseConfigured
+export const isSupabaseConfigured = () => _configured;
+
+export const supabase = _configured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -26,7 +28,7 @@ export const supabase = isSupabaseConfigured
   : null;
 
 export const supabaseService = {
-  isConfigured: isSupabaseConfigured,
+  isConfigured: _configured,
 
   // Auth APIs
   async getCurrentUser() {
