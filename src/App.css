@@ -258,6 +258,18 @@
     box-sizing: border-box !important;
   }
 
+  /* Responsive Search Dropdown on Mobile */
+  .search-dropdown-menu {
+    position: fixed !important;
+    top: 64px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: 72vh !important;
+    box-sizing: border-box !important;
+  }
+
   /* Responsive Hero Spotlight */
   .hero-spotlight {
     grid-template-columns: 1fr !important;
@@ -479,4 +491,18 @@
 @keyframes slideInLeft {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
+}
+
+/* Spotify-style Search Dropdown Scrollbar */
+.search-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-dropdown-menu::-webkit-scrollbar-thumb {
+  background-color: var(--border-medium);
+  border-radius: var(--radius-full);
 }

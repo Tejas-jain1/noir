@@ -86,7 +86,8 @@ export function formatSaavnTrack(item) {
   const durationFormatted = `${minutes}:${remainingSec < 10 ? '0' : ''}${remainingSec}`;
 
   // Decrypt 320kbps CDN audio stream URL
-  const audioUrl = decryptMediaUrl(moreInfo.encrypted_media_url);
+  const encryptedUrl = moreInfo.encrypted_media_url || item.encrypted_media_url;
+  const audioUrl = decryptMediaUrl(encryptedUrl);
 
   // Clean title
   const title = decodeHtml(item.song || item.title || 'Unknown Title');
@@ -106,29 +107,36 @@ export function formatSaavnTrack(item) {
   };
 }
 
-// Fetch helper with multi-tier proxy & fallback
-async function fetchSaavnQuery(paramsString) {
+// In-memory cache for live search suggestions
+const suggestionCache = new Map();
+const MAX_CACHE_SIZE = 120;
+
+// Fetch helper with multi-tier proxy, fallback, and abort signal support
+async function fetchSaavnQuery(paramsString, signal = null) {
   // 1. Try proxied endpoint (Vite dev proxy or Vercel production rewrite)
   try {
-    const res = await fetch(`${JIOSAAVN_PROXY_PATH}?${paramsString}`);
+    const res = await fetch(`${JIOSAAVN_PROXY_PATH}?${paramsString}`, { signal });
     if (res.ok) {
       const data = await res.json();
       return data;
     }
-  } catch {
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
     // Continue to fallback
   }
 
   // 2. Try direct fetch (if CORS allowed)
   try {
     const res = await fetch(`${JIOSAAVN_DIRECT_URL}?${paramsString}`, {
+      signal,
       headers: { 'Accept': 'application/json' }
     });
     if (res.ok) {
       const data = await res.json();
       return data;
     }
-  } catch {
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
     // Continue to fallback
   }
 
@@ -136,12 +144,13 @@ async function fetchSaavnQuery(paramsString) {
   try {
     const targetUrl = `${JIOSAAVN_DIRECT_URL}?${paramsString}`;
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    const res = await fetch(proxyUrl);
+    const res = await fetch(proxyUrl, { signal });
     if (res.ok) {
       const data = await res.json();
       return data;
     }
   } catch (err) {
+    if (err.name === 'AbortError') throw err;
     console.warn('AllOrigins fallback failed:', err);
   }
 
@@ -150,7 +159,7 @@ async function fetchSaavnQuery(paramsString) {
 
 export const saavnApi = {
   // Search tracks using JioSaavn CDN
-  search: async (query) => {
+  search: async (query, signal = null) => {
     if (!query || !query.trim()) {
       return {
         results: MOCK_TRACKS,
@@ -161,7 +170,7 @@ export const saavnApi = {
 
     try {
       const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(query.trim())}&n=25&p=1`;
-      const data = await fetchSaavnQuery(params);
+      const data = await fetchSaavnQuery(params, signal);
 
       if (data && data.results && data.results.length > 0) {
         const tracks = data.results
@@ -177,6 +186,7 @@ export const saavnApi = {
         }
       }
     } catch (err) {
+      if (err.name === 'AbortError') throw err;
       console.warn('JioSaavn search query failed, using mock catalog fallback:', err);
     }
 
@@ -187,6 +197,184 @@ export const saavnApi = {
       source: 'curated',
       hasKey: true
     };
+  },
+
+  // Spotify-style live autocomplete suggestions for songs, artists, and albums
+  getSuggestions: async (query, signal = null) => {
+    if (!query || !query.trim()) {
+      return {
+        songs: [],
+        artists: [],
+        albums: [],
+        topResult: null,
+        query: ''
+      };
+    }
+
+    const trimmed = query.trim();
+    const cacheKey = trimmed.toLowerCase();
+
+    if (suggestionCache.has(cacheKey)) {
+      return suggestionCache.get(cacheKey);
+    }
+
+    try {
+      const params = `__call=autocomplete.get&_format=json&_marker=0&api_version=4&ctx=web6dot0&query=${encodeURIComponent(trimmed)}`;
+      const data = await fetchSaavnQuery(params, signal);
+
+      if (!data) {
+        return { songs: [], artists: [], albums: [], topResult: null, query: trimmed };
+      }
+
+      // Map Songs (deduplicate by title + artist)
+      const seenSongs = new Set();
+      const songs = (data.songs?.data || [])
+        .map(s => {
+          const moreInfo = s.more_info || {};
+          let thumbnail = (s.image || '').replace('150x150', '500x500').replace('50x50', '500x500');
+          if (!thumbnail || thumbnail.includes('default') || thumbnail.trim() === '') {
+            thumbnail = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
+          }
+          const artist = moreInfo.primary_artists || (s.description ? s.description.split('·')[0].trim() : 'Unknown Artist');
+          const album = moreInfo.album || (s.description && s.description.includes('·') ? s.description.split('·')[1].trim() : '');
+          const durationSec = parseInt(moreInfo.duration || 0, 10);
+          const durationFormatted = durationSec > 0 ? formatTime(durationSec) : '';
+
+          return {
+            id: s.id,
+            title: decodeHtml(s.title || s.song || 'Unknown Song'),
+            artist: decodeHtml(artist),
+            album: decodeHtml(album),
+            thumbnail,
+            duration: durationSec,
+            durationFormatted,
+            type: 'song',
+            raw: s
+          };
+        })
+        .filter(s => {
+          const key = `${s.title.toLowerCase()}--${s.artist.toLowerCase()}`;
+          if (seenSongs.has(key)) return false;
+          seenSongs.add(key);
+          return true;
+        });
+
+      // Map Artists
+      const seenArtists = new Set();
+      const artists = (data.artists?.data || [])
+        .map(a => {
+          let thumbnail = (a.image || '').replace('150x150', '500x500').replace('50x50', '500x500');
+          if (!thumbnail || thumbnail.includes('default') || thumbnail.trim() === '') {
+            thumbnail = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
+          }
+          return {
+            id: a.id,
+            name: decodeHtml(a.title || 'Artist'),
+            role: decodeHtml(a.description || a.extra || 'Artist'),
+            thumbnail,
+            type: 'artist'
+          };
+        })
+        .filter(a => {
+          const key = a.name.toLowerCase();
+          if (seenArtists.has(key)) return false;
+          seenArtists.add(key);
+          return true;
+        });
+
+      // Map Albums
+      const seenAlbums = new Set();
+      const albums = (data.albums?.data || [])
+        .map(alb => {
+          let thumbnail = (alb.image || '').replace('150x150', '500x500').replace('50x50', '500x500');
+          if (!thumbnail || thumbnail.includes('default') || thumbnail.trim() === '') {
+            thumbnail = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
+          }
+          const artist = alb.more_info?.music || (alb.description ? alb.description.split('·').pop().trim() : '');
+          return {
+            id: alb.id,
+            title: decodeHtml(alb.title || 'Album'),
+            artist: decodeHtml(artist),
+            year: alb.more_info?.year || '',
+            thumbnail,
+            type: 'album'
+          };
+        })
+        .filter(alb => {
+          const key = `${alb.title.toLowerCase()}--${alb.artist.toLowerCase()}`;
+          if (seenAlbums.has(key)) return false;
+          seenAlbums.add(key);
+          return true;
+        });
+
+      // Determine Top Result (Spotify style)
+      let topResult = null;
+      if (data.topquery?.data?.[0]) {
+        const top = data.topquery.data[0];
+        let thumbnail = (top.image || '').replace('150x150', '500x500').replace('50x50', '500x500');
+        if (!thumbnail || thumbnail.includes('default') || thumbnail.trim() === '') {
+          thumbnail = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
+        }
+        topResult = {
+          id: top.id,
+          title: decodeHtml(top.title || ''),
+          subtitle: decodeHtml(top.description || top.extra || (top.type === 'artist' ? 'Artist' : top.type === 'album' ? 'Album' : 'Song')),
+          type: top.type || (top.description?.toLowerCase().includes('artist') ? 'artist' : 'song'),
+          thumbnail,
+          raw: top
+        };
+      } else if (songs.length > 0) {
+        topResult = {
+          id: songs[0].id,
+          title: songs[0].title,
+          subtitle: songs[0].artist,
+          type: 'song',
+          thumbnail: songs[0].thumbnail,
+          raw: songs[0]
+        };
+      }
+
+      const result = {
+        songs: songs.slice(0, 5),
+        artists: artists.slice(0, 4),
+        albums: albums.slice(0, 4),
+        topResult,
+        query: trimmed
+      };
+
+      // Store in LRU cache
+      if (suggestionCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = suggestionCache.keys().next().value;
+        suggestionCache.delete(firstKey);
+      }
+      suggestionCache.set(cacheKey, result);
+
+      return result;
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      console.warn('JioSaavn suggestion query failed:', err);
+      return { songs: [], artists: [], albums: [], topResult: null, query: trimmed };
+    }
+  },
+
+  // Get full song details by JioSaavn song id
+  getSongDetails: async (id, signal = null) => {
+    if (!id) return null;
+    try {
+      const params = `__call=song.getDetails&pids=${encodeURIComponent(id)}&_format=json`;
+      const data = await fetchSaavnQuery(params, signal);
+      if (data) {
+        const raw = data[id] || Object.values(data)[0];
+        if (raw) {
+          return formatSaavnTrack(raw);
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.warn('Failed to fetch song details for ID:', id, err);
+      }
+    }
+    return null;
   },
 
   // Get Top Trending Songs directly from Saavn CDN
@@ -217,14 +405,24 @@ export const saavnApi = {
     if (!track) return null;
     if (track.audioUrl) return track.audioUrl;
 
+    // 1. If track has a valid Saavn id, try getSongDetails first
+    if (track.id && !track.id.startsWith('mock') && !track.id.startsWith('saavn-')) {
+      const details = await saavnApi.getSongDetails(track.id);
+      if (details && details.audioUrl) {
+        track.audioUrl = details.audioUrl;
+        return details.audioUrl;
+      }
+    }
+
+    // 2. Fall back to search
     try {
       const searchQuery = `${track.title} ${track.artist}`.trim();
       const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchQuery)}&n=5`;
       const data = await fetchSaavnQuery(params);
 
       if (data && data.results && data.results.length > 0) {
-        const matched = data.results.find(s => s.more_info?.encrypted_media_url) || data.results[0];
-        const audioUrl = decryptMediaUrl(matched.more_info?.encrypted_media_url);
+        const matched = data.results.find(s => s.more_info?.encrypted_media_url || s.encrypted_media_url) || data.results[0];
+        const audioUrl = decryptMediaUrl(matched.more_info?.encrypted_media_url || matched.encrypted_media_url);
         if (audioUrl) {
           track.audioUrl = audioUrl;
           return audioUrl;
