@@ -2,19 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { youtubeApi } from '../services/youtubeApi';
+import { audiusService } from '../services/audiusService';
+import { supabaseAudioService } from '../services/supabaseAudioService';
 import TrackList from '../components/TrackList';
-import { Search, Loader2, Play, Key, AlertCircle, Music } from 'lucide-react';
+import { Search, Loader2, Play, Key, AlertCircle, Music, Radio, Cloud } from 'lucide-react';
 
 const SUGGESTIONS = [
+  'Skrillex',
+  'deadmau5',
   'The Weeknd',
-  'Dua Lipa',
-  'Billie Eilish',
-  'Kendrick Lamar',
+  'Daft Punk',
   'Synthwave',
-  'Arijit Singh',
-  'Coldplay',
-  'Lofi Girl',
-  'Daft Punk'
+  'Electronic',
+  'Lofi Chill',
+  'Acoustic Calm'
 ];
 
 export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
@@ -22,6 +23,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
   const initialQuery = searchParams.get('q') || '';
 
   const [query, setQuery] = useState(initialQuery);
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInfo, setSearchInfo] = useState(null);
@@ -34,33 +36,91 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
     setQuery(q);
   }, [searchParams]);
 
-  // Debounced search effect
+  // Debounced search effect supporting Audius HTML5, YouTube, and Supabase Cloud
   useEffect(() => {
-    if (!query.trim()) {
-      setLoading(true);
-      youtubeApi.search('').then(res => {
-        setResults(res.results);
-        setSearchInfo(res);
-        setLoading(false);
-      });
-      return;
-    }
-
+    let isMounted = true;
     setLoading(true);
+
     const handler = setTimeout(async () => {
       try {
-        const data = await youtubeApi.search(query.trim());
-        setResults(data.results || []);
-        setSearchInfo(data);
+        const trimmed = query.trim();
+
+        if (sourceFilter === 'cloud') {
+          const cloudTracks = await supabaseAudioService.listTracks();
+          if (isMounted) {
+            const filtered = trimmed
+              ? cloudTracks.filter(t => 
+                  t.title.toLowerCase().includes(trimmed.toLowerCase()) || 
+                  t.artist.toLowerCase().includes(trimmed.toLowerCase())
+                )
+              : cloudTracks;
+            setResults(filtered);
+            setSearchInfo({ source: 'supabase', hasKey: true });
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (sourceFilter === 'audius') {
+          const audiusTracks = trimmed
+            ? await audiusService.search(trimmed, 25)
+            : await audiusService.getTrending(null, 20);
+          if (isMounted) {
+            setResults(audiusTracks);
+            setSearchInfo({ source: 'audius', hasKey: true });
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (sourceFilter === 'youtube') {
+          const ytData = await youtubeApi.search(trimmed);
+          if (isMounted) {
+            setResults(ytData.results || []);
+            setSearchInfo(ytData);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // 'all': Unified hybrid search
+        if (!trimmed) {
+          const [audiusTrending, ytData] = await Promise.allSettled([
+            audiusService.getTrending(null, 10),
+            youtubeApi.search('')
+          ]);
+          if (isMounted) {
+            const aList = audiusTrending.status === 'fulfilled' ? audiusTrending.value : [];
+            const yList = ytData.status === 'fulfilled' ? (ytData.value.results || []) : [];
+            setResults([...aList, ...yList]);
+            setSearchInfo({ source: 'hybrid', hasKey: true });
+            setLoading(false);
+          }
+        } else {
+          const [audiusRes, ytData] = await Promise.allSettled([
+            audiusService.search(trimmed, 15),
+            youtubeApi.search(trimmed)
+          ]);
+          if (isMounted) {
+            const aList = audiusRes.status === 'fulfilled' ? audiusRes.value : [];
+            const yList = ytData.status === 'fulfilled' ? (ytData.value.results || []) : [];
+            setResults([...aList, ...yList]);
+            setSearchInfo({ source: 'hybrid', hasKey: true });
+            setLoading(false);
+          }
+        }
       } catch (err) {
         console.error('Search error:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }, 350);
 
-    return () => clearTimeout(handler);
-  }, [query]);
+    return () => {
+      isMounted = false;
+      clearTimeout(handler);
+    };
+  }, [query, sourceFilter]);
 
   const handleInputChange = (e) => {
     const val = e.target.value;
@@ -132,6 +192,38 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               {tag}
             </button>
           ))}
+        </div>
+
+        {/* Source Filter Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
+          {[
+            { id: 'all', label: 'All Sources' },
+            { id: 'audius', label: 'Audius (HTML5 320k)' },
+            { id: 'youtube', label: 'YouTube' },
+            { id: 'cloud', label: 'My Cloud (Supabase)' }
+          ].map((tab) => {
+            const isActive = sourceFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSourceFilter(tab.id)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: isActive ? 'var(--accent-solid)' : 'var(--bg-surface)',
+                  color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  border: `1px solid ${isActive ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw } from 'lucide-react';
+import { usePlayer } from '../context/PlayerContext';
+import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw, Radio, Music } from 'lucide-react';
 import { offlineStorage } from '../services/offlineStorage';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 
 export default function SettingsModal({ isOpen, onClose }) {
   const { settings, updateSettings, user } = useLibrary();
   const { toggleTheme, isDark } = useTheme();
+  const { activeEngine } = usePlayer();
 
   const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey || '');
   const [isSaved, setIsSaved] = useState(false);
@@ -212,6 +214,50 @@ export default function SettingsModal({ isOpen, onClose }) {
                 <Sun size={16} />
                 <span>Light Theme</span>
               </button>
+            </div>
+          </section>
+
+          {/* Playback Architecture: Hybrid Dual-Engine */}
+          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+              Audio Playback Architecture
+            </label>
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-medium)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Radio size={16} style={{ color: 'var(--accent-solid)' }} />
+                  <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>
+                    Hybrid Dual-Engine Mode
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: 'var(--accent-subtle)',
+                    color: 'var(--accent-solid)'
+                  }}
+                >
+                  {activeEngine === 'html5' ? 'Active: HTML5 320k' : 'Active: YouTube Fallback'}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                • <strong>HTML5 Audio Engine:</strong> Plays 320kbps MP3 audio via Audius and your Supabase Storage bucket with full lock-screen controls and native background playback on mobile.<br />
+                • <strong>YouTube IFrame Engine:</strong> Remains available as a compliant fallback engine for embedded YouTube catalog tracks.
+              </p>
             </div>
           </section>
 

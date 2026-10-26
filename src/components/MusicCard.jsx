@@ -99,6 +99,46 @@ export default function MusicCard({ track, onOpenAddToPlaylist }) {
           </div>
         )}
 
+        {/* Source Badge if Audius or Supabase */}
+        {track.source === 'audius' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(6px)',
+              padding: '2px 8px',
+              borderRadius: 'var(--radius-full)',
+              fontSize: '0.65rem',
+              color: '#ffffff',
+              fontWeight: 700,
+              letterSpacing: '0.04em'
+            }}
+          >
+            HTML5
+          </div>
+        )}
+        {track.source === 'supabase' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(6px)',
+              padding: '2px 8px',
+              borderRadius: 'var(--radius-full)',
+              fontSize: '0.65rem',
+              color: '#ffffff',
+              fontWeight: 700,
+              letterSpacing: '0.04em'
+            }}
+          >
+            Cloud
+          </div>
+        )}
+
         {/* Floating Play Button */}
         <div
           style={{

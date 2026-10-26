@@ -113,11 +113,24 @@ export default function TrackRow({
               color: 'var(--text-secondary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
             title={track.artist}
           >
-            {track.artist}
+            <span>{track.artist}</span>
+            {track.source === 'audius' && (
+              <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-solid)', fontWeight: 700, flexShrink: 0 }}>
+                HTML5
+              </span>
+            )}
+            {track.source === 'supabase' && (
+              <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)', color: 'var(--accent-solid)', fontWeight: 700, flexShrink: 0 }}>
+                Cloud
+              </span>
+            )}
           </div>
         </div>
       </div>

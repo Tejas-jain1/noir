@@ -11,8 +11,21 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { fetchLyricsForTrack, findCurrentLyricIndex } from '../services/lyricsService';
 import { supabaseService } from '../services/supabaseClient';
 import { offlineStorage } from '../services/offlineStorage';
+import { audioEngine } from '../services/audioEngine';
+import { audiusService } from '../services/audiusService';
 
 const PlayerContext = createContext();
+
+// Helper to determine if a track is powered by the HTML5 Audio Engine
+export function isHtml5Track(track) {
+  if (!track) return false;
+  return Boolean(
+    track.streamUrl ||
+    track.source === 'audius' ||
+    track.source === 'supabase' ||
+    (typeof track.id === 'string' && (track.id.startsWith('audius-') || track.id.startsWith('supabase-')))
+  );
+}
 
 // YouTube IFrame Player API State Enums
 const YT_STATE = {
@@ -29,6 +42,7 @@ export function PlayerProvider({ children }) {
 
   // Playback state
   const [currentTrack, setCurrentTrack] = useState(() => MOCK_TRACKS[0]);
+  const [activeEngine, setActiveEngine] = useState(() => isHtml5Track(MOCK_TRACKS[0]) ? 'html5' : 'youtube');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -58,6 +72,7 @@ export function PlayerProvider({ children }) {
   const nextTrackRef = useRef(null);
   const prevTrackRef = useRef(null);
   const seekToRef = useRef(null);
+  const handleTrackEndedRef = useRef(null);
 
   // Keep stateRef updated for callbacks
   useEffect(() => {
@@ -96,6 +111,22 @@ export function PlayerProvider({ children }) {
     ? findCurrentLyricIndex(lyricsData.syncedLyrics, currentTime)
     : -1;
 
+  // Track Completion Handler
+  const handleTrackEnded = useCallback(() => {
+    const { repeatMode, currentTrack } = stateRef.current;
+    if (repeatMode === 'one') {
+      if (isHtml5Track(currentTrack)) {
+        audioEngine.seek(0);
+        audioEngine.play().catch(console.warn);
+      } else if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        ytPlayerRef.current.seekTo(0, true);
+        ytPlayerRef.current.playVideo();
+      }
+    } else if (nextTrackRef.current) {
+      nextTrackRef.current();
+    }
+  }, []);
+
   // Core Play Track Function
   const playTrack = useCallback((track, newQueue = null) => {
     if (!track || !track.id) return;
@@ -129,18 +160,71 @@ export function PlayerProvider({ children }) {
       });
     }
 
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
-      try {
-        ytPlayerRef.current.loadVideoById(track.id);
-        ytPlayerRef.current.playVideo();
-        setIsPlaying(true);
-      } catch (err) {
-        console.error('Failed to load video in YouTube player:', err);
+    if (isHtml5Track(track)) {
+      setActiveEngine('html5');
+      // Pause YouTube player if active
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+        try { ytPlayerRef.current.pauseVideo(); } catch {}
       }
+
+      const streamUrl = track.streamUrl || audiusService.getStreamUrl(track.rawId || track.id);
+
+      audioEngine.load(streamUrl, {
+        onLoading: () => {
+          setIsBuffering(true);
+        },
+        onReady: (dur) => {
+          setIsBuffering(false);
+          if (dur && Number.isFinite(dur) && dur > 0) setDuration(dur);
+        },
+        onProgress: (pos, dur) => {
+          setCurrentTime(pos);
+          if (dur && Number.isFinite(dur) && dur > 0) setDuration(dur);
+        },
+        onPlaying: () => {
+          setIsBuffering(false);
+          setIsPlaying(true);
+        },
+        onPaused: () => {
+          setIsPlaying(false);
+        },
+        onEnded: () => {
+          handleTrackEndedRef.current?.();
+        },
+        onError: (err) => {
+          console.warn('[PlayerContext] HTML5 stream error:', err);
+          setIsBuffering(false);
+          showToast('Audio stream temporarily unavailable. Skipping...', 'warning');
+          nextTrackRef.current?.();
+        }
+      });
+
+      audioEngine.setVolume(volume);
+      audioEngine.setMuted(isMuted);
+
+      audioEngine.play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn('[PlayerContext] HTML5 play request deferred:', err?.message || err);
+        });
     } else {
-      setIsPlaying(true);
+      setActiveEngine('youtube');
+      // Pause HTML5 audio engine if active
+      audioEngine.pause();
+
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
+        try {
+          ytPlayerRef.current.loadVideoById(track.id);
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        } catch (err) {
+          console.error('Failed to load video in YouTube player:', err);
+        }
+      } else {
+        setIsPlaying(true);
+      }
     }
-  }, [addToRecent]);
+  }, [addToRecent, isMuted, showToast, volume]);
 
   // Next Track Logic
   const nextTrack = useCallback(() => {
@@ -167,11 +251,14 @@ export function PlayerProvider({ children }) {
   // Seek Function
   const seekTo = useCallback((seconds) => {
     setCurrentTime(seconds);
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+    const current = stateRef.current.currentTrack;
+    if (isHtml5Track(current)) {
+      audioEngine.seek(seconds);
+    } else if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
       try {
         ytPlayerRef.current.seekTo(seconds, true);
       } catch (e) {
-        console.error('Error seeking:', e);
+        console.error('Error seeking in YouTube player:', e);
       }
     }
     updateMediaSessionPositionState({ duration, position: seconds });
@@ -204,7 +291,8 @@ export function PlayerProvider({ children }) {
     nextTrackRef.current = nextTrack;
     prevTrackRef.current = prevTrack;
     seekToRef.current = seekTo;
-  }, [nextTrack, prevTrack, seekTo]);
+    handleTrackEndedRef.current = handleTrackEnded;
+  }, [nextTrack, prevTrack, seekTo, handleTrackEnded]);
 
   // Media Session API Setup
   useEffect(() => {
@@ -237,19 +325,6 @@ export function PlayerProvider({ children }) {
     setMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
     updateMediaSessionPositionState({ duration, position: currentTime });
   }, [isPlaying, duration, currentTime]);
-
-  // YouTube Player Event Handlers
-  const handleTrackEnded = useCallback(() => {
-    const { repeatMode } = stateRef.current;
-    if (repeatMode === 'one') {
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
-        ytPlayerRef.current.seekTo(0, true);
-        ytPlayerRef.current.playVideo();
-      }
-    } else if (nextTrackRef.current) {
-      nextTrackRef.current();
-    }
-  }, []);
 
   const handlePlayerStateChange = useCallback((event) => {
     const state = event.data;
@@ -345,9 +420,9 @@ export function PlayerProvider({ children }) {
     };
   }, [currentTrack?.id, handlePlayerError, handlePlayerStateChange]);
 
-  // Poll current playback time while playing
+  // Poll current playback time while playing YouTube tracks
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && activeEngine === 'youtube') {
       progressTimerRef.current = setInterval(() => {
         if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
           try {
@@ -371,24 +446,37 @@ export function PlayerProvider({ children }) {
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
-  }, [isPlaying]);
+  }, [isPlaying, activeEngine]);
 
   const togglePlay = useCallback(() => {
-    if (!ytPlayerRef.current) return;
-    try {
+    const current = stateRef.current.currentTrack;
+    if (isHtml5Track(current)) {
       if (isPlaying) {
-        ytPlayerRef.current.pauseVideo();
+        audioEngine.pause();
         setIsPlaying(false);
       } else {
-        ytPlayerRef.current.playVideo();
-        setIsPlaying(true);
+        audioEngine.play()
+          .then(() => setIsPlaying(true))
+          .catch((e) => console.warn('HTML5 play error:', e));
       }
-    } catch (e) {
-      console.error('Error toggling play/pause:', e);
+    } else {
+      if (!ytPlayerRef.current) return;
+      try {
+        if (isPlaying) {
+          ytPlayerRef.current.pauseVideo();
+          setIsPlaying(false);
+        } else {
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        }
+      } catch (e) {
+        console.error('Error toggling play/pause:', e);
+      }
     }
   }, [isPlaying]);
 
   const pause = useCallback(() => {
+    audioEngine.pause();
     if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
       try {
         ytPlayerRef.current.pauseVideo();
@@ -403,6 +491,7 @@ export function PlayerProvider({ children }) {
     const level = Math.max(0, Math.min(100, Number(val)));
     setVolume(level);
     setIsMuted(level === 0);
+    audioEngine.setVolume(level);
     if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
       try {
         ytPlayerRef.current.setVolume(level);
@@ -416,18 +505,20 @@ export function PlayerProvider({ children }) {
   }, []);
 
   const toggleMute = useCallback(() => {
-    if (!ytPlayerRef.current) return;
-    try {
-      if (isMuted) {
-        ytPlayerRef.current.unMute();
-        ytPlayerRef.current.setVolume(volume || 50);
-        setIsMuted(false);
-      } else {
-        ytPlayerRef.current.mute();
-        setIsMuted(true);
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    audioEngine.setMuted(nextMuted);
+    if (ytPlayerRef.current) {
+      try {
+        if (nextMuted) {
+          ytPlayerRef.current.mute();
+        } else {
+          ytPlayerRef.current.unMute();
+          ytPlayerRef.current.setVolume(volume || 50);
+        }
+      } catch {
+        // Ignored
       }
-    } catch {
-      // Ignored
     }
   }, [isMuted, volume]);
 
@@ -518,6 +609,7 @@ export function PlayerProvider({ children }) {
     <PlayerContext.Provider
       value={{
         currentTrack,
+        activeEngine,
         isPlaying,
         isBuffering,
         currentTime,
