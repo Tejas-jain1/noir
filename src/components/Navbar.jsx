@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useLibrary } from '../context/LibraryContext';
@@ -26,6 +26,13 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const isSearchPage = location.pathname === '/search';
+
+  useEffect(() => {
+    if (isSearchPage) {
+      const params = new URLSearchParams(location.search);
+      setSearchQuery(params.get('q') || '');
+    }
+  }, [location.search, isSearchPage]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

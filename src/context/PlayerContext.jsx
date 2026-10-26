@@ -421,6 +421,12 @@ export function PlayerProvider({ children }) {
     showToast(`Added "${track.title}" to queue`, 'success');
   }, [showToast]);
 
+  const addTracksToQueue = useCallback((tracks, label = '') => {
+    if (!tracks || !Array.isArray(tracks) || tracks.length === 0) return;
+    setQueue(prev => [...prev, ...tracks]);
+    showToast(`Added ${tracks.length} track${tracks.length > 1 ? 's' : ''}${label ? ` from "${label}"` : ''} to queue`, 'success');
+  }, [showToast]);
+
   const removeFromQueue = useCallback((index) => {
     setQueue(prev => {
       const updated = prev.filter((_, i) => i !== index);
@@ -481,6 +487,7 @@ export function PlayerProvider({ children }) {
         toggleShuffle,
         cycleRepeat,
         addToQueue,
+        addTracksToQueue,
         removeFromQueue,
         clearQueue,
         reorderQueue
