@@ -64,6 +64,19 @@ export const supabaseService = {
     return data;
   },
 
+  async signInWithGoogle() {
+    if (!supabase) throw new Error('Supabase is not configured. Please add your credentials in Settings.');
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo
+      }
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();

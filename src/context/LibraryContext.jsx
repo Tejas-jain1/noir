@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { storage } from '../services/storage';
 import { offlineStorage } from '../services/offlineStorage';
 import { supabaseService, isSupabaseConfigured } from '../services/supabaseClient';
+import { notifyAdminOnAuth } from '../services/adminNotification';
 
 const LibraryContext = createContext();
 
@@ -53,6 +54,9 @@ export function LibraryProvider({ children }) {
       const u = session?.user || null;
       setUser(u);
       if (u) {
+        if (_event === 'SIGNED_IN') {
+          notifyAdminOnAuth(u, 'Signed In');
+        }
         const cloudLikes = await supabaseService.loadLikedSongs(u.id);
         const cloudPlaylists = await supabaseService.loadPlaylists(u.id);
         setLikedSongs(cloudLikes);
