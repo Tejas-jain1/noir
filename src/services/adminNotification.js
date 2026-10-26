@@ -3,7 +3,7 @@
  * Sends an email notification to the administrator whenever a user signs in or creates an account.
  */
 
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_NOTIFICATION_EMAIL || '';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_NOTIFICATION_EMAIL || 'tejastejasgandhi@gmail.com';
 const NOTIFICATION_KEY = import.meta.env.VITE_NOTIFICATION_ACCESS_KEY || '';
 
 // In-session deduplication so admin doesn't get spammed if user refreshes page

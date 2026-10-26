@@ -6,8 +6,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { offlineStorage } from './offlineStorage';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ucqaqzyhuukdeqcpzonp.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_w-nXagqf0mv8AHUed9K-9A_JA-5M1Np';
 
 const _configured = Boolean(
   supabaseUrl && 
