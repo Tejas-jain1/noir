@@ -15,7 +15,6 @@ import {
   Volume1,
   Heart,
   ListMusic,
-  Tv,
   Maximize2,
   Loader2,
   Mic2
@@ -40,8 +39,6 @@ export default function MusicPlayer({ onOpenQueue }) {
     toggleMute,
     toggleShuffle,
     cycleRepeat,
-    isVideoVisible,
-    setIsVideoVisible,
     isMobilePlayerOpen,
     setIsMobilePlayerOpen,
     showLyrics,
@@ -66,8 +63,9 @@ export default function MusicPlayer({ onOpenQueue }) {
   const progressPercent = duration > 0 ? (scrubValue / duration) * 100 : 0;
 
   const handleSeekChange = (e) => {
-    setIsScrubbing(true);
-    setScrubValue(parseFloat(e.target.value));
+    const val = parseFloat(e.target.value);
+    setScrubValue(val);
+    seekTo(val);
   };
 
   const handleSeekCommit = (e) => {
@@ -470,22 +468,6 @@ export default function MusicPlayer({ onOpenQueue }) {
           <span />
           <span />
         </div>
-
-        {/* Video Mode Toggle (Compliant YouTube Video PiP) */}
-        <button
-          onClick={() => setIsVideoVisible(!isVideoVisible)}
-          style={{
-            color: isVideoVisible ? 'var(--accent-solid)' : 'var(--text-muted)',
-            padding: '6px',
-            borderRadius: 'var(--radius-sm)',
-            display: 'flex',
-            alignItems: 'center',
-            backgroundColor: isVideoVisible ? 'var(--accent-subtle)' : 'transparent'
-          }}
-          title={isVideoVisible ? 'Hide YouTube video' : 'Show YouTube video'}
-        >
-          <Tv size={17} />
-        </button>
 
         {/* Synchronized Lyrics Toggle Button */}
         <button

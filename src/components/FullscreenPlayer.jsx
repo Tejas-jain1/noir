@@ -14,7 +14,6 @@ import {
   Heart,
   Volume2,
   VolumeX,
-  Tv,
   Share2,
   Mic2,
   Music2,
@@ -41,8 +40,6 @@ export default function FullscreenPlayer() {
     cycleRepeat,
     isMobilePlayerOpen,
     setIsMobilePlayerOpen,
-    isVideoVisible,
-    setIsVideoVisible,
     lyricsData,
     lyricsLoading,
     showLyrics,
@@ -473,24 +470,6 @@ export default function FullscreenPlayer() {
             >
               <Mic2 size={16} />
               <span>{showLyrics ? 'Artwork' : 'Lyrics'}</span>
-            </button>
-
-            <button
-              onClick={() => setIsVideoVisible(!isVideoVisible)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                color: isVideoVisible ? 'var(--accent-solid)' : 'var(--text-secondary)',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: isVideoVisible ? 'var(--accent-subtle)' : 'transparent'
-              }}
-            >
-              <Tv size={16} />
-              <span>{isVideoVisible ? 'Hide Video' : 'Video'}</span>
             </button>
           </div>
 

@@ -115,25 +115,6 @@
   box-sizing: border-box;
 }
 
-/* Floating PiP Video Container */
-.yt-floating-pip {
-  position: fixed;
-  right: 24px;
-  bottom: 106px;
-  width: 340px;
-  height: 192px;
-  z-index: 100;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-medium);
-  box-shadow: var(--shadow-lg);
-  background-color: #000000;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
 /* Mobile elements default */
 .mobile-only {
   display: flex;
@@ -404,15 +385,6 @@
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25) !important;
     width: 100% !important;
     box-sizing: border-box !important;
-  }
-
-  /* Mobile Floating PiP Video */
-  .yt-floating-pip {
-    right: 12px !important;
-    bottom: 136px !important;
-    width: calc(100% - 24px) !important;
-    max-width: 340px !important;
-    height: 190px !important;
   }
 
   /* Floating Toast Notifications on Mobile */

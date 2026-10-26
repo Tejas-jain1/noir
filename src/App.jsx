@@ -9,7 +9,6 @@ import Navbar from './components/Navbar';
 import MusicPlayer from './components/MusicPlayer';
 import MobileNav from './components/MobileNav';
 import FullscreenPlayer from './components/FullscreenPlayer';
-import YouTubeContainer from './components/YouTubeContainer';
 import QueueModal from './components/QueueModal';
 import SettingsModal from './components/SettingsModal';
 import CreatePlaylistModal from './components/CreatePlaylistModal';
@@ -118,10 +117,7 @@ function MainLayout() {
       {/* 6. Expandable Fullscreen / Mobile Player Sheet */}
       <FullscreenPlayer />
 
-      {/* 7. Compliant Official YouTube IFrame Mount Target */}
-      <YouTubeContainer />
-
-      {/* 8. Modals & Notifications */}
+      {/* 7. Modals & Notifications */}
       <QueueModal
         isOpen={isQueueOpen}
         onClose={() => setIsQueueOpen(false)}
