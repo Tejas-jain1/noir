@@ -1,11 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useLibrary } from '../context/LibraryContext';
-import { usePlayer } from '../context/PlayerContext';
-import { saavnApi } from '../services/saavnApi';
-import { storage } from '../services/storage';
-import SearchDropdown, { POPULAR_SEARCHES } from './SearchDropdown';
 import { 
   Search, 
   Sun, 
@@ -18,252 +14,26 @@ import {
   ShieldCheck,
   Disc,
   LogOut,
-  LogIn,
-  X,
-  Loader2
+  LogIn
 } from 'lucide-react';
 
 export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth }) {
   const { toggleTheme, isDark } = useTheme();
   const { user, signOut } = useLibrary();
-  const { playTrack } = usePlayer();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState({ songs: [], artists: [], albums: [], topResult: null });
-  const [recentSearches, setRecentSearches] = useState(() => storage.getRecentSearches());
-  const [activeIndex, setActiveIndex] = useState(-1);
-
-  const searchContainerRef = useRef(null);
-  const inputRef = useRef(null);
-  const abortControllerRef = useRef(null);
   const isSearchPage = location.pathname === '/search';
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
-        setIsDropdownOpen(false);
-        setActiveIndex(-1);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, []);
-
-  // Sync recent searches on storage change or window focus
-  useEffect(() => {
-    const handleStorage = () => {
-      setRecentSearches(storage.getRecentSearches());
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
-  // Debounced live suggestions fetching (300ms)
-  useEffect(() => {
-    if (!isDropdownOpen) return;
-
-    const trimmed = searchQuery.trim();
-    if (!trimmed) {
-      setSuggestions({ songs: [], artists: [], albums: [], topResult: null });
-      setLoadingSuggestions(false);
-      return;
-    }
-
-    setLoadingSuggestions(true);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    const timer = setTimeout(async () => {
-      try {
-        const data = await saavnApi.getSuggestions(trimmed, controller.signal);
-        setSuggestions(data);
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.warn('Live suggestion fetch error:', err);
-        }
-      } finally {
-        setLoadingSuggestions(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, isDropdownOpen]);
-
-  // Handlers for selections
-  const handleSelectSong = (song) => {
-    const trackObj = {
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album || 'Single',
-      thumbnail: song.thumbnail,
-      duration: song.duration,
-      durationFormatted: song.durationFormatted,
-      audioUrl: song.audioUrl || null
-    };
-
-    const updated = storage.addRecentSearch({
-      id: song.id,
-      type: 'song',
-      title: song.title,
-      subtitle: `Song • ${song.artist}`,
-      thumbnail: song.thumbnail,
-      track: trackObj
-    });
-    setRecentSearches(updated);
-
-    playTrack(trackObj);
-    setIsDropdownOpen(false);
-    setActiveIndex(-1);
-  };
-
-  const handleSelectArtist = (artist) => {
-    const updated = storage.addRecentSearch({
-      id: artist.id,
-      type: 'artist',
-      title: artist.name,
-      subtitle: 'Artist',
-      thumbnail: artist.thumbnail
-    });
-    setRecentSearches(updated);
-
-    navigate(`/artist/${encodeURIComponent(artist.name)}`);
-    setIsDropdownOpen(false);
-    setActiveIndex(-1);
-  };
-
-  const handleSelectAlbum = (album) => {
-    const updated = storage.addRecentSearch({
-      id: album.id,
-      type: 'album',
-      title: album.title,
-      subtitle: `Album • ${album.artist || ''}`.trim(),
-      thumbnail: album.thumbnail
-    });
-    setRecentSearches(updated);
-
-    navigate(`/album/${encodeURIComponent(album.title)}`);
-    setIsDropdownOpen(false);
-    setActiveIndex(-1);
-  };
-
-  const handleSelectQuery = (queryText) => {
-    const trimmed = (queryText || searchQuery).trim();
-    if (trimmed) {
-      const updated = storage.addRecentSearch({
-        id: `query-${trimmed.toLowerCase()}`,
-        type: 'query',
-        title: trimmed,
-        subtitle: 'Search query',
-        query: trimmed
-      });
-      setRecentSearches(updated);
-      setSearchQuery(trimmed);
-      navigate(`/search?q=${encodeURIComponent(trimmed)}`);
-    } else {
-      navigate('/search');
-    }
-    setIsDropdownOpen(false);
-    setActiveIndex(-1);
-  };
-
-  const handleRemoveRecent = (id) => {
-    const updated = storage.removeRecentSearch(id);
-    setRecentSearches(updated);
-  };
-
-  const handleClearRecent = () => {
-    const updated = storage.clearRecentSearches();
-    setRecentSearches(updated);
-  };
-
-  // Keyboard navigation
-  const handleKeyDown = (e) => {
-    if (!isDropdownOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        setIsDropdownOpen(true);
-        e.preventDefault();
-      }
-      return;
-    }
-
-    const hasQuery = Boolean(searchQuery && searchQuery.trim());
-    const items = !hasQuery
-      ? [
-          ...recentSearches.map(item => ({
-            action: () => {
-              if (item.type === 'song' && item.track) handleSelectSong(item.track);
-              else if (item.type === 'artist') handleSelectArtist({ name: item.title, id: item.id });
-              else if (item.type === 'album') handleSelectAlbum({ title: item.title, id: item.id });
-              else handleSelectQuery(item.query || item.title);
-            }
-          })),
-          ...POPULAR_SEARCHES.map(tag => ({
-            action: () => handleSelectQuery(tag)
-          }))
-        ]
-      : [
-          ...(suggestions.topResult ? [{
-            action: () => {
-              const top = suggestions.topResult;
-              if (top.type === 'artist') handleSelectArtist({ name: top.title, id: top.id });
-              else if (top.type === 'album') handleSelectAlbum({ title: top.title, id: top.id });
-              else handleSelectSong(top);
-            }
-          }] : []),
-          ...(suggestions.songs || []).map(song => ({
-            action: () => handleSelectSong(song)
-          })),
-          ...(suggestions.artists || []).map(artist => ({
-            action: () => handleSelectArtist(artist)
-          })),
-          ...(suggestions.albums || []).map(album => ({
-            action: () => handleSelectAlbum(album)
-          })),
-          {
-            action: () => handleSelectQuery(searchQuery)
-          }
-        ];
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (items.length === 0) return;
-      setActiveIndex(prev => (prev < items.length - 1 ? prev + 1 : 0));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (items.length === 0) return;
-      setActiveIndex(prev => (prev > 0 ? prev - 1 : items.length - 1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (activeIndex >= 0 && activeIndex < items.length) {
-        items[activeIndex].action();
-      } else if (searchQuery.trim()) {
-        handleSelectQuery(searchQuery);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setIsDropdownOpen(false);
-      setActiveIndex(-1);
-    }
-  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    handleSelectQuery(searchQuery);
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      navigate('/search');
+    }
   };
 
   return (
@@ -368,119 +138,51 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
         </div>
       </div>
 
-      {/* Center: Live Search input with Spotify Dropdown */}
-      <div
-        ref={searchContainerRef}
+      {/* Center: Search input */}
+      <form
+        onSubmit={handleSearchSubmit}
         style={{
           flex: 1,
           maxWidth: '460px',
           position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
           minWidth: 0
         }}
       >
-        <form
-          onSubmit={handleSearchSubmit}
+        <Search
+          size={16}
           style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            width: '100%'
+            position: 'absolute',
+            left: '12px',
+            color: 'var(--text-muted)',
+            pointerEvents: 'none'
           }}
-        >
-          <Search
-            size={16}
-            style={{
-              position: 'absolute',
-              left: '12px',
-              color: 'var(--text-muted)',
-              pointerEvents: 'none'
-            }}
-          />
-          <input
-            ref={inputRef}
-            type="text"
-            className="navbar-search-input"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setIsDropdownOpen(true);
-              setActiveIndex(-1);
-            }}
-            onFocus={() => {
-              setIsDropdownOpen(true);
-              setRecentSearches(storage.getRecentSearches());
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Search songs, artists, albums..."
-            style={{
-              width: '100%',
-              height: '38px',
-              padding: '0 36px 0 36px',
-              borderRadius: 'var(--radius-full)',
-              backgroundColor: 'var(--bg-input)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-              transition: 'border-color var(--transition-fast), background var(--transition-fast)'
-            }}
-          />
-
-          {/* Right indicator: Spinner or Clear Button */}
-          <div
-            style={{
-              position: 'absolute',
-              right: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            {loadingSuggestions && (
-              <Loader2 size={14} className="brand-logo-spin" style={{ color: 'var(--text-muted)' }} />
-            )}
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSuggestions({ songs: [], artists: [], albums: [], topResult: null });
-                  setActiveIndex(-1);
-                  if (inputRef.current) inputRef.current.focus();
-                }}
-                style={{
-                  padding: '4px',
-                  color: 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '50%',
-                  transition: 'color var(--transition-fast)'
-                }}
-                title="Clear search"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        </form>
-
-        {/* Responsive Spotify Search Dropdown */}
-        <SearchDropdown
-          isOpen={isDropdownOpen}
-          query={searchQuery}
-          suggestions={suggestions}
-          loading={loadingSuggestions}
-          recentSearches={recentSearches}
-          onRemoveRecent={handleRemoveRecent}
-          onClearRecent={handleClearRecent}
-          onSelectSong={handleSelectSong}
-          onSelectArtist={handleSelectArtist}
-          onSelectAlbum={handleSelectAlbum}
-          onSelectQuery={handleSelectQuery}
-          activeIndex={activeIndex}
-          onHoverIndex={setActiveIndex}
         />
-      </div>
+        <input
+          type="text"
+          className="navbar-search-input"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search songs, artists..."
+          style={{
+            width: '100%',
+            height: '38px',
+            padding: '0 14px 0 36px',
+            borderRadius: 'var(--radius-full)',
+            backgroundColor: 'var(--bg-input)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-primary)',
+            fontSize: '0.85rem',
+            transition: 'border-color var(--transition-fast), background var(--transition-fast)'
+          }}
+          onFocus={() => {
+            if (!isSearchPage) {
+              navigate('/search');
+            }
+          }}
+        />
+      </form>
 
       {/* Right: Theme Toggle, Settings & Profile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

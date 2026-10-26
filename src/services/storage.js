@@ -5,8 +5,7 @@ const KEYS = {
   PLAYLISTS: 'noir_playlists',
   RECENTLY_PLAYED: 'noir_recently_played',
   SETTINGS: 'noir_settings',
-  QUEUE: 'noir_saved_queue',
-  RECENT_SEARCHES: 'noir_recent_searches'
+  QUEUE: 'noir_saved_queue'
 };
 
 const DEFAULT_PLAYLISTS = [
@@ -112,79 +111,6 @@ export const storage = {
       localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
     } catch (e) {
       console.error('Error saving settings', e);
-    }
-  },
-
-  getRecentSearches: () => {
-    try {
-      const data = localStorage.getItem(KEYS.RECENT_SEARCHES);
-      return data ? JSON.parse(data) : [];
-    } catch (e) {
-      console.error('Error reading recent searches', e);
-      return [];
-    }
-  },
-
-  saveRecentSearches: (items) => {
-    try {
-      localStorage.setItem(KEYS.RECENT_SEARCHES, JSON.stringify(items || []));
-    } catch (e) {
-      console.error('Error saving recent searches', e);
-    }
-  },
-
-  addRecentSearch: (item) => {
-    if (!item) return [];
-    try {
-      const existing = storage.getRecentSearches();
-      // Deduplicate by id, or matching query, or title+type
-      const filtered = existing.filter(entry => {
-        if (item.id && entry.id === item.id) return false;
-        if (item.query && entry.query && entry.query.toLowerCase() === item.query.toLowerCase()) return false;
-        if (item.title && entry.title && entry.type === item.type && entry.title.toLowerCase() === item.title.toLowerCase()) return false;
-        return true;
-      });
-      const updated = [
-        {
-          id: item.id || `search-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          type: item.type || 'query', // 'song' | 'artist' | 'album' | 'query'
-          title: item.title || item.query,
-          subtitle: item.subtitle || (item.type === 'artist' ? 'Artist' : item.type === 'album' ? 'Album' : item.type === 'song' ? 'Song' : 'Search'),
-          thumbnail: item.thumbnail || null,
-          query: item.query || item.title,
-          track: item.track || null,
-          timestamp: Date.now()
-        },
-        ...filtered
-      ].slice(0, 10); // Keep top 10
-
-      storage.saveRecentSearches(updated);
-      return updated;
-    } catch (e) {
-      console.error('Error adding recent search', e);
-      return [];
-    }
-  },
-
-  removeRecentSearch: (id) => {
-    try {
-      const existing = storage.getRecentSearches();
-      const updated = existing.filter(item => item.id !== id);
-      storage.saveRecentSearches(updated);
-      return updated;
-    } catch (e) {
-      console.error('Error removing recent search', e);
-      return [];
-    }
-  },
-
-  clearRecentSearches: () => {
-    try {
-      localStorage.removeItem(KEYS.RECENT_SEARCHES);
-      return [];
-    } catch (e) {
-      console.error('Error clearing recent searches', e);
-      return [];
     }
   }
 };
