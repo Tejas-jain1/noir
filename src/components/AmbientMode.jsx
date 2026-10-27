@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { formatTime } from '../services/youtubeApi';
@@ -15,8 +15,11 @@ import {
   Volume1,
   Heart,
   X,
-  Mic2,
-  Sparkles
+  Maximize2,
+  Minimize2,
+  Loader2,
+  Music2,
+  MoreVertical
 } from 'lucide-react';
 
 export default function AmbientMode({ isOpen, onClose }) {
@@ -37,37 +40,93 @@ export default function AmbientMode({ isOpen, onClose }) {
     toggleMute,
     toggleShuffle,
     cycleRepeat,
-    setShowLyrics,
-    setIsMobilePlayerOpen
+    lyricsData,
+    lyricsLoading,
+    activeLyricIndex
   } = usePlayer();
 
   const { isLiked, toggleLike } = useLibrary();
 
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
 
+  const lyricsContainerRef = useRef(null);
+  const activeLineRef = useRef(null);
+  const hideControlsTimerRef = useRef(null);
+
+  // Sync scrubValue with currentTime
   useEffect(() => {
     if (!isScrubbing) {
       setScrubValue(currentTime);
     }
   }, [currentTime, isScrubbing]);
 
-  // Handle ESC key to exit Ambient Mode
+  // Smoothly scroll active lyric to vertical center
+  useEffect(() => {
+    if (activeLineRef.current && lyricsContainerRef.current) {
+      activeLineRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [activeLyricIndex]);
+
+  // Handle ESC and Spacebar shortcuts
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         onClose();
+      } else if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        togglePlay();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, togglePlay]);
+
+  // Auto-hide controls after inactivity for cinema experience
+  const handleMouseMove = () => {
+    setControlsVisible(true);
+    if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+    hideControlsTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 4500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+    };
+  }, []);
+
+  // Fullscreen / Landscape toggle
+  const toggleFullscreenMode = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().then(() => {
+        setIsFullscreen(true);
+        try {
+          window.screen.orientation?.lock?.('landscape').catch(() => {});
+        } catch {}
+      }).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => {
+        setIsFullscreen(false);
+      }).catch(() => {});
+    }
+  };
 
   if (!isOpen || !currentTrack) return null;
 
   const liked = isLiked(currentTrack.id);
   const progressPercent = duration > 0 ? (scrubValue / duration) * 100 : 0;
+  const hasSyncedLyrics = lyricsData?.syncedLyrics && lyricsData.syncedLyrics.length > 0;
+  const hasPlainLyrics = !hasSyncedLyrics && Boolean(lyricsData?.plainLyrics);
 
   const handleSeekChange = (e) => {
     const val = parseFloat(e.target.value);
@@ -81,338 +140,397 @@ export default function AmbientMode({ isOpen, onClose }) {
     setIsScrubbing(false);
   };
 
-  const handleOpenLyrics = () => {
-    onClose();
-    setShowLyrics(true);
-    setIsMobilePlayerOpen(true);
-  };
-
   return (
     <div
       className="ambient-mode-overlay"
+      onMouseMove={handleMouseMove}
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 2500,
-        backgroundColor: '#070709',
+        zIndex: 3000,
+        backgroundColor: '#0a0a0c',
         color: '#ffffff',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '28px 24px',
         overflow: 'hidden',
         userSelect: 'none',
-        animation: 'fadeIn 0.3s ease-out'
+        animation: 'fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
       }}
     >
-      {/* Dynamic Animated Ambient Glow Backdrop */}
+      {/* ─── 1. Moody Dynamic Blurred Ambient Backdrop ─── */}
       <div
-        className="ambient-backdrop-glow"
+        className="ambient-backdrop-image"
+        style={{
+          position: 'absolute',
+          inset: '-20px',
+          backgroundImage: `url(${currentTrack.thumbnail})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(90px) brightness(0.28) saturate(180%)',
+          transform: 'scale(1.15)',
+          zIndex: 0,
+          pointerEvents: 'none',
+          transition: 'background-image 0.8s ease'
+        }}
+      />
+      <div
+        className="ambient-backdrop-vignette"
         style={{
           position: 'absolute',
           inset: 0,
-          pointerEvents: 'none',
-          overflow: 'hidden',
-          zIndex: 0
+          background: 'radial-gradient(ellipse at center, rgba(14, 14, 18, 0.35) 0%, rgba(6, 6, 8, 0.88) 85%)',
+          zIndex: 1,
+          pointerEvents: 'none'
         }}
-      >
-        {/* Pulsing Central Aura */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '42%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '650px',
-            height: '650px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, var(--accent-solid, #9333ea) 0%, rgba(147, 51, 234, 0.25) 40%, transparent 70%)',
-            filter: 'blur(70px)',
-            opacity: isPlaying ? 0.45 : 0.2,
-            transition: 'opacity 1s ease',
-            animation: isPlaying ? 'ambientPulse 6s ease-in-out infinite alternate' : 'none'
-          }}
-        />
-        {/* Secondary Ambient Accent Blob */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '10%',
-            right: '15%',
-            width: '400px',
-            height: '400px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%)',
-            filter: 'blur(80px)',
-            opacity: 0.35
-          }}
-        />
-      </div>
+      />
 
-      {/* Top Bar: Brand Badge & Close Button */}
+      {/* ─── 2. Top Navigation Bar (3-Dots, Fullscreen & Exit) ─── */}
       <header
         style={{
-          width: '100%',
-          maxWidth: '1100px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          zIndex: 2,
-          position: 'relative'
+          padding: '24px 32px',
+          zIndex: 10,
+          position: 'relative',
+          opacity: controlsVisible ? 1 : 0,
+          transition: 'opacity 0.35s ease'
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '6px 14px',
-            borderRadius: '9999px',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            backdropFilter: 'blur(12px)',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'rgba(255, 255, 255, 0.9)'
-          }}
-        >
-          <Sparkles size={14} style={{ color: 'var(--accent-solid, #a855f7)' }} />
-          <span>Ambient Mode</span>
-        </div>
-
         <button
-          onClick={onClose}
           style={{
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '42px',
-            height: '42px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            color: '#ffffff',
             cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            backdropFilter: 'blur(12px)'
+            backdropFilter: 'blur(16px)'
           }}
-          title="Exit Ambient Mode (Esc)"
-          aria-label="Exit Ambient Mode"
+          title="Ambient Mode"
         >
-          <X size={20} />
+          <MoreVertical size={18} />
         </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Fullscreen / Rotate Screen Button */}
+          <button
+            onClick={toggleFullscreenMode}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(16px)'
+            }}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Landscape Fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(16px)'
+            }}
+            title="Exit Ambient Mode (Esc)"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </header>
 
-      {/* Center Stage: Rotating Vinyl Disc */}
+      {/* ─── 3. Horizontal Cinema Split Stage (Artwork on Left, Synchronized Lyrics on Right) ─── */}
       <main
+        className="ambient-cinema-stage"
         style={{
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           flex: 1,
-          zIndex: 2,
-          position: 'relative',
           width: '100%',
-          padding: '16px 0'
+          maxWidth: '1440px',
+          margin: '0 auto',
+          padding: '0 40px',
+          gap: 'clamp(36px, 6vw, 84px)',
+          zIndex: 5,
+          position: 'relative',
+          minHeight: 0,
+          overflow: 'hidden'
         }}
       >
+        {/* LEFT COLUMN: Song Artwork & Details */}
         <div
-          className="vinyl-wrapper"
+          className="ambient-artwork-column"
           style={{
-            position: 'relative',
-            width: 'min(360px, 68vw)',
-            height: 'min(360px, 68vw)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '50%',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.8), 0 0 60px rgba(147, 51, 234, 0.25)'
-          }}
-        >
-          {/* Vinyl Disc Body with Grooves */}
-          <div
-            className="vinyl-disc"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              backgroundColor: '#0d0d10',
-              backgroundImage: `
-                radial-gradient(circle at center, transparent 42%, rgba(255, 255, 255, 0.04) 43%, transparent 44%),
-                radial-gradient(circle at center, transparent 52%, rgba(255, 255, 255, 0.03) 53%, transparent 54%),
-                radial-gradient(circle at center, transparent 63%, rgba(255, 255, 255, 0.04) 64%, transparent 65%),
-                radial-gradient(circle at center, transparent 75%, rgba(255, 255, 255, 0.03) 76%, transparent 77%),
-                radial-gradient(circle at center, transparent 86%, rgba(255, 255, 255, 0.04) 87%, transparent 88%)
-              `,
-              boxShadow: 'inset 0 0 0 2px rgba(255, 255, 255, 0.1), inset 0 0 40px rgba(0, 0, 0, 0.9)',
-              animation: 'vinylSpin 18s linear infinite',
-              animationPlayState: isPlaying ? 'running' : 'paused'
-            }}
-          >
-            {/* Glossy Conic Reflection */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                background: `conic-gradient(
-                  from 45deg,
-                  rgba(255, 255, 255, 0.08) 0deg,
-                  transparent 30deg,
-                  transparent 150deg,
-                  rgba(255, 255, 255, 0.08) 180deg,
-                  transparent 210deg,
-                  transparent 330deg,
-                  rgba(255, 255, 255, 0.08) 360deg
-                )`,
-                pointerEvents: 'none'
-              }}
-            />
-
-            {/* Inner Center Label (Album Art) */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '42%',
-                height: '42%',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                boxShadow: '0 0 0 3px #1a1a20, 0 4px 16px rgba(0,0,0,0.7)',
-                backgroundColor: '#1f1f25'
-              }}
-            >
-              <img
-                src={currentTrack.thumbnail}
-                alt={currentTrack.title}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
-                }}
-              />
-              {/* Spindle Center Hole */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '14px',
-                  height: '14px',
-                  borderRadius: '50%',
-                  backgroundColor: '#070709',
-                  border: '2px solid rgba(255, 255, 255, 0.3)',
-                  boxShadow: 'inset 0 0 4px rgba(0,0,0,0.9)'
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Track Title, Artist, & Like Button */}
-        <div
-          style={{
-            marginTop: '28px',
-            textAlign: 'center',
-            maxWidth: '520px',
-            width: '100%',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            gap: '6px'
+            alignItems: 'flex-start',
+            gap: '20px',
+            flexShrink: 0,
+            maxWidth: '440px',
+            width: 'clamp(260px, 34vw, 420px)'
           }}
         >
+          {/* Rounded Square Cover Art (Matching User's Screenshot) */}
+          <div
+            className="ambient-cover-wrapper"
+            style={{
+              width: '100%',
+              aspectRatio: '1/1',
+              borderRadius: '24px',
+              overflow: 'hidden',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.75), 0 0 40px rgba(0, 0, 0, 0.4)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#18181c',
+              position: 'relative'
+            }}
+          >
+            <img
+              src={currentTrack.thumbnail}
+              alt={currentTrack.title}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+              onError={(e) => {
+                e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+              }}
+            />
+          </div>
+
+          {/* Track Info & Like */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              width: '100%'
+              justifyContent: 'space-between',
+              width: '100%',
+              gap: '12px'
             }}
           >
-            <h1
-              style={{
-                fontSize: 'clamp(1.2rem, 3.5vw, 1.75rem)',
-                fontWeight: 700,
-                color: '#ffffff',
-                margin: 0,
-                letterSpacing: '-0.02em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '85%'
-              }}
-              title={currentTrack.title}
-            >
-              {currentTrack.title}
-            </h1>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h2
+                style={{
+                  fontSize: 'clamp(1.3rem, 2.4vw, 1.85rem)',
+                  fontWeight: 700,
+                  margin: 0,
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  letterSpacing: '-0.02em',
+                  textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                }}
+                title={currentTrack.title}
+              >
+                {currentTrack.title}
+              </h2>
+              <p
+                style={{
+                  fontSize: 'clamp(0.95rem, 1.6vw, 1.15rem)',
+                  color: 'rgba(255, 255, 255, 0.65)',
+                  margin: '4px 0 0',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+                title={currentTrack.artist}
+              >
+                {currentTrack.artist}
+              </p>
+            </div>
+
             <button
               onClick={() => toggleLike(currentTrack)}
               style={{
                 color: liked ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.5)',
-                padding: '6px',
+                padding: '8px',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                transition: 'transform 0.15s ease'
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(12px)',
+                flexShrink: 0
               }}
-              title={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+              title={liked ? 'Remove from Liked' : 'Save to Liked'}
             >
-              <Heart size={22} fill={liked ? 'currentColor' : 'none'} />
+              <Heart size={20} fill={liked ? 'currentColor' : 'none'} />
             </button>
           </div>
+        </div>
 
-          <p
-            style={{
-              fontSize: 'clamp(0.9rem, 2vw, 1.05rem)',
-              color: 'rgba(255, 255, 255, 0.65)',
-              margin: 0,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: '90%'
-            }}
-            title={currentTrack.artist}
-          >
-            {currentTrack.artist}
-          </p>
+        {/* RIGHT COLUMN: Apple Music-style Animated Synchronized Lyrics */}
+        <div
+          ref={lyricsContainerRef}
+          className="ambient-lyrics-column"
+          style={{
+            flex: 1,
+            height: 'min(540px, 72vh)',
+            overflowY: 'auto',
+            position: 'relative',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%)',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}
+        >
+          {lyricsLoading ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                height: '100%',
+                gap: '14px',
+                color: 'rgba(255, 255, 255, 0.5)'
+              }}
+            >
+              <Loader2 size={28} className="brand-logo-spin" style={{ color: 'var(--accent-solid, #a855f7)' }} />
+              <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Syncing lyrics...</span>
+            </div>
+          ) : hasSyncedLyrics ? (
+            <div
+              style={{
+                paddingTop: '200px',
+                paddingBottom: '200px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '30px'
+              }}
+            >
+              {lyricsData.syncedLyrics.map((line, idx) => {
+                const isActive = idx === activeLyricIndex;
+                const isPast = idx < activeLyricIndex;
+
+                return (
+                  <p
+                    key={`${line.time}-${idx}`}
+                    ref={isActive ? activeLineRef : null}
+                    onClick={() => seekTo(line.time)}
+                    style={{
+                      margin: 0,
+                      fontSize: isActive
+                        ? 'clamp(1.5rem, 2.8vw, 2.25rem)'
+                        : 'clamp(1.15rem, 2.1vw, 1.6rem)',
+                      fontWeight: isActive ? 800 : 600,
+                      color: isActive
+                        ? '#ffffff'
+                        : isPast
+                        ? 'rgba(255, 255, 255, 0.45)'
+                        : 'rgba(255, 255, 255, 0.35)',
+                      lineHeight: 1.35,
+                      letterSpacing: '-0.02em',
+                      cursor: 'pointer',
+                      transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+                      transform: isActive ? 'scale(1.02)' : 'none',
+                      transformOrigin: 'left center',
+                      textShadow: isActive
+                        ? '0 0 28px rgba(255, 255, 255, 0.35), 0 2px 10px rgba(0,0,0,0.8)'
+                        : 'none'
+                    }}
+                    className="ambient-lyric-line"
+                  >
+                    {line.text}
+                  </p>
+                );
+              })}
+            </div>
+          ) : hasPlainLyrics ? (
+            <div
+              style={{
+                padding: '40px 0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                whiteSpace: 'pre-line',
+                fontSize: 'clamp(1.1rem, 2vw, 1.45rem)',
+                fontWeight: 600,
+                color: 'rgba(255, 255, 255, 0.75)',
+                lineHeight: 1.8
+              }}
+            >
+              {lyricsData.plainLyrics}
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                height: '100%',
+                gap: '12px',
+                color: 'rgba(255, 255, 255, 0.5)'
+              }}
+            >
+              <Music2 size={36} strokeWidth={1.5} style={{ color: 'var(--accent-solid, #a855f7)' }} />
+              <h3 style={{ fontSize: '1.3rem', margin: 0, color: '#ffffff' }}>Instrumental / No Lyrics Available</h3>
+              <p style={{ margin: 0, fontSize: '0.95rem', color: 'rgba(255, 255, 255, 0.55)' }}>
+                Enjoy the ambient soundscape and music vibes.
+              </p>
+            </div>
+          )}
         </div>
       </main>
 
-      {/* Bottom Area: Scrubber & Playback Controls */}
+      {/* ─── 4. Sleek Floating Bottom Controls Dock ─── */}
       <footer
         style={{
           width: '100%',
-          maxWidth: '680px',
+          maxWidth: '780px',
+          margin: '0 auto 24px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '16px',
-          zIndex: 2,
-          position: 'relative'
+          gap: '12px',
+          padding: '12px 24px',
+          borderRadius: '24px',
+          backgroundColor: 'rgba(18, 18, 24, 0.65)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(24px)',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.6)',
+          zIndex: 10,
+          position: 'relative',
+          opacity: controlsVisible ? 1 : 0,
+          transition: 'opacity 0.35s ease'
         }}
       >
-        {/* Progress Bar & Timestamps */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%' }}>
+        {/* Scrubber & Timestamps */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
           <span
             style={{
-              fontSize: '0.8rem',
-              color: 'rgba(255, 255, 255, 0.6)',
+              fontSize: '0.75rem',
+              color: 'rgba(255, 255, 255, 0.65)',
               fontVariantNumeric: 'tabular-nums',
-              width: '38px',
+              width: '36px',
               textAlign: 'right'
             }}
           >
@@ -431,12 +549,12 @@ export default function AmbientMode({ isOpen, onClose }) {
               onTouchEnd={handleSeekCommit}
               style={{
                 width: '100%',
-                height: '5px',
+                height: '4px',
                 borderRadius: '9999px',
-                outline: 'none',
-                cursor: 'pointer',
                 appearance: 'none',
                 WebkitAppearance: 'none',
+                outline: 'none',
+                cursor: 'pointer',
                 background: `linear-gradient(to right, var(--accent-solid, #a855f7) 0%, var(--accent-solid, #a855f7) ${progressPercent}%, rgba(255, 255, 255, 0.2) ${progressPercent}%, rgba(255, 255, 255, 0.2) 100%)`
               }}
             />
@@ -444,10 +562,10 @@ export default function AmbientMode({ isOpen, onClose }) {
 
           <span
             style={{
-              fontSize: '0.8rem',
-              color: 'rgba(255, 255, 255, 0.6)',
+              fontSize: '0.75rem',
+              color: 'rgba(255, 255, 255, 0.65)',
               fontVariantNumeric: 'tabular-nums',
-              width: '38px',
+              width: '36px',
               textAlign: 'left'
             }}
           >
@@ -455,149 +573,112 @@ export default function AmbientMode({ isOpen, onClose }) {
           </span>
         </div>
 
-        {/* Primary Controls Row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '22px' }}>
+        {/* Playback Controls & Volume */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '0 8px'
+          }}
+        >
           {/* Shuffle Button */}
           <button
             onClick={toggleShuffle}
             style={{
               color: shuffle ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.55)',
-              padding: '8px',
+              padding: '6px',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
               cursor: 'pointer',
               position: 'relative'
             }}
             title={shuffle ? 'Shuffle is ON' : 'Shuffle is OFF'}
           >
-            <Shuffle size={19} />
-            {shuffle && (
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: '3px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '3.5px',
-                  height: '3.5px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--accent-solid, #a855f7)'
-                }}
-              />
-            )}
+            <Shuffle size={17} />
           </button>
 
-          {/* Previous Track */}
-          <button
-            onClick={prevTrack}
-            style={{
-              color: '#ffffff',
-              padding: '8px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-            title="Previous track"
-          >
-            <SkipBack size={24} />
-          </button>
+          {/* Center Track Buttons: Prev, Play/Pause, Next */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+            <button
+              onClick={prevTrack}
+              style={{
+                color: '#ffffff',
+                padding: '6px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+              title="Previous Track"
+            >
+              <SkipBack size={21} />
+            </button>
 
-          {/* Large Center Play / Pause Button */}
-          <button
-            onClick={togglePlay}
-            style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--accent-solid, #a855f7)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 8px 24px rgba(168, 85, 247, 0.4)',
-              cursor: 'pointer',
-              transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)'
-            }}
-            title={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? (
-              <Pause size={24} fill="currentColor" />
-            ) : (
-              <Play size={24} fill="currentColor" style={{ marginLeft: '3px' }} />
-            )}
-          </button>
+            <button
+              onClick={togglePlay}
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--accent-solid, #a855f7)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 16px rgba(168, 85, 247, 0.4)',
+                cursor: 'pointer',
+                transition: 'transform 0.15s ease'
+              }}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <Pause size={20} fill="currentColor" />
+              ) : (
+                <Play size={20} fill="currentColor" style={{ marginLeft: '2px' }} />
+              )}
+            </button>
 
-          {/* Next Track */}
-          <button
-            onClick={nextTrack}
-            style={{
-              color: '#ffffff',
-              padding: '8px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-            title="Next track"
-          >
-            <SkipForward size={24} />
-          </button>
+            <button
+              onClick={nextTrack}
+              style={{
+                color: '#ffffff',
+                padding: '6px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+              title="Next Track"
+            >
+              <SkipForward size={21} />
+            </button>
+          </div>
 
           {/* Repeat Mode */}
           <button
             onClick={cycleRepeat}
             style={{
               color: repeatMode !== 'off' ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.55)',
-              padding: '8px',
+              padding: '6px',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              position: 'relative'
+              cursor: 'pointer'
             }}
             title={`Repeat mode: ${repeatMode}`}
           >
-            {repeatMode === 'one' ? <Repeat1 size={19} /> : <Repeat size={19} />}
-            {repeatMode !== 'off' && (
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: '3px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '3.5px',
-                  height: '3.5px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--accent-solid, #a855f7)'
-                }}
-              />
-            )}
+            {repeatMode === 'one' ? <Repeat1 size={17} /> : <Repeat size={17} />}
           </button>
-        </div>
 
-        {/* Secondary Row: Volume and Lyrics Shortcut */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '24px',
-            width: '100%',
-            marginTop: '4px'
-          }}
-        >
-          {/* Volume Controls */}
+          {/* Volume Control */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               onClick={toggleMute}
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'rgba(255, 255, 255, 0.65)',
                 padding: '4px',
                 display: 'flex',
                 alignItems: 'center',
@@ -606,11 +687,11 @@ export default function AmbientMode({ isOpen, onClose }) {
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
-                <VolumeX size={17} />
+                <VolumeX size={16} />
               ) : volume < 50 ? (
-                <Volume1 size={17} />
+                <Volume1 size={16} />
               ) : (
-                <Volume2 size={17} />
+                <Volume2 size={16} />
               )}
             </button>
 
@@ -621,8 +702,8 @@ export default function AmbientMode({ isOpen, onClose }) {
               value={isMuted ? 0 : volume}
               onChange={(e) => setVolumeLevel(e.target.value)}
               style={{
-                width: '80px',
-                height: '4px',
+                width: '74px',
+                height: '3px',
                 borderRadius: '9999px',
                 appearance: 'none',
                 WebkitAppearance: 'none',
@@ -633,29 +714,6 @@ export default function AmbientMode({ isOpen, onClose }) {
               title={`Volume: ${isMuted ? 0 : volume}%`}
             />
           </div>
-
-          {/* Synchronized Lyrics Button */}
-          <button
-            onClick={handleOpenLyrics}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              color: 'rgba(255, 255, 255, 0.9)',
-              fontSize: '0.8rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              backdropFilter: 'blur(10px)'
-            }}
-            title="View Synchronized Lyrics"
-          >
-            <Mic2 size={14} />
-            <span>Lyrics</span>
-          </button>
         </div>
       </footer>
     </div>

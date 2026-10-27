@@ -824,3 +824,51 @@
     opacity: 0.55;
   }
 }
+
+
+/* ==========================================================================
+   Ambient Cinema Mode (Apple Music / Spotify TV Horizontal Lyrics View)
+   ========================================================================== */
+
+.ambient-lyrics-column::-webkit-scrollbar {
+  display: none;
+}
+
+.ambient-lyric-line:hover {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .ambient-cinema-stage {
+    flex-direction: column !important;
+    gap: 18px !important;
+    padding: 0 20px !important;
+  }
+  .ambient-artwork-column {
+    max-width: 240px !important;
+    width: 55vw !important;
+    gap: 12px !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+  .ambient-lyrics-column {
+    width: 100% !important;
+    height: 48vh !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 550px) {
+  .ambient-cinema-stage {
+    flex-direction: row !important;
+    gap: 28px !important;
+    padding: 0 24px !important;
+  }
+  .ambient-artwork-column {
+    max-width: 220px !important;
+    width: 28vw !important;
+    gap: 12px !important;
+  }
+  .ambient-lyrics-column {
+    height: 68vh !important;
+  }
+}
