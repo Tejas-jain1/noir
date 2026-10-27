@@ -111,7 +111,10 @@ function MainLayout() {
         </main>
 
         {/* 4. Persistent Music Player (Desktop full footer bar / Mobile mini-player) */}
-        <MusicPlayer onOpenQueue={() => setIsQueueOpen(true)} />
+        <MusicPlayer
+          onOpenQueue={() => setIsQueueOpen(true)}
+          onOpenAddToPlaylist={handleOpenAddToPlaylist}
+        />
 
         {/* 5. Mobile Bottom Tab Navigation */}
         <MobileNav />

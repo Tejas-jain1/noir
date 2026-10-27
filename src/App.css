@@ -644,3 +644,183 @@
   }
 }
 
+
+
+/* ==========================================================================
+   Redesigned Music Player & Floating Dock
+   ========================================================================== */
+
+.floating-player-dock {
+  background-color: var(--bg-card);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 769px) {
+  .floating-player-dock {
+    margin: 0 16px 14px 16px;
+    border-radius: 20px;
+    height: 84px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .floating-player-dock {
+    margin: 0 8px 8px 8px;
+    border-radius: 16px;
+    height: 64px !important;
+  }
+}
+
+/* Seek Slider Styling */
+.player-seek-slider {
+  height: 4px;
+  border-radius: 9999px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: height 0.15s ease;
+}
+
+.player-seek-slider:hover {
+  height: 6px;
+}
+
+.player-seek-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.player-seek-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+
+.player-seek-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+/* Volume Slider */
+.player-volume-slider {
+  height: 4px;
+  border-radius: 9999px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.player-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.player-volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+/* Lyrics Pill Hover */
+.player-lyrics-pill:hover {
+  background-color: var(--bg-surface-hover) !important;
+  border-color: var(--accent-solid) !important;
+  transform: translateY(-1px);
+}
+
+/* More Options Button Hover */
+.player-more-btn:hover {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Popover Menu Items */
+.player-context-popover {
+  user-select: none;
+}
+
+.popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.popover-item:hover {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.popover-divider {
+  height: 1px;
+  background-color: var(--border-subtle);
+  margin: 4px 6px;
+}
+
+@keyframes menuSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes vinylSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ambientPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.55;
+  }
+}
