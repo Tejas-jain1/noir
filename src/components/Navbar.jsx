@@ -101,31 +101,50 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             <ChevronRight size={18} />
           </button>
         </div>
+      </div>
 
-        {/* Small screen mobile logo */}
-        <div 
-          onClick={() => navigate('/')}
-          className="mobile-only" 
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+      {/* Center: App Name NOIR (where search bar was previously) */}
+      <div
+        onClick={() => navigate('/')}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          transition: 'transform var(--transition-fast)'
+        }}
+        title="NOIR - Home"
+      >
+        <div
+          style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--accent-solid)',
+            color: 'var(--accent-text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-xs)'
+          }}
         >
-          <div
-            style={{
-              width: '26px',
-              height: '26px',
-              borderRadius: 'var(--radius-sm)',
-              backgroundColor: 'var(--accent-solid)',
-              color: 'var(--accent-text)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <Disc size={15} />
-          </div>
-          <span className="navbar-logo-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1rem', letterSpacing: '0.04em' }}>
-            NOIR
-          </span>
+          <Disc size={16} />
         </div>
+        <span
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 800,
+            fontSize: '1.25rem',
+            letterSpacing: '0.08em',
+            color: 'var(--text-primary)'
+          }}
+        >
+          NOIR
+        </span>
       </div>
 
       {/* Right: Theme Toggle, Settings & Profile */}
