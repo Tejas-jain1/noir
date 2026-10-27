@@ -17,7 +17,8 @@ import {
   Share2,
   Mic2,
   Music2,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 
 export default function FullscreenPlayer() {
@@ -44,7 +45,8 @@ export default function FullscreenPlayer() {
     lyricsLoading,
     showLyrics,
     setShowLyrics,
-    activeLyricIndex
+    activeLyricIndex,
+    setIsAmbientOpen
   } = usePlayer();
 
   const { isLiked, toggleLike, showToast } = useLibrary();
@@ -126,6 +128,29 @@ export default function FullscreenPlayer() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Ambient Cinema Mode */}
+          <button
+            onClick={() => {
+              setIsMobilePlayerOpen(false);
+              setIsAmbientOpen(true);
+            }}
+            style={{
+              color: 'var(--accent-solid)',
+              padding: '8px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)'
+            }}
+            title="Open Ambient Cinema Mode"
+          >
+            <Sparkles size={18} />
+          </button>
+
           <button
             onClick={() => setShowLyrics(!showLyrics)}
             style={{

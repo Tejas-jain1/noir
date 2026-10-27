@@ -53,8 +53,92 @@ export default function AmbientMode({ isOpen, onClose }) {
   const [scrubValue, setScrubValue] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [forcePortrait, setForcePortrait] = useState(false);
+  const [forceCinemaLayout, setForceCinemaLayout] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Dynamic dominant color extraction from current track thumbnail for full-screen aura
+  const [albumColors, setAlbumColors] = useState({
+    primary: '#a855f7',
+    secondary: '#3b82f6',
+    glow: 'rgba(168, 85, 247, 0.45)'
+  });
+
+  useEffect(() => {
+    if (!currentTrack?.thumbnail) return;
+
+    let isMounted = true;
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = currentTrack.thumbnail;
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 24;
+        canvas.height = 24;
+        ctx.drawImage(img, 0, 0, 24, 24);
+        const imgData = ctx.getImageData(0, 0, 24, 24).data;
+
+        let maxSat = -1;
+        let pR = 168, pG = 85, pB = 247;
+        let sR = 59, sG = 130, sB = 246;
+
+        for (let i = 0; i < imgData.length; i += 4) {
+          const r = imgData[i];
+          const g = imgData[i + 1];
+          const b = imgData[i + 2];
+          const a = imgData[i + 3];
+          if (a < 128) continue;
+
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lum < 25 || lum > 230) continue;
+
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const sat = max === 0 ? 0 : (max - min) / max;
+
+          if (sat > maxSat) {
+            sR = pR;
+            sG = pG;
+            sB = pB;
+            maxSat = sat;
+            pR = r;
+            pG = g;
+            pB = b;
+          }
+        }
+
+        if (isMounted) {
+          setAlbumColors({
+            primary: `rgb(${pR}, ${pG}, ${pB})`,
+            secondary: `rgb(${sR}, ${sG}, ${sB})`,
+            glow: `rgba(${pR}, ${pG}, ${pB}, 0.5)`
+          });
+        }
+      } catch {
+        if (isMounted) {
+          setAlbumColors({
+            primary: '#a855f7',
+            secondary: '#3b82f6',
+            glow: 'rgba(168, 85, 247, 0.45)'
+          });
+        }
+      }
+    };
+
+    img.onerror = () => {
+      if (isMounted) {
+        setAlbumColors({
+          primary: '#a855f7',
+          secondary: '#3b82f6',
+          glow: 'rgba(168, 85, 247, 0.45)'
+        });
+      }
+    };
+
+    return () => { isMounted = false; };
+  }, [currentTrack?.thumbnail]);
 
   const lyricsContainerRef = useRef(null);
   const activeLineRef = useRef(null);
@@ -165,13 +249,13 @@ export default function AmbientMode({ isOpen, onClose }) {
 
   return (
     <div
-      className={`ambient-mode-overlay ${forcePortrait ? 'disable-mobile-rotation' : ''}`}
+      className={`ambient-mode-overlay ${forceCinemaLayout ? 'force-cinema-layout' : ''}`}
       onMouseMove={handleMouseMove}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 3000,
-        backgroundColor: '#0a0a0c',
+        backgroundColor: '#07070a',
         color: '#ffffff',
         display: 'flex',
         flexDirection: 'column',
@@ -182,28 +266,91 @@ export default function AmbientMode({ isOpen, onClose }) {
       }}
     >
       {/* ─── 1. Moody Dynamic Blurred Ambient Backdrop ─── */}
+      {/* A. Full-screen Album Artwork Blurred Backdrop */}
       <div
         className="ambient-backdrop-image"
         style={{
           position: 'absolute',
-          inset: '-20px',
+          inset: '-60px',
           backgroundImage: `url(${currentTrack.thumbnail})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'blur(90px) brightness(0.28) saturate(180%)',
-          transform: 'scale(1.15)',
+          filter: 'blur(95px) saturate(240%) brightness(0.38)',
+          transform: 'scale(1.2)',
           zIndex: 0,
           pointerEvents: 'none',
           transition: 'background-image 0.8s ease'
         }}
       />
+
+      {/* B. Full-screen Breathing Aurora Blob 1 (Logo Primary Color) */}
+      <div
+        className="ambient-aurora-blob ambient-aurora-1"
+        style={{
+          position: 'absolute',
+          top: '-20%',
+          left: '-15%',
+          width: '85vw',
+          height: '85vh',
+          borderRadius: '50%',
+          background: `radial-gradient(circle at center, ${albumColors.primary} 0%, transparent 68%)`,
+          filter: 'blur(75px)',
+          opacity: isPlaying ? 0.65 : 0.35,
+          zIndex: 1,
+          pointerEvents: 'none',
+          animation: 'ambientAuroraPulse1 10s ease-in-out infinite alternate',
+          transition: 'background 0.8s ease, opacity 0.8s ease'
+        }}
+      />
+
+      {/* C. Full-screen Breathing Aurora Blob 2 (Logo Secondary Color) */}
+      <div
+        className="ambient-aurora-blob ambient-aurora-2"
+        style={{
+          position: 'absolute',
+          bottom: '-20%',
+          right: '-15%',
+          width: '90vw',
+          height: '90vh',
+          borderRadius: '50%',
+          background: `radial-gradient(circle at center, ${albumColors.secondary} 0%, transparent 70%)`,
+          filter: 'blur(80px)',
+          opacity: isPlaying ? 0.55 : 0.28,
+          zIndex: 1,
+          pointerEvents: 'none',
+          animation: 'ambientAuroraPulse2 14s ease-in-out infinite alternate',
+          transition: 'background 0.8s ease, opacity 0.8s ease'
+        }}
+      />
+
+      {/* D. Full-screen Center Harmonic Wash */}
+      <div
+        className="ambient-aurora-blob ambient-aurora-3"
+        style={{
+          position: 'absolute',
+          top: '30%',
+          left: '30%',
+          width: '60vw',
+          height: '60vh',
+          borderRadius: '50%',
+          background: `radial-gradient(circle at center, ${albumColors.primary} 0%, transparent 70%)`,
+          filter: 'blur(90px)',
+          opacity: isPlaying ? 0.3 : 0.15,
+          zIndex: 1,
+          pointerEvents: 'none',
+          animation: 'ambientAuroraPulse3 8s ease-in-out infinite alternate',
+          transition: 'background 0.8s ease'
+        }}
+      />
+
+      {/* E. Silky Cinematic Contrast Vignette Overlay */}
       <div
         className="ambient-backdrop-vignette"
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'radial-gradient(ellipse at center, rgba(14, 14, 18, 0.35) 0%, rgba(6, 6, 8, 0.88) 85%)',
-          zIndex: 1,
+          background: 'radial-gradient(ellipse at center, rgba(8, 8, 12, 0.3) 0%, rgba(6, 6, 8, 0.8) 78%, rgba(4, 4, 6, 0.95) 100%)',
+          zIndex: 2,
           pointerEvents: 'none'
         }}
       />
@@ -297,11 +444,11 @@ export default function AmbientMode({ isOpen, onClose }) {
 
               <div style={{ height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.1)', margin: '2px 6px' }} />
 
-              {/* Rotate Orientation */}
+              {/* Layout Mode Toggle */}
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
-                  setForcePortrait((prev) => !prev);
+                  setForceCinemaLayout((prev) => !prev);
                 }}
                 className="ambient-menu-item"
                 style={{
@@ -322,7 +469,7 @@ export default function AmbientMode({ isOpen, onClose }) {
                 }}
               >
                 <RotateCw size={16} />
-                <span>{forcePortrait ? 'Horizontal View' : 'Vertical View'}</span>
+                <span>{forceCinemaLayout ? 'Vertical Stacked View' : 'Side-by-Side Cinema'}</span>
               </button>
 
               {/* Fullscreen toggle */}
@@ -357,11 +504,11 @@ export default function AmbientMode({ isOpen, onClose }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Rotate 90° Horizontal Toggle Button */}
+          {/* Cinema Layout / Stacked Layout Toggle Button */}
           <button
-            onClick={() => setForcePortrait((prev) => !prev)}
+            onClick={() => setForceCinemaLayout((prev) => !prev)}
             style={{
-              background: forcePortrait ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.08)',
+              background: forceCinemaLayout ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.08)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '50%',
               width: '40px',
@@ -374,7 +521,7 @@ export default function AmbientMode({ isOpen, onClose }) {
               backdropFilter: 'blur(16px)',
               transition: 'all 0.2s ease'
             }}
-            title={forcePortrait ? 'Rotate to Horizontal' : 'Rotate to Vertical'}
+            title={forceCinemaLayout ? 'Switch to Vertical View' : 'Switch to Side-by-Side Cinema'}
           >
             <RotateCw size={17} />
           </button>
@@ -456,7 +603,7 @@ export default function AmbientMode({ isOpen, onClose }) {
             position: 'relative'
           }}
         >
-          {/* Cover Container with Dynamic Halo Glow & 3D Float */}
+          {/* Cover Container */}
           <div
             className="ambient-cover-container"
             style={{
@@ -468,52 +615,20 @@ export default function AmbientMode({ isOpen, onClose }) {
               justifyContent: 'center'
             }}
           >
-            {/* 1. Pulsing Ambient Halo Aura behind artwork */}
-            <div
-              className="ambient-art-halo"
-              style={{
-                position: 'absolute',
-                inset: '-16px',
-                borderRadius: '36px',
-                background: 'radial-gradient(circle at center, rgba(168, 85, 247, 0.6) 0%, rgba(59, 130, 246, 0.25) 45%, transparent 75%)',
-                filter: 'blur(30px)',
-                opacity: isPlaying ? 0.85 : 0.35,
-                zIndex: 0,
-                animation: isPlaying ? 'artHaloBreathe 4s ease-in-out infinite alternate' : 'none',
-                pointerEvents: 'none'
-              }}
-            />
-
-            {/* 2. Rotating Luminous Color Orbit */}
-            <div
-              className="ambient-art-orbit"
-              style={{
-                position: 'absolute',
-                inset: '-4px',
-                borderRadius: '26px',
-                background: 'conic-gradient(from 0deg, var(--accent-solid, #a855f7), #3b82f6, #ec4899, var(--accent-solid, #a855f7))',
-                opacity: isPlaying ? 0.35 : 0.1,
-                filter: 'blur(8px)',
-                zIndex: 0,
-                animation: isPlaying ? 'spin 14s linear infinite' : 'none',
-                pointerEvents: 'none'
-              }}
-            />
-
-            {/* 3. 3D Floating Cover Art */}
+            {/* 3D Floating Cover Art (Clean, naturally illuminated by full-screen aura) */}
             <div
               className="ambient-cover-wrapper"
               style={{
                 width: '100%',
                 height: '100%',
-                borderRadius: '24px',
+                borderRadius: '22px',
                 overflow: 'hidden',
-                border: '1px solid rgba(255, 255, 255, 0.14)',
-                backgroundColor: '#18181c',
+                border: '1px solid rgba(255, 255, 255, 0.16)',
+                backgroundColor: '#16161a',
                 position: 'relative',
                 zIndex: 2,
                 animation: isPlaying ? 'art3dFloat 6s ease-in-out infinite alternate' : 'none',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(168, 85, 247, 0.25)'
+                boxShadow: `0 24px 60px rgba(0, 0, 0, 0.75), 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 50px ${albumColors.glow}`
               }}
             >
               <img
@@ -543,6 +658,7 @@ export default function AmbientMode({ isOpen, onClose }) {
           >
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2
+                className="ambient-track-title"
                 style={{
                   fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)',
                   fontWeight: 700,
@@ -559,6 +675,7 @@ export default function AmbientMode({ isOpen, onClose }) {
                 {currentTrack.title}
               </h2>
               <p
+                className="ambient-track-artist"
                 style={{
                   fontSize: 'clamp(0.9rem, 1.5vw, 1.1rem)',
                   color: 'rgba(255, 255, 255, 0.65)',
@@ -607,8 +724,10 @@ export default function AmbientMode({ isOpen, onClose }) {
             perspective: '1200px',
             perspectiveOrigin: 'center center',
             transformStyle: 'preserve-3d',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)',
+            padding: '0 24px 0 40px',
+            boxSizing: 'border-box',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none'
           }}
@@ -622,10 +741,11 @@ export default function AmbientMode({ isOpen, onClose }) {
                 justifyContent: 'center',
                 height: '100%',
                 gap: '14px',
+                paddingLeft: '20px',
                 color: 'rgba(255, 255, 255, 0.5)'
               }}
             >
-              <Loader2 size={28} className="brand-logo-spin" style={{ color: 'var(--accent-solid, #a855f7)' }} />
+              <Loader2 size={28} className="brand-logo-spin" style={{ color: albumColors.primary }} />
               <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Syncing lyrics...</span>
             </div>
           ) : hasSyncedLyrics ? (
@@ -633,10 +753,13 @@ export default function AmbientMode({ isOpen, onClose }) {
               style={{
                 paddingTop: '200px',
                 paddingBottom: '200px',
+                paddingLeft: '16px',
+                paddingRight: '20px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '28px',
-                transformStyle: 'preserve-3d'
+                gap: '24px',
+                transformStyle: 'preserve-3d',
+                boxSizing: 'border-box'
               }}
             >
               {lyricsData.syncedLyrics.map((line, idx) => {
@@ -647,70 +770,85 @@ export default function AmbientMode({ isOpen, onClose }) {
                 let zTranslate = 0;
                 let scale = 1;
                 let blur = 0;
-                let opacity = 0.4;
+                let opacity = 0.45;
                 let rotateX = 0;
 
                 if (isActive) {
-                  zTranslate = 36;
-                  scale = 1.06;
+                  zTranslate = 28;
+                  scale = 1.05;
                   blur = 0;
                   opacity = 1;
                   rotateX = 0;
                 } else if (dist === 1) {
-                  zTranslate = 8;
+                  zTranslate = 6;
                   scale = 0.98;
-                  blur = 0.6;
-                  opacity = 0.55;
+                  blur = 0.5;
+                  opacity = 0.58;
                   rotateX = isPast ? 3 : -3;
                 } else if (dist === 2) {
-                  zTranslate = -18;
-                  scale = 0.92;
-                  blur = 1.8;
-                  opacity = 0.32;
-                  rotateX = isPast ? 6 : -6;
+                  zTranslate = -14;
+                  scale = 0.93;
+                  blur = 1.4;
+                  opacity = 0.35;
+                  rotateX = isPast ? 5 : -5;
                 } else {
-                  zTranslate = -45;
-                  scale = 0.86;
-                  blur = 3.2;
-                  opacity = 0.14;
-                  rotateX = isPast ? 8 : -8;
+                  zTranslate = -35;
+                  scale = 0.88;
+                  blur = 2.5;
+                  opacity = 0.18;
+                  rotateX = isPast ? 7 : -7;
                 }
 
                 return (
-                  <p
+                  <div
                     key={`${line.time}-${idx}`}
                     ref={isActive ? activeLineRef : null}
                     onClick={() => seekTo(line.time)}
+                    className={`ambient-lyric-item ${isActive ? 'is-active-3d' : ''}`}
                     style={{
-                      margin: 0,
-                      fontSize: isActive
-                        ? 'clamp(1.5rem, 3vw, 2.35rem)'
-                        : 'clamp(1.15rem, 2.1vw, 1.65rem)',
-                      fontWeight: isActive ? 800 : 600,
-                      color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
-                      lineHeight: 1.35,
-                      letterSpacing: '-0.02em',
-                      cursor: 'pointer',
+                      padding: '6px 14px',
+                      paddingLeft: '20px',
+                      borderRadius: '14px',
                       transform: `perspective(1000px) translateZ(${zTranslate}px) scale(${scale}) rotateX(${rotateX}deg)`,
                       transformOrigin: 'left center',
                       filter: `blur(${blur}px)`,
                       opacity,
+                      cursor: 'pointer',
                       transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                      textShadow: isActive
-                        ? '0 0 28px rgba(255, 255, 255, 0.55), 0 0 60px rgba(168, 85, 247, 0.3), 0 2px 10px rgba(0,0,0,0.9)'
-                        : 'none'
+                      willChange: 'transform, opacity, filter',
+                      boxSizing: 'border-box',
+                      overflow: 'visible',
+                      width: 'fit-content',
+                      maxWidth: '100%'
                     }}
-                    className={`ambient-lyric-line ${isActive ? 'is-active-3d' : ''}`}
                   >
-                    {line.text}
-                  </p>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: isActive
+                          ? 'clamp(1.4rem, 2.6vw, 2.2rem)'
+                          : 'clamp(1.1rem, 2vw, 1.6rem)',
+                        fontWeight: isActive ? 800 : 600,
+                        color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
+                        lineHeight: 1.35,
+                        letterSpacing: '-0.015em',
+                        overflow: 'visible',
+                        textShadow: isActive
+                          ? `0 0 24px rgba(255, 255, 255, 0.6), 0 0 50px ${albumColors.glow}, 0 2px 10px rgba(0,0,0,0.9)`
+                          : 'none'
+                      }}
+                      className="ambient-lyric-line"
+                    >
+                      {line.text}
+                    </p>
+                  </div>
                 );
               })}
             </div>
           ) : hasPlainLyrics ? (
             <div
               style={{
-                padding: '40px 0',
+                padding: '40px 24px 40px 36px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px',

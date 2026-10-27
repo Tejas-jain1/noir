@@ -52,6 +52,7 @@ export function PlayerProvider({ children }) {
   });
   const [queueIndex, setQueueIndex] = useState(0);
   const [isMobilePlayerOpen, setIsMobilePlayerOpen] = useState(false);
+  const [isAmbientOpen, setIsAmbientOpen] = useState(false);
 
   // Synchronized Lyrics State
   const [lyricsData, setLyricsData] = useState(null);
@@ -213,6 +214,13 @@ export function PlayerProvider({ children }) {
       });
     }
   }, [addToRecent, startAudioPlayback, showToast]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__noirPlayTrack = playTrack;
+      window.__noirSetAmbient = setIsAmbientOpen;
+    }
+  }, [playTrack, setIsAmbientOpen]);
 
   // Select Next Track from Liked Songs or Interested Artists / Genres
   const playPersonalizedNextTrack = useCallback(async () => {
@@ -581,6 +589,8 @@ export function PlayerProvider({ children }) {
         queueIndex,
         isMobilePlayerOpen,
         setIsMobilePlayerOpen,
+        isAmbientOpen,
+        setIsAmbientOpen,
         lyricsData,
         lyricsLoading,
         showLyrics,
