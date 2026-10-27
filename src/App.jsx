@@ -129,6 +129,10 @@ function MainLayout() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onOpenAuth={() => {
+          setIsSettingsOpen(false);
+          setIsAuthOpen(true);
+        }}
       />
 
       <CreatePlaylistModal

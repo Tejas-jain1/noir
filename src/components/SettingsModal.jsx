@@ -1,41 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw, Sparkles } from 'lucide-react';
-import { offlineStorage } from '../services/offlineStorage';
-import { isSupabaseConfigured } from '../services/supabaseClient';
+import { Settings, X, Sun, Moon, User, LogIn, LogOut, Sparkles, ChevronRight, Check } from 'lucide-react';
 
-export default function SettingsModal({ isOpen, onClose }) {
-  const { settings, updateSettings, user, openInterestPicker } = useLibrary();
+export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
+  const { user, signOut, openInterestPicker, userPreferences } = useLibrary();
   const { toggleTheme, isDark } = useTheme();
-
-  const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey || '');
-  const [isSaved, setIsSaved] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSaveApiKey = (e) => {
-    e.preventDefault();
-    updateSettings({ apiKey: apiKeyInput.trim() });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
-  const handleClearData = async () => {
-    if (window.confirm('Are you sure you want to reset all playlists and cached data? This cannot be undone.')) {
-      setIsClearing(true);
-      try {
-        await offlineStorage.clear();
-      } catch (e) {
-        console.error('IndexedDB clear error', e);
-      }
-      localStorage.removeItem('noir_liked_songs');
-      localStorage.removeItem('noir_playlists');
-      localStorage.removeItem('noir_recently_played');
-      window.location.reload();
-    }
-  };
+  const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
+  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User';
 
   return (
     <div
@@ -57,7 +32,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '480px',
           backgroundColor: 'var(--bg-secondary)',
           borderRadius: 'var(--radius-xl)',
           border: '1px solid var(--border-medium)',
@@ -68,7 +43,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: '18px 22px',
             borderBottom: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
@@ -76,18 +51,23 @@ export default function SettingsModal({ isOpen, onClose }) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Key size={20} />
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Settings & API Config</h3>
+            <Settings size={20} style={{ color: 'var(--text-primary)' }} />
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>Settings</h3>
           </div>
 
           <button
             onClick={onClose}
+            aria-label="Close Settings"
             style={{
               color: 'var(--text-secondary)',
               padding: '6px',
               borderRadius: '50%',
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              backgroundColor: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'color var(--transition-fast)'
             }}
           >
             <X size={20} />
@@ -95,36 +75,219 @@ export default function SettingsModal({ isOpen, onClose }) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
-          {/* Audio Engine & Metadata Provider */}
+        <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          {/* 1. Profile Section */}
           <section>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>Music Engine: JioSaavn CDN Audio</span>
-              </label>
-              <span
+            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: '10px' }}>
+              Profile
+            </label>
+
+            {user ? (
+              <div
                 style={{
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--accent-subtle)',
-                  color: 'var(--accent-solid)'
+                  padding: '16px',
+                  borderRadius: 'var(--radius-lg)',
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border-medium)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px'
                 }}
               >
-                Active • 320kbps
-              </span>
-            </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--accent-solid)',
+                        color: 'var(--accent-text)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.15rem',
+                        fontWeight: 700
+                      }}
+                    >
+                      {userInitial}
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                        {displayName}
+                      </h4>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
 
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
-              NOIR is connected to the high-speed <strong>JioSaavn CDN Engine</strong>. Streaming operates at up to 320kbps CD-quality audio directly via native HTML5 audio with reliable mobile background playback and zero API quotas.
-            </p>
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      padding: '3px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: 'var(--accent-subtle)',
+                      color: 'var(--accent-solid)'
+                    }}
+                  >
+                    Active
+                  </span>
+                </div>
+
+                {/* Music Preferences Shortcut */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openInterestPicker();
+                    }}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '9px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'border-color var(--transition-fast)'
+                    }}
+                  >
+                    <Sparkles size={14} style={{ color: 'var(--accent-solid)' }} />
+                    <span>Music Preferences</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      signOut();
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <LogOut size={14} />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: 'var(--radius-lg)',
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border-medium)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-medium)',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <User size={22} />
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                      Guest User
+                    </h4>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+                      Sign in to sync your playlists and liked music across devices
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenAuth) onOpenAuth();
+                      else onClose();
+                    }}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--accent-solid)',
+                      color: 'var(--accent-text)',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}
+                  >
+                    <LogIn size={15} />
+                    <span>Sign In / Register</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openInterestPicker();
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '10px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Sparkles size={14} style={{ color: 'var(--accent-solid)' }} />
+                    <span>Preferences</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
-          {/* Theme Preference */}
-          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+          {/* 2. Interface Theme Section */}
+          <section>
+            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: '10px' }}>
               Interface Theme
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -138,17 +301,23 @@ export default function SettingsModal({ isOpen, onClose }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '12px',
+                  padding: '14px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: isDark ? 'var(--bg-surface-hover)' : 'var(--bg-card)',
                   border: `2px solid ${isDark ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
                   color: 'var(--text-primary)',
                   fontWeight: 600,
-                  fontSize: '0.85rem'
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'all var(--transition-fast)'
                 }}
               >
-                <Moon size={16} />
+                <Moon size={17} />
                 <span>Dark Theme</span>
+                {isDark && (
+                  <Check size={15} style={{ position: 'absolute', right: '12px', color: 'var(--accent-solid)' }} />
+                )}
               </button>
 
               <button
@@ -161,141 +330,27 @@ export default function SettingsModal({ isOpen, onClose }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '12px',
+                  padding: '14px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: !isDark ? 'var(--bg-surface-hover)' : 'var(--bg-card)',
                   border: `2px solid ${!isDark ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
                   color: 'var(--text-primary)',
                   fontWeight: 600,
-                  fontSize: '0.85rem'
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'all var(--transition-fast)'
                 }}
               >
-                <Sun size={16} />
+                <Sun size={17} />
                 <span>Light Theme</span>
+                {!isDark && (
+                  <Check size={15} style={{ position: 'absolute', right: '12px', color: 'var(--accent-solid)' }} />
+                )}
               </button>
             </div>
           </section>
 
-          {/* Music Taste & Interests */}
-          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={16} style={{ color: 'var(--accent-solid)' }} />
-                <span>Music Taste & Interests</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  openInterestPicker();
-                }}
-                style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  padding: '6px 14px',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--accent-solid)',
-                  color: 'var(--accent-text)',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Customize
-              </button>
-            </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Choose your favorite genres (Lo-Fi, Hip-Hop, Bollywood, etc.) and artists to get personalized search recommendations.
-            </p>
-          </section>
-
-          {/* Cloud Database & Offline Storage Status */}
-          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-              Cloud Sync & Database
-            </label>
-            <div
-              style={{
-                padding: '12px 14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-medium)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Cloud size={16} style={{ color: isSupabaseConfigured() ? 'var(--accent-solid)' : 'var(--text-muted)' }} />
-                  <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>
-                    {isSupabaseConfigured() ? 'Supabase Cloud: Connected' : 'Storage Engine: IndexedDB Local'}
-                  </span>
-                </div>
-                <span
-                  style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    padding: '2px 8px',
-                    borderRadius: 'var(--radius-full)',
-                    backgroundColor: isSupabaseConfigured() ? 'var(--accent-subtle)' : 'var(--bg-card)',
-                    color: isSupabaseConfigured() ? 'var(--accent-solid)' : 'var(--text-muted)'
-                  }}
-                >
-                  {isSupabaseConfigured() ? 'Synced' : 'Offline Mode'}
-                </span>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                {isSupabaseConfigured()
-                  ? (user ? `Synchronizing library & history to user account: ${user.email}` : 'Supabase configured. Sign in via navbar to sync playlists and liked songs.')
-                  : 'Library, playlists, and history are preserved in offline browser IndexedDB storage. Add VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY to .env for multi-device sync.'}
-              </p>
-            </div>
-          </section>
-
-          {/* Compliance & Storage Notice */}
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              display: 'flex',
-              gap: '12px'
-            }}
-          >
-            <Info size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '2px' }} />
-            <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Audio streams directly in 320kbps CD-quality via high-speed CDNs with native lock-screen controls. Synchronized lyrics are provided via LRCLIB.
-            </div>
-          </div>
-
-          {/* Danger Zone */}
-          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-              Data Management
-            </label>
-            <button
-              onClick={handleClearData}
-              disabled={isClearing}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 16px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-medium)',
-                color: 'var(--text-secondary)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              {isClearing ? <RefreshCw size={16} className="spin" /> : <Trash2 size={16} />}
-              <span>{isClearing ? 'Clearing Storage...' : 'Reset Local Storage & IndexedDB Cache'}</span>
-            </button>
-          </section>
         </div>
       </div>
     </div>
