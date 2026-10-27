@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import { LibraryProvider } from './context/LibraryContext';
+import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import { PlayerProvider } from './context/PlayerContext';
 
 import Sidebar from './components/Sidebar';
@@ -14,6 +14,7 @@ import SettingsModal from './components/SettingsModal';
 import CreatePlaylistModal from './components/CreatePlaylistModal';
 import AddToPlaylistModal from './components/AddToPlaylistModal';
 import ToastContainer from './components/ToastContainer';
+import InterestPickerModal from './components/InterestPickerModal';
 
 import Home from './pages/Home';
 import SearchPage from './pages/SearchPage';
@@ -37,6 +38,8 @@ function MainLayout() {
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
+
+  const { isInterestPickerOpen, setIsInterestPickerOpen } = useLibrary();
 
   const handleOpenAddToPlaylist = (track) => {
     setAddToPlaylistTrack(track);
@@ -148,6 +151,11 @@ function MainLayout() {
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
+      />
+
+      <InterestPickerModal
+        isOpen={isInterestPickerOpen}
+        onClose={() => setIsInterestPickerOpen(false)}
       />
     </div>
   );

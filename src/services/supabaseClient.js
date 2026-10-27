@@ -1,10 +1,11 @@
 /**
  * Supabase Client & Backend Sync for NOIR
- * Connects to user's personal Supabase database for authentication, playlists, liked songs, and listening history.
+ * Connects to user's personal Supabase database for authentication, playlists, liked songs, listening history, and user preferences.
  * Operates in dual-mode: when credentials are not configured, gracefully falls back to IndexedDB/localStorage.
  */
 import { createClient } from '@supabase/supabase-js';
 import { offlineStorage } from './offlineStorage';
+import { storage } from './storage';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ucqaqzyhuukdeqcpzonp.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_w-nXagqf0mv8AHUed9K-9A_JA-5M1Np';
@@ -243,6 +244,55 @@ export const supabaseService = {
       });
     } catch (err) {
       console.warn('[Supabase] Failed to log listening history:', err);
+    }
+  },
+
+  // User Preferences Cloud Sync
+  async loadUserPreferences(userId) {
+    // 1. Check local storage first for fast response
+    const local = storage.getUserPreferences(userId);
+    if (!supabase || !userId) return local;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!error && data) {
+        const prefs = {
+          genres: data.genres || [],
+          artists: data.artists || [],
+          onboarding_completed: Boolean(data.onboarding_completed),
+          updated_at: data.updated_at
+        };
+        storage.saveUserPreferences(userId, prefs);
+        return prefs;
+      }
+    } catch (err) {
+      console.warn('[Supabase] Failed to load user preferences, using local store:', err);
+    }
+    return local;
+  },
+
+  async saveUserPreferences(userId, preferences) {
+    if (!preferences) return;
+    // Always persist to local storage
+    storage.saveUserPreferences(userId, preferences);
+
+    if (!supabase || !userId) return;
+
+    try {
+      await supabase.from('user_preferences').upsert({
+        user_id: userId,
+        genres: preferences.genres || [],
+        artists: preferences.artists || [],
+        onboarding_completed: Boolean(preferences.onboarding_completed),
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn('[Supabase] Failed to save user preferences to cloud:', err);
     }
   }
 };

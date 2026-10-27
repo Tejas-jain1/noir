@@ -1,795 +1,444 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
-import { saavnApi } from '../services/saavnApi';
+import { saavnApi, youtubeApi } from '../services/saavnApi';
+import { storage } from '../services/storage';
 import TrackList from '../components/TrackList';
-import SearchTopResult from '../components/SearchTopResult';
-import ArtistCard from '../components/ArtistCard';
-import AlbumCard from '../components/AlbumCard';
-import PlaylistCard from '../components/PlaylistCard';
-import SearchDropdown from '../components/SearchDropdown';
-import { 
-  Search, 
-  Loader2, 
-  Music, 
-  Sparkles, 
-  ArrowUpDown, 
-  ChevronRight, 
-  X,
-  Compass
-} from 'lucide-react';
+import SearchSuggestions from '../components/SearchSuggestions';
+import { Search, Loader2, Play, Key, AlertCircle, Music, Sparkles } from 'lucide-react';
 
-const CATEGORIES = [
-  'Bollywood Hits',
-  'Hindi Romantic',
-  'Punjabi Beats',
-  'English Pop',
-  'Sad Songs',
-  'Party Hits',
-  'Workout Energy',
-  'Lo-fi Chill',
-  'Devotional',
-  'Hip-Hop',
-  'Classical'
-];
-
-const TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'songs', label: 'Songs' },
-  { id: 'artists', label: 'Artists' },
-  { id: 'albums', label: 'Albums' },
-  { id: 'playlists', label: 'Playlists' }
+const DEFAULT_SUGGESTIONS = [
+  'The Weeknd',
+  'Arijit Singh',
+  'Lo-Fi Chill',
+  'Dua Lipa',
+  'Billie Eilish',
+  'Diljit Dosanjh',
+  'Kendrick Lamar',
+  'Sidhu Moose Wala',
+  'Synthwave'
 ];
 
 export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const initialQuery = searchParams.get('q') || '';
-  const initialTab = searchParams.get('tab') || 'all';
 
   const [query, setQuery] = useState(initialQuery);
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [sortOption, setSortOption] = useState('relevance');
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingAlbumId, setLoadingAlbumId] = useState(null);
-  const [loadingPlaylistId, setLoadingPlaylistId] = useState(null);
+  const [searchInfo, setSearchInfo] = useState(null);
 
-  // Autocomplete state
+  // Suggestions dropdown state
   const [suggestions, setSuggestions] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
+  const [recentSearches, setRecentSearches] = useState(() => storage.getRecentSearches());
 
-  // Search Results State
-  const [searchData, setSearchData] = useState({
-    query: '',
-    parsed: null,
-    topResult: null,
-    songs: [],
-    artists: [],
-    albums: [],
-    playlists: [],
-    source: 'saavn_cdn'
-  });
+  const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
+  const { userPreferences, likedSongs } = useLibrary();
 
-  const { playTrack, currentTrack, addTracksToQueue } = usePlayer();
-  const { showToast } = useLibrary();
-  const inputContainerRef = useRef(null);
+  const debounceSuggestTimerRef = useRef(null);
 
-  // Sync state with URL params
+  // Keep query in sync with URL
   useEffect(() => {
     const q = searchParams.get('q') || '';
-    const tab = searchParams.get('tab') || 'all';
     setQuery(q);
-    setActiveTab(tab);
   }, [searchParams]);
 
-  // Main debounced search effect using JioSaavn multi-category API
+  // Rank / personalize results according to user's saved interests & liked songs
+  const personalizeTracks = (tracks) => {
+    if (!tracks || tracks.length === 0) return tracks;
+
+    const prefArtists = (userPreferences?.artists || []).map(a => a.toLowerCase());
+    const prefGenres = (userPreferences?.genres || []).map(g => g.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const likedArtistNames = (likedSongs || []).map(t => (t.artist || '').toLowerCase());
+
+    if (prefArtists.length === 0 && prefGenres.length === 0 && likedArtistNames.length === 0) {
+      return tracks;
+    }
+
+    return [...tracks].sort((a, b) => {
+      let scoreA = 0;
+      let scoreB = 0;
+
+      const artistA = (a.artist || '').toLowerCase();
+      const artistB = (b.artist || '').toLowerCase();
+      const titleA = (a.title || '').toLowerCase();
+      const titleB = (b.title || '').toLowerCase();
+
+      // Preferred artist boost (+15)
+      if (prefArtists.some(pa => artistA.includes(pa) || pa.includes(artistA))) scoreA += 15;
+      if (prefArtists.some(pb => artistB.includes(pb) || pb.includes(artistB))) scoreB += 15;
+
+      // Liked artist boost (+10)
+      if (likedArtistNames.some(la => artistA.includes(la))) scoreA += 10;
+      if (likedArtistNames.some(lb => artistB.includes(lb))) scoreB += 10;
+
+      // Genre match boost (+8)
+      prefGenres.forEach(genre => {
+        if (titleA.includes(genre) || (a.album && a.album.toLowerCase().includes(genre))) scoreA += 8;
+        if (titleB.includes(genre) || (b.album && b.album.toLowerCase().includes(genre))) scoreB += 8;
+      });
+
+      return scoreB - scoreA;
+    });
+  };
+
+  // Debounced search effect
   useEffect(() => {
-    let isCancelled = false;
-    const controller = new AbortController();
+    if (!query.trim()) {
+      setLoading(true);
+      // If user has preferred vibe or artist, load personalized recommendations
+      const initialKeyword = userPreferences?.genres?.[0] || userPreferences?.artists?.[0] || '';
+      const fetchPromise = initialKeyword
+        ? saavnApi.search(`${initialKeyword} hits`)
+        : youtubeApi.search('');
 
-    setLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const data = await saavnApi.searchComprehensive(query.trim(), controller.signal);
-        if (!isCancelled) {
-          setSearchData(data);
-
-          // If query has strong intent (e.g. "Taylor Swift albums") and user hasn't explicitly picked a sub-tab:
-          if (data.parsed?.isAlbumQuery && activeTab === 'all' && (!searchParams.get('tab'))) {
-            // Keep on 'all' to show album top result, or let user browse tabs
-          }
-        }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error('JioSaavn search error:', err);
-        }
-      } finally {
-        if (!isCancelled) setLoading(false);
-      }
-    }, query.trim() ? 320 : 0);
-
-    return () => {
-      isCancelled = true;
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  // Autocomplete suggestions effect
-  useEffect(() => {
-    if (!query.trim() || query.length < 2) {
-      setSuggestions(null);
-      setIsDropdownOpen(false);
+      fetchPromise.then(res => {
+        const sorted = personalizeTracks(res.results || []);
+        setResults(sorted);
+        setSearchInfo(res);
+        setLoading(false);
+      }).catch(() => {
+        setLoading(false);
+      });
       return;
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
+    setLoading(true);
+    const handler = setTimeout(async () => {
       try {
-        const res = await saavnApi.getSuggestions(query.trim(), controller.signal);
-        setSuggestions(res);
+        const data = await saavnApi.search(query.trim());
+        const sorted = personalizeTracks(data.results || []);
+        setResults(sorted);
+        setSearchInfo(data);
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          setSuggestions(null);
-        }
+        console.error('Search error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, 320);
+
+    return () => clearTimeout(handler);
+  }, [query, userPreferences, likedSongs]);
+
+  // Live autocomplete suggestions for typo tolerance
+  useEffect(() => {
+    if (!query.trim()) {
+      setSuggestions(null);
+      setIsSuggestLoading(false);
+      return;
+    }
+
+    setIsSuggestLoading(true);
+    if (debounceSuggestTimerRef.current) clearTimeout(debounceSuggestTimerRef.current);
+
+    debounceSuggestTimerRef.current = setTimeout(async () => {
+      try {
+        const data = await saavnApi.getAutocomplete(query.trim());
+        setSuggestions(data);
+      } catch (err) {
+        console.warn('Autocomplete fetch error:', err);
+      } finally {
+        setIsSuggestLoading(false);
       }
     }, 200);
 
     return () => {
-      controller.abort();
-      clearTimeout(timer);
+      if (debounceSuggestTimerRef.current) clearTimeout(debounceSuggestTimerRef.current);
     };
   }, [query]);
 
-  // Update query in URL & state
   const handleInputChange = (e) => {
     const val = e.target.value;
     setQuery(val);
+    setIsDropdownOpen(true);
     if (val.trim()) {
-      setSearchParams({ q: val, tab: activeTab });
-      setIsDropdownOpen(true);
+      setSearchParams({ q: val });
     } else {
-      setSearchParams(activeTab !== 'all' ? { tab: activeTab } : {});
-      setIsDropdownOpen(false);
+      setSearchParams({});
     }
   };
 
-  const handleClearInput = () => {
-    setQuery('');
-    setSearchParams(activeTab !== 'all' ? { tab: activeTab } : {});
+  const handleSuggestionClick = (s) => {
+    setQuery(s);
+    setSearchParams({ q: s });
+    storage.addRecentSearch(s);
+    setRecentSearches(storage.getRecentSearches());
     setIsDropdownOpen(false);
   };
 
-  const handleSelectTab = (tabId) => {
-    setActiveTab(tabId);
-    if (query.trim()) {
-      setSearchParams({ q: query.trim(), tab: tabId });
-    } else {
-      setSearchParams(tabId !== 'all' ? { tab: tabId } : {});
-    }
-  };
-
-  const handleSelectCategory = (cat) => {
-    setQuery(cat);
-    setActiveTab('all');
-    setSearchParams({ q: cat, tab: 'all' });
+  const handleSelectSongFromDropdown = async (song) => {
     setIsDropdownOpen(false);
-  };
+    if (!song) return;
 
-  const handleSelectSuggestionQuery = (suggestedText) => {
-    setQuery(suggestedText);
-    setSearchParams({ q: suggestedText, tab: activeTab });
-    setIsDropdownOpen(false);
-  };
+    storage.addRecentSearch(song.title);
+    setRecentSearches(storage.getRecentSearches());
 
-  const handleSelectSongFromDropdown = (track) => {
-    setIsDropdownOpen(false);
-    playTrack(track, searchData.songs);
-  };
+    if (song.audioUrl) {
+      playTrack(song);
+      return;
+    }
 
-  // Play an entire Album: fetches complete tracks decrypted from JioSaavn CDN and loads into player queue
-  const handlePlayAlbum = async (album) => {
-    if (!album) return;
-    setLoadingAlbumId(album.id);
     try {
-      const details = await saavnApi.getAlbumDetails(album.id);
-      if (details && details.tracks && details.tracks.length > 0) {
-        playTrack(details.tracks[0], details.tracks);
-        showToast(`Playing album "${album.title}"`, 'success');
-      } else {
-        showToast(`No playable tracks found for album "${album.title}"`, 'error');
+      const full = await saavnApi.getSongDetails(song.id);
+      if (full && full.audioUrl) {
+        playTrack(full);
+        return;
       }
-    } catch (err) {
-      console.error('Error playing album:', err);
-      showToast(`Unable to load album "${album.title}"`, 'error');
-    } finally {
-      setLoadingAlbumId(null);
+    } catch {
+      // Fallback
     }
+
+    setQuery(song.title);
+    setSearchParams({ q: song.title });
   };
 
-  // Add all Album tracks to Queue
-  const handleAddAlbumToQueue = async (album) => {
-    if (!album) return;
-    try {
-      const details = await saavnApi.getAlbumDetails(album.id);
-      if (details && details.tracks && details.tracks.length > 0) {
-        addTracksToQueue(details.tracks, album.title);
-      } else {
-        showToast(`No tracks available for "${album.title}"`, 'error');
-      }
-    } catch (err) {
-      showToast(`Unable to add album tracks to queue`, 'error');
-    }
-  };
+  // Personalized tags combining user interests & liked songs
+  const personalizedTags = (userPreferences?.artists?.length || userPreferences?.genres?.length)
+    ? [...(userPreferences.genres || []), ...(userPreferences.artists || [])].slice(0, 9)
+    : DEFAULT_SUGGESTIONS;
 
-  // Play an entire Playlist: fetches complete decrypted tracks and begins playback
-  const handlePlayPlaylist = async (playlist) => {
-    if (!playlist) return;
-    setLoadingPlaylistId(playlist.id);
-    try {
-      const details = await saavnApi.getPlaylistDetails(playlist.id);
-      if (details && details.tracks && details.tracks.length > 0) {
-        playTrack(details.tracks[0], details.tracks);
-        showToast(`Playing playlist "${playlist.title}"`, 'success');
-      } else {
-        showToast(`No playable tracks in "${playlist.title}"`, 'error');
-      }
-    } catch (err) {
-      console.error('Error playing playlist:', err);
-      showToast(`Unable to load playlist "${playlist.title}"`, 'error');
-    } finally {
-      setLoadingPlaylistId(null);
-    }
-  };
+  const topResult = results[0];
+  const isTopPlaying = topResult && currentTrack?.id === topResult.id && isPlaying;
 
-  // Add all Playlist tracks to Queue
-  const handleAddPlaylistToQueue = async (playlist) => {
-    if (!playlist) return;
-    try {
-      const details = await saavnApi.getPlaylistDetails(playlist.id);
-      if (details && details.tracks && details.tracks.length > 0) {
-        addTracksToQueue(details.tracks, playlist.title);
-      } else {
-        showToast(`No tracks available for "${playlist.title}"`, 'error');
-      }
-    } catch (err) {
-      showToast(`Unable to add playlist tracks to queue`, 'error');
-    }
-  };
-
-  // Play an Artist: plays their top matching songs
-  const handlePlayArtist = (artist) => {
-    if (searchData.songs && searchData.songs.length > 0) {
-      playTrack(searchData.songs[0], searchData.songs);
-      showToast(`Playing ${artist.name}`, 'success');
-    } else {
-      navigate(`/artist/${encodeURIComponent(artist.name)}`);
-    }
-  };
-
-  // Sorted views for dedicated tabs
-  const sortedSongs = useMemo(() => {
-    const list = [...searchData.songs];
-    if (sortOption === 'duration-desc') {
-      return list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
-    }
-    if (sortOption === 'duration-asc') {
-      return list.sort((a, b) => (a.duration || 0) - (b.duration || 0));
-    }
-    if (sortOption === 'title-asc') {
-      return list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-    }
-    return list;
-  }, [searchData.songs, sortOption]);
-
-  const sortedAlbums = useMemo(() => {
-    const list = [...searchData.albums];
-    if (sortOption === 'year-desc') {
-      return list.sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0));
-    }
-    if (sortOption === 'year-asc') {
-      return list.sort((a, b) => (parseInt(a.year) || 0) - (parseInt(b.year) || 0));
-    }
-    return list;
-  }, [searchData.albums, sortOption]);
-
-  const totalResultsCount = (
-    searchData.songs.length +
-    searchData.artists.length +
-    searchData.albums.length +
-    searchData.playlists.length
-  );
+  // Typo check: did the query differ from the topResult title?
+  const isCorrectedTypo = query.trim() && topResult && 
+    topResult.title.toLowerCase() !== query.trim().toLowerCase() &&
+    !query.trim().toLowerCase().includes(topResult.title.toLowerCase().slice(0, 4));
 
   return (
-    <div className="page-container" style={{ position: 'relative' }}>
-      {/* 1. Primary Search Bar & Autocomplete */}
-      <div style={{ position: 'relative', width: '100%', maxWidth: '720px' }} ref={inputContainerRef}>
-        <div style={{ position: 'relative' }}>
-          <Search
-            size={18}
-            style={{
-              position: 'absolute',
-              left: '16px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text-muted)',
-              pointerEvents: 'none'
-            }}
-          />
+    <div className="page-container">
+      {/* Search Header Input with Smart Dropdown */}
+      <div>
+        <div style={{ position: 'relative', maxWidth: '640px' }}>
+          <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 2 }} />
           <input
             type="text"
             value={query}
             onChange={handleInputChange}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Escape') {
-                setIsDropdownOpen(false);
-              }
+            onFocus={() => {
+              setIsDropdownOpen(true);
+              setRecentSearches(storage.getRecentSearches());
             }}
-            placeholder="Search songs, artists, albums, or playlists on JioSaavn..."
-            autoFocus={!initialQuery}
+            placeholder="Search songs, artists, or keywords (e.g. kesariya, lofi, arijiit)..."
+            autoFocus
             style={{
               width: '100%',
-              height: '50px',
-              padding: '0 44px 0 48px',
+              height: '48px',
+              padding: '0 46px 0 46px',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-medium)',
               color: 'var(--text-primary)',
-              fontSize: '0.975rem',
-              boxShadow: 'var(--shadow-sm)',
-              outline: 'none',
-              transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)'
+              fontSize: '0.95rem',
+              boxShadow: 'var(--shadow-sm)'
             }}
           />
+          {loading && (
+            <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+              <Loader2 size={18} className="brand-logo-spin" />
+            </div>
+          )}
 
-          <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {loading && (
-              <Loader2 size={18} className="brand-logo-spin" style={{ color: 'var(--text-muted)' }} />
-            )}
-            {query && !loading && (
-              <button
-                onClick={handleClearInput}
-                style={{
-                  color: 'var(--text-muted)',
-                  padding: '4px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Clear search"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
+          {/* Smart Typo-Tolerant Suggestions Dropdown */}
+          <SearchSuggestions
+            query={query}
+            suggestions={suggestions}
+            isOpen={isDropdownOpen}
+            isLoading={isSuggestLoading}
+            onClose={() => setIsDropdownOpen(false)}
+            onSelectSong={handleSelectSongFromDropdown}
+            onSelectQuery={handleSuggestionClick}
+            recentSearches={recentSearches}
+            onRemoveRecent={(q) => setRecentSearches(storage.removeRecentSearch(q))}
+            onClearRecent={() => setRecentSearches(storage.clearRecentSearches())}
+            userInterests={userPreferences}
+          />
         </div>
 
-        {/* Live Autocomplete Suggestions Dropdown */}
-        <SearchDropdown
-          suggestions={suggestions}
-          isOpen={isDropdownOpen}
-          onClose={() => setIsDropdownOpen(false)}
-          onSelectSong={handleSelectSongFromDropdown}
-          onSelectQuery={handleSelectSuggestionQuery}
-        />
-      </div>
-
-      {/* 2. YouTube Music-Style Category Navigation Tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-        <div className="search-pill-list">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            let countLabel = '';
-            if (query.trim()) {
-              if (tab.id === 'songs' && searchData.songs.length > 0) countLabel = ` (${searchData.songs.length})`;
-              if (tab.id === 'artists' && searchData.artists.length > 0) countLabel = ` (${searchData.artists.length})`;
-              if (tab.id === 'albums' && searchData.albums.length > 0) countLabel = ` (${searchData.albums.length})`;
-              if (tab.id === 'playlists' && searchData.playlists.length > 0) countLabel = ` (${searchData.playlists.length})`;
-            }
-
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleSelectTab(tab.id)}
-                className={`search-tab-button ${isActive ? 'is-active' : ''}`}
-              >
-                {tab.label}{countLabel}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Sorting options when in dedicated Songs or Albums tab */}
-        {activeTab === 'songs' && searchData.songs.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ArrowUpDown size={14} style={{ color: 'var(--text-muted)' }} />
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              style={{
-                backgroundColor: 'var(--bg-card)',
-                color: 'var(--text-secondary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '6px 10px',
-                fontSize: '0.8rem',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="relevance">Relevance</option>
-              <option value="duration-desc">Duration (Longest)</option>
-              <option value="duration-asc">Duration (Shortest)</option>
-              <option value="title-asc">Title (A - Z)</option>
-            </select>
-          </div>
-        )}
-
-        {activeTab === 'albums' && searchData.albums.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ArrowUpDown size={14} style={{ color: 'var(--text-muted)' }} />
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              style={{
-                backgroundColor: 'var(--bg-card)',
-                color: 'var(--text-secondary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '6px 10px',
-                fontSize: '0.8rem',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="relevance">Relevance</option>
-              <option value="year-desc">Release Year (Newest)</option>
-              <option value="year-asc">Release Year (Oldest)</option>
-            </select>
-          </div>
-        )}
-      </div>
-
-      {/* 3. Quick Genre & Mood Discovery Pills */}
-      <div className="search-pill-list" style={{ marginTop: '-4px' }}>
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-          Discover:
-        </span>
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => handleSelectCategory(cat)}
-            style={{
-              fontSize: '0.75rem',
-              padding: '5px 12px',
-              borderRadius: 'var(--radius-full)',
-              backgroundColor: query.toLowerCase().includes(cat.toLowerCase().split(' ')[0]) ? 'var(--accent-subtle)' : 'var(--bg-surface)',
-              border: `1px solid ${query.toLowerCase().includes(cat.toLowerCase().split(' ')[0]) ? 'var(--border-strong)' : 'var(--border-subtle)'}`,
-              color: 'var(--text-secondary)',
-              fontWeight: 500,
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-              transition: 'all var(--transition-fast)'
-            }}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* 4. Intent Badge (when smart query understanding detects mood, artist, or album keywords) */}
-      {searchData.parsed && searchData.parsed.hasModifier && query.trim() && (
-        <div
-          style={{
-            padding: '8px 14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.8rem',
-            color: 'var(--text-secondary)'
-          }}
-        >
-          <Sparkles size={14} style={{ color: 'var(--accent-solid)' }} />
-          <span>
-            {searchData.parsed.isAlbumQuery && `Showing albums for "${searchData.parsed.cleanQuery}"`}
-            {searchData.parsed.isArtistQuery && `Prioritizing artist results for "${searchData.parsed.cleanQuery}"`}
-            {searchData.parsed.isPlaylistQuery && `Showing playlists for "${searchData.parsed.cleanQuery}"`}
-            {searchData.parsed.detectedCategory && `Curating music matching mood: ${searchData.parsed.detectedCategory.toUpperCase()}`}
+        {/* Suggestion Chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {userPreferences?.genres?.length ? <Sparkles size={12} style={{ color: 'var(--accent-solid)' }} /> : null}
+            {userPreferences?.genres?.length ? 'For You:' : 'Try:'}
           </span>
+          {personalizedTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => handleSuggestionClick(tag)}
+              style={{
+                fontSize: '0.75rem',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                fontWeight: 500,
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer'
+              }}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Auto-Corrected Typo Feedback Banner if applicable */}
+      {query.trim() && topResult && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          <span>Top match for</span>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>"{query}"</span>:
+          <span style={{ color: 'var(--accent-solid)', fontWeight: 600 }}>{topResult.title} by {topResult.artist}</span>
         </div>
       )}
 
-      {/* 5. Main Content Area */}
-      {loading && totalResultsCount === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--text-muted)', gap: '14px' }}>
-          <Loader2 size={30} className="brand-logo-spin" />
-          <span style={{ fontSize: '0.95rem' }}>Searching JioSaavn music catalog...</span>
+      {/* Notice Banner if Fallback or Missing Key */}
+      {searchInfo && searchInfo.source === 'fallback' && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-medium)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertCircle size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {searchInfo.error || 'Showing matching curated audio catalog.'}
+            </span>
+          </div>
+
+          <button
+            onClick={onOpenSettings}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Key size={13} />
+            <span>Settings</span>
+          </button>
         </div>
-      ) : totalResultsCount === 0 && query.trim() ? (
-        /* Empty State */
-        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-          <Music size={52} strokeWidth={1.5} />
-          <h3 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>
-            No results found for "{query}"
-          </h3>
-          <p style={{ fontSize: '0.875rem', maxWidth: '420px', margin: 0 }}>
-            Try checking for typos, searching by a different artist or song name, or browse one of the music categories above.
-          </p>
+      )}
+
+      {/* Search Results */}
+      {loading && results.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0', color: 'var(--text-muted)', gap: '10px' }}>
+          <Loader2 size={24} className="brand-logo-spin" />
+          <span>Searching audio catalog...</span>
+        </div>
+      ) : results.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <Music size={48} strokeWidth={1.5} />
+          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>No results found for "{query}"</h3>
+          <p style={{ fontSize: '0.875rem' }}>Please try searching by artist, title, or try one of the suggestions above.</p>
         </div>
       ) : (
-        /* Render Selected Tab View */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
-          {/* TAB: ALL */}
-          {activeTab === 'all' && (
-            <>
-              {/* A. Top Result Card (Song, Artist, Album, or Playlist) */}
-              {query.trim() && searchData.topResult && (
-                <section>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '14px' }}>
-                    Top Result
-                  </h3>
-                  <SearchTopResult
-                    result={searchData.topResult}
-                    allSongs={searchData.songs}
-                    onPlayAlbum={handlePlayAlbum}
-                    onPlayPlaylist={handlePlayPlaylist}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Top Result Card (if there is a query) */}
+          {query.trim() && topResult && (
+            <div className="search-top-result-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>Top Result</h3>
+                <div
+                  className="search-top-result-card"
+                  onClick={() => {
+                    if (currentTrack?.id === topResult.id) togglePlay();
+                    else playTrack(topResult, results);
+                  }}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: 'var(--radius-xl)',
+                    padding: '20px',
+                    border: '1px solid var(--border-medium)',
+                    boxShadow: 'var(--shadow-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                    cursor: 'pointer',
+                    position: 'relative'
+                  }}
+                >
+                  <img
+                    src={topResult.thumbnail}
+                    alt={topResult.title}
+                    style={{
+                      width: '84px',
+                      height: '84px',
+                      borderRadius: 'var(--radius-md)',
+                      objectFit: 'cover'
+                    }}
                   />
-                </section>
-              )}
 
-              {/* B. Songs Section (Top 5 tracks) */}
-              {searchData.songs.length > 0 && (
-                <section>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                      Songs
-                    </h3>
-                    {searchData.songs.length > 5 && (
-                      <button
-                        onClick={() => handleSelectTab('songs')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: 'var(--text-secondary)'
-                        }}
-                      >
-                        <span>See all songs ({searchData.songs.length})</span>
-                        <ChevronRight size={15} />
-                      </button>
-                    )}
+                  <div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 4px', lineHeight: 1.2 }}>
+                      {topResult.title}
+                    </h2>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {topResult.artist} • <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)' }}>Song</span>
+                    </span>
                   </div>
 
-                  <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '10px', border: '1px solid var(--border-subtle)' }}>
-                    <TrackList
-                      tracks={searchData.songs.slice(0, 5)}
-                      onOpenAddToPlaylist={onOpenAddToPlaylist}
-                    />
+                  <div style={{ position: 'absolute', bottom: '20px', right: '20px' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentTrack?.id === topResult.id) togglePlay();
+                        else playTrack(topResult, results);
+                      }}
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--accent-solid)',
+                        color: 'var(--accent-text)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: 'var(--shadow-md)'
+                      }}
+                    >
+                      <Play size={20} fill="currentColor" style={{ marginLeft: isTopPlaying ? 0 : '2px' }} />
+                    </button>
                   </div>
-                </section>
-              )}
-
-              {/* C. Artists Section */}
-              {searchData.artists.length > 0 && (
-                <section>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                      Artists
-                    </h3>
-                    {searchData.artists.length > 4 && (
-                      <button
-                        onClick={() => handleSelectTab('artists')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: 'var(--text-secondary)'
-                        }}
-                      >
-                        <span>See all artists ({searchData.artists.length})</span>
-                        <ChevronRight size={15} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="search-discovery-grid">
-                    {searchData.artists.slice(0, 4).map((artist) => (
-                      <ArtistCard
-                        key={artist.id}
-                        artist={artist}
-                        onPlayArtist={handlePlayArtist}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* D. Albums Section */}
-              {searchData.albums.length > 0 && (
-                <section>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                      Albums
-                    </h3>
-                    {searchData.albums.length > 4 && (
-                      <button
-                        onClick={() => handleSelectTab('albums')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: 'var(--text-secondary)'
-                        }}
-                      >
-                        <span>See all albums ({searchData.albums.length})</span>
-                        <ChevronRight size={15} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="search-discovery-grid">
-                    {searchData.albums.slice(0, 4).map((album) => (
-                      <AlbumCard
-                        key={album.id}
-                        album={album}
-                        onPlayAlbum={handlePlayAlbum}
-                        onAddAlbumToQueue={handleAddAlbumToQueue}
-                        isLoading={loadingAlbumId === album.id}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* E. Playlists Section */}
-              {searchData.playlists.length > 0 && (
-                <section>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                      Featured Playlists
-                    </h3>
-                    {searchData.playlists.length > 4 && (
-                      <button
-                        onClick={() => handleSelectTab('playlists')}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: 'var(--text-secondary)'
-                        }}
-                      >
-                        <span>See all playlists ({searchData.playlists.length})</span>
-                        <ChevronRight size={15} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="search-discovery-grid">
-                    {searchData.playlists.slice(0, 4).map((playlist) => (
-                      <PlaylistCard
-                        key={playlist.id}
-                        playlist={playlist}
-                        onPlayPlaylist={handlePlayPlaylist}
-                        onAddPlaylistToQueue={handleAddPlaylistToQueue}
-                        isLoading={loadingPlaylistId === playlist.id}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </>
-          )}
-
-          {/* TAB: SONGS */}
-          {activeTab === 'songs' && (
-            <section>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
-                  Songs ({sortedSongs.length})
-                </h3>
+                </div>
               </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '12px', border: '1px solid var(--border-subtle)' }}>
-                <TrackList
-                  tracks={sortedSongs}
-                  onOpenAddToPlaylist={onOpenAddToPlaylist}
-                  emptyMessage={`No songs found matching "${query}".`}
-                />
-              </div>
-            </section>
+            </div>
           )}
 
-          {/* TAB: ARTISTS */}
-          {activeTab === 'artists' && (
-            <section>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '16px' }}>
-                Artists ({searchData.artists.length})
-              </h3>
+          {/* Songs List */}
+          <div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>
+              {query.trim() 
+                ? 'Songs' 
+                : (userPreferences?.genres?.length ? 'Recommended For You' : 'All Catalog Tracks')
+              }
+            </h3>
 
-              {searchData.artists.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                  No matching artists found for "{query}".
-                </div>
-              ) : (
-                <div className="search-discovery-grid">
-                  {searchData.artists.map((artist) => (
-                    <ArtistCard
-                      key={artist.id}
-                      artist={artist}
-                      onPlayArtist={handlePlayArtist}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* TAB: ALBUMS */}
-          {activeTab === 'albums' && (
-            <section>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '16px' }}>
-                Albums ({sortedAlbums.length})
-              </h3>
-
-              {sortedAlbums.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                  No matching albums found for "{query}".
-                </div>
-              ) : (
-                <div className="search-discovery-grid">
-                  {sortedAlbums.map((album) => (
-                    <AlbumCard
-                      key={album.id}
-                      album={album}
-                      onPlayAlbum={handlePlayAlbum}
-                      onAddAlbumToQueue={handleAddAlbumToQueue}
-                      isLoading={loadingAlbumId === album.id}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* TAB: PLAYLISTS */}
-          {activeTab === 'playlists' && (
-            <section>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '16px' }}>
-                Playlists ({searchData.playlists.length})
-              </h3>
-
-              {searchData.playlists.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                  No matching playlists found for "{query}".
-                </div>
-              ) : (
-                <div className="search-discovery-grid">
-                  {searchData.playlists.map((playlist) => (
-                    <PlaylistCard
-                      key={playlist.id}
-                      playlist={playlist}
-                      onPlayPlaylist={handlePlayPlaylist}
-                      onAddPlaylistToQueue={handleAddPlaylistToQueue}
-                      isLoading={loadingPlaylistId === playlist.id}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
+            <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '10px', border: '1px solid var(--border-subtle)' }}>
+              <TrackList
+                tracks={results}
+                onOpenAddToPlaylist={onOpenAddToPlaylist}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

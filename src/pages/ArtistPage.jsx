@@ -2,73 +2,52 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
-import { saavnApi } from '../services/saavnApi';
+import { youtubeApi } from '../services/youtubeApi';
 import { POPULAR_ARTISTS, MOCK_TRACKS } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
-import { Play, Shuffle, Plus, CheckCircle, Users, ChevronLeft, Loader2 } from 'lucide-react';
+import MusicCard from '../components/MusicCard';
+import { Play, Shuffle, CheckCircle, Users, Disc, ChevronLeft, Heart } from 'lucide-react';
 
 export default function ArtistPage({ onOpenAddToPlaylist }) {
   const { name } = useParams();
   const navigate = useNavigate();
-  const { playTrack, toggleShuffle, addTracksToQueue } = usePlayer();
-  const { showToast } = useLibrary();
+  const { playTrack, toggleShuffle } = usePlayer();
+  const { isLiked, showToast } = useLibrary();
 
   const decodedName = decodeURIComponent(name || '');
   const [isFollowing, setIsFollowing] = useState(false);
-  const [artistMeta, setArtistMeta] = useState(null);
   const [artistTracks, setArtistTracks] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Match known artist details from mock or fallback
+  const artistMeta = POPULAR_ARTISTS.find(
+    (a) => a.name.toLowerCase() === decodedName.toLowerCase()
+  ) || {
+    id: `artist-${decodedName.toLowerCase().replace(/\s+/g, '-')}`,
+    name: decodedName,
+    image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80',
+    monthlyListeners: '2.4M monthly listeners',
+    genre: 'Contemporary / Alternative'
+  };
+
   useEffect(() => {
     let isMounted = true;
-    async function loadArtist() {
+    async function loadArtistTracks() {
       setLoading(true);
       try {
-        // Fetch matching artist info and songs in parallel
-        const [artistsRes, songsRes] = await Promise.allSettled([
-          saavnApi.searchArtists(decodedName, 1, 5),
-          saavnApi.searchSongs(`${decodedName} hit songs`, 1, 25)
-        ]);
-
-        const artists = artistsRes.status === 'fulfilled' ? artistsRes.value : [];
-        const songs = songsRes.status === 'fulfilled' ? songsRes.value : [];
-
+        const res = await youtubeApi.search(`${decodedName} audio songs`);
         if (isMounted) {
-          const matchedArtist = artists.find(
-            a => a.name.toLowerCase() === decodedName.toLowerCase()
-          ) || artists[0];
-
-          if (matchedArtist) {
-            setArtistMeta({
-              id: matchedArtist.id,
-              name: matchedArtist.name,
-              image: matchedArtist.thumbnail,
-              role: matchedArtist.role || 'Artist',
-              monthlyListeners: 'Verified JioSaavn Artist'
-            });
+          if (res.results && res.results.length > 0) {
+            setArtistTracks(res.results);
           } else {
-            const mock = POPULAR_ARTISTS.find(
-              a => a.name.toLowerCase() === decodedName.toLowerCase()
-            ) || {
-              id: `artist-${decodedName.toLowerCase().replace(/\s+/g, '-')}`,
-              name: decodedName,
-              image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80',
-              role: 'Artist',
-              monthlyListeners: 'Music Artist'
-            };
-            setArtistMeta(mock);
-          }
-
-          if (songs && songs.length > 0) {
-            setArtistTracks(songs);
-          } else {
-            const catalogMatches = MOCK_TRACKS.filter(t =>
+            // Filter catalog tracks
+            const catalogMatches = MOCK_TRACKS.filter(t => 
               t.artist.toLowerCase().includes(decodedName.toLowerCase())
             );
             setArtistTracks(catalogMatches.length > 0 ? catalogMatches : MOCK_TRACKS.slice(0, 8));
           }
         }
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setArtistTracks(MOCK_TRACKS.slice(0, 8));
         }
@@ -77,12 +56,9 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
       }
     }
 
-    loadArtist();
+    loadArtistTracks();
     return () => { isMounted = false; };
   }, [decodedName]);
-
-  const artistName = artistMeta?.name || decodedName;
-  const artistArtwork = artistMeta?.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
 
   const handlePlayAll = () => {
     if (artistTracks.length > 0) {
@@ -98,15 +74,9 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
     }
   };
 
-  const handleAddAllToQueue = () => {
-    if (artistTracks.length > 0 && addTracksToQueue) {
-      addTracksToQueue(artistTracks, artistName);
-    }
-  };
-
   const handleFollowToggle = () => {
     setIsFollowing(!isFollowing);
-    showToast(isFollowing ? `Unfollowed ${artistName}` : `Following ${artistName}`, 'info');
+    showToast(isFollowing ? `Unfollowed ${decodedName}` : `Following ${decodedName}`, 'info');
   };
 
   return (
@@ -141,8 +111,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
           display: 'flex',
           alignItems: 'center',
           gap: '28px',
-          boxShadow: 'var(--shadow-md)',
-          flexWrap: 'wrap'
+          boxShadow: 'var(--shadow-md)'
         }}
       >
         <div
@@ -158,8 +127,8 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
           }}
         >
           <img
-            src={artistArtwork}
-            alt={artistName}
+            src={artistMeta.image}
+            alt={artistMeta.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             onError={(e) => {
               e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
@@ -167,7 +136,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
           />
         </div>
 
-        <div className="playlist-header-content" style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '240px' }}>
+        <div className="playlist-header-content" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <CheckCircle size={15} style={{ color: 'var(--accent-solid)' }} />
             <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
@@ -176,14 +145,14 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
           </div>
 
           <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 3rem)', fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
-            {artistName}
+            {artistMeta.name}
           </h1>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
             <Users size={14} />
-            <span>{artistMeta?.monthlyListeners || 'JioSaavn Artist'}</span>
+            <span>{artistMeta.monthlyListeners}</span>
             <span>•</span>
-            <span>{artistMeta?.role || 'Singer / Composer'}</span>
+            <span>{artistMeta.genre || 'Soundscape Artist'}</span>
           </div>
         </div>
       </section>
@@ -230,26 +199,6 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
         </button>
 
         <button
-          onClick={handleAddAllToQueue}
-          disabled={artistTracks.length === 0}
-          style={{
-            padding: '10px 20px',
-            borderRadius: 'var(--radius-full)',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-medium)',
-            color: 'var(--text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 600
-          }}
-        >
-          <Plus size={16} />
-          <span>Add to Queue</span>
-        </button>
-
-        <button
           onClick={handleFollowToggle}
           style={{
             padding: '10px 22px',
@@ -272,25 +221,18 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
         </h2>
 
         <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', padding: '12px', border: '1px solid var(--border-subtle)' }}>
-          {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0', color: 'var(--text-muted)', gap: '10px' }}>
-              <Loader2 size={24} className="brand-logo-spin" />
-              <span>Loading artist releases...</span>
-            </div>
-          ) : (
-            <TrackList
-              tracks={artistTracks}
-              onOpenAddToPlaylist={onOpenAddToPlaylist}
-              emptyMessage={`No tracks found for ${artistName}.`}
-            />
-          )}
+          <TrackList
+            tracks={artistTracks}
+            onOpenAddToPlaylist={onOpenAddToPlaylist}
+            emptyMessage={`No tracks found for ${artistMeta.name}.`}
+          />
         </div>
       </section>
 
-      {/* Similar Artists */}
+      {/* Other Artists You Might Enjoy */}
       <section>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '14px' }}>
-          Explore More Artists
+          Similar Soundscapes
         </h2>
 
         <div className="artists-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '14px' }}>

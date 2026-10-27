@@ -1,11 +1,13 @@
-// Local storage helper for persisting library, playlists, and settings
+// Local storage helper for persisting library, playlists, settings, recent searches, and user preferences
 
 const KEYS = {
   LIKED_SONGS: 'noir_liked_songs',
   PLAYLISTS: 'noir_playlists',
   RECENTLY_PLAYED: 'noir_recently_played',
   SETTINGS: 'noir_settings',
-  QUEUE: 'noir_saved_queue'
+  QUEUE: 'noir_saved_queue',
+  RECENT_SEARCHES: 'noir_recent_searches',
+  USER_PREFERENCES: 'noir_user_preferences'
 };
 
 const DEFAULT_PLAYLISTS = [
@@ -111,6 +113,80 @@ export const storage = {
       localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
     } catch (e) {
       console.error('Error saving settings', e);
+    }
+  },
+
+  // Recent Searches
+  getRecentSearches: () => {
+    try {
+      const data = localStorage.getItem(KEYS.RECENT_SEARCHES);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addRecentSearch: (query) => {
+    if (!query || !query.trim()) return [];
+    try {
+      const current = storage.getRecentSearches();
+      const filtered = current.filter(q => q.toLowerCase() !== query.trim().toLowerCase());
+      const updated = [query.trim(), ...filtered].slice(0, 10);
+      localStorage.setItem(KEYS.RECENT_SEARCHES, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.error('Error adding recent search', e);
+      return [];
+    }
+  },
+
+  removeRecentSearch: (query) => {
+    try {
+      const current = storage.getRecentSearches();
+      const updated = current.filter(q => q !== query);
+      localStorage.setItem(KEYS.RECENT_SEARCHES, JSON.stringify(updated));
+      return updated;
+    } catch {
+      return [];
+    }
+  },
+
+  clearRecentSearches: () => {
+    try {
+      localStorage.removeItem(KEYS.RECENT_SEARCHES);
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  // User Preferences (Interests: genres, favorite artists, etc.)
+  getUserPreferences: (userId = 'guest') => {
+    try {
+      const key = `${KEYS.USER_PREFERENCES}_${userId}`;
+      const data = localStorage.getItem(key);
+      if (data) return JSON.parse(data);
+      // Fallback to guest preferences if specific user not found yet
+      if (userId !== 'guest') {
+        const guestData = localStorage.getItem(`${KEYS.USER_PREFERENCES}_guest`);
+        if (guestData) return JSON.parse(guestData);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveUserPreferences: (userId = 'guest', preferences) => {
+    try {
+      const key = `${KEYS.USER_PREFERENCES}_${userId}`;
+      localStorage.setItem(key, JSON.stringify(preferences));
+      if (userId !== 'guest') {
+        // Also keep sync in guest key so it persists across logouts if needed
+        localStorage.setItem(`${KEYS.USER_PREFERENCES}_guest`, JSON.stringify(preferences));
+      }
+    } catch (e) {
+      console.error('Error saving user preferences', e);
     }
   }
 };

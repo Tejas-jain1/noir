@@ -12,6 +12,8 @@ export function LibraryProvider({ children }) {
   const [playlists, setPlaylists] = useState(() => storage.getPlaylists());
   const [recentlyPlayed, setRecentlyPlayed] = useState(() => storage.getRecentlyPlayed());
   const [settings, setSettings] = useState(() => storage.getSettings());
+  const [userPreferences, setUserPreferences] = useState(() => storage.getUserPreferences('guest'));
+  const [isInterestPickerOpen, setIsInterestPickerOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
   // Toast notification dispatcher
@@ -42,11 +44,16 @@ export function LibraryProvider({ children }) {
     });
 
     // 2. Supabase Auth state observer
-    supabaseService.getCurrentUser().then((currentUser) => {
+    supabaseService.getCurrentUser().then(async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         supabaseService.loadLikedSongs(currentUser.id).then(setLikedSongs);
         supabaseService.loadPlaylists(currentUser.id).then(setPlaylists);
+        const prefs = await supabaseService.loadUserPreferences(currentUser.id);
+        setUserPreferences(prefs);
+        if (!prefs || !prefs.onboarding_completed) {
+          setIsInterestPickerOpen(true);
+        }
       }
     });
 
@@ -59,14 +66,24 @@ export function LibraryProvider({ children }) {
         }
         const cloudLikes = await supabaseService.loadLikedSongs(u.id);
         const cloudPlaylists = await supabaseService.loadPlaylists(u.id);
+        const cloudPrefs = await supabaseService.loadUserPreferences(u.id);
         setLikedSongs(cloudLikes);
         setPlaylists(cloudPlaylists);
+        setUserPreferences(cloudPrefs);
+
+        // Prompt new user for music interests if not completed
+        if (!cloudPrefs || !cloudPrefs.onboarding_completed) {
+          setIsInterestPickerOpen(true);
+        }
+
         showToast(`Signed in as ${u.email}`, 'success');
       } else {
         const offlineLikes = await offlineStorage.getLikedSongs();
         const offlinePls = await offlineStorage.getPlaylists();
         setLikedSongs(offlineLikes);
         setPlaylists(offlinePls);
+        const guestPrefs = storage.getUserPreferences('guest');
+        setUserPreferences(guestPrefs);
       }
     });
 
@@ -226,6 +243,13 @@ export function LibraryProvider({ children }) {
     showToast('Settings saved', 'success');
   }, [showToast]);
 
+  // User Music Preferences Management
+  const savePreferences = useCallback(async (newPrefs) => {
+    setUserPreferences(newPrefs);
+    const userId = user?.id || 'guest';
+    await supabaseService.saveUserPreferences(userId, newPrefs);
+  }, [user]);
+
   // Auth Sign Out
   const signOut = useCallback(async () => {
     try {
@@ -247,6 +271,11 @@ export function LibraryProvider({ children }) {
         playlists,
         recentlyPlayed,
         settings,
+        userPreferences,
+        saveUserPreferences: savePreferences,
+        isInterestPickerOpen,
+        setIsInterestPickerOpen,
+        openInterestPicker: () => setIsInterestPickerOpen(true),
         toasts,
         showToast,
         removeToast,

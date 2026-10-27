@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw } from 'lucide-react';
+import { X, Key, Sun, Moon, Trash2, Check, ExternalLink, Info, Database, Cloud, RefreshCw, Sparkles } from 'lucide-react';
 import { offlineStorage } from '../services/offlineStorage';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 
 export default function SettingsModal({ isOpen, onClose }) {
-  const { settings, updateSettings, user } = useLibrary();
+  const { settings, updateSettings, user, openInterestPicker } = useLibrary();
   const { toggleTheme, isDark } = useTheme();
 
   const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey || '');
@@ -174,6 +174,38 @@ export default function SettingsModal({ isOpen, onClose }) {
                 <span>Light Theme</span>
               </button>
             </div>
+          </section>
+
+          {/* Music Taste & Interests */}
+          <section style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <label style={{ fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={16} style={{ color: 'var(--accent-solid)' }} />
+                <span>Music Taste & Interests</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  openInterestPicker();
+                }}
+                style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--accent-solid)',
+                  color: 'var(--accent-text)',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Customize
+              </button>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Choose your favorite genres (Lo-Fi, Hip-Hop, Bollywood, etc.) and artists to get personalized search recommendations.
+            </p>
           </section>
 
           {/* Cloud Database & Offline Storage Status */}

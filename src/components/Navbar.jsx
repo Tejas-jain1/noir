@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useLibrary } from '../context/LibraryContext';
+import { usePlayer } from '../context/PlayerContext';
+import { saavnApi } from '../services/saavnApi';
+import { storage } from '../services/storage';
+import SearchSuggestions from './SearchSuggestions';
 import { 
   Search, 
   Sun, 
@@ -9,38 +13,123 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight, 
-  User, 
-  Menu,
-  ShieldCheck,
-  Disc,
-  LogOut,
-  LogIn
+  Menu, 
+  Disc, 
+  LogOut, 
+  LogIn,
+  Sparkles
 } from 'lucide-react';
 
 export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth }) {
   const { toggleTheme, isDark } = useTheme();
-  const { user, signOut } = useLibrary();
+  const { user, signOut, userPreferences, openInterestPicker } = useLibrary();
+  const { playTrack } = usePlayer();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const isSearchPage = location.pathname === '/search';
+  const [suggestions, setSuggestions] = useState(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
+  const [recentSearches, setRecentSearches] = useState(() => storage.getRecentSearches());
 
+  const isSearchPage = location.pathname === '/search';
+  const debounceTimerRef = useRef(null);
+
+  // Sync search input if URL has search param
   useEffect(() => {
     if (isSearchPage) {
       const params = new URLSearchParams(location.search);
-      setSearchQuery(params.get('q') || '');
+      const q = params.get('q') || '';
+      setSearchQuery(q);
     }
   }, [location.search, isSearchPage]);
 
+  // Live typo-tolerant suggestions debounce effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSuggestions(null);
+      setIsSuggestLoading(false);
+      return;
+    }
+
+    setIsSuggestLoading(true);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const data = await saavnApi.getAutocomplete(searchQuery.trim());
+        setSuggestions(data);
+      } catch (err) {
+        console.warn('Navbar autocomplete fetch error:', err);
+      } finally {
+        setIsSuggestLoading(false);
+      }
+    }, 220);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [searchQuery]);
+
   const handleSearchSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    setIsDropdownOpen(false);
     if (searchQuery.trim()) {
+      storage.addRecentSearch(searchQuery.trim());
+      setRecentSearches(storage.getRecentSearches());
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     } else {
       navigate('/search');
     }
+  };
+
+  const handleSelectSong = async (song) => {
+    setIsDropdownOpen(false);
+    if (!song) return;
+
+    // Save title to recent searches
+    storage.addRecentSearch(song.title);
+    setRecentSearches(storage.getRecentSearches());
+
+    // If already has direct audio stream
+    if (song.audioUrl) {
+      playTrack(song);
+      return;
+    }
+
+    // Resolve 320kbps stream via songDetails or search
+    try {
+      const full = await saavnApi.getSongDetails(song.id);
+      if (full && full.audioUrl) {
+        playTrack(full);
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+
+    // Otherwise navigate to search for it
+    navigate(`/search?q=${encodeURIComponent(song.title)}`);
+  };
+
+  const handleSelectQuery = (queryText) => {
+    setIsDropdownOpen(false);
+    setSearchQuery(queryText);
+    storage.addRecentSearch(queryText);
+    setRecentSearches(storage.getRecentSearches());
+    navigate(`/search?q=${encodeURIComponent(queryText)}`);
+  };
+
+  const handleRemoveRecent = (queryText) => {
+    const updated = storage.removeRecentSearch(queryText);
+    setRecentSearches(updated);
+  };
+
+  const handleClearRecent = () => {
+    const updated = storage.clearRecentSearches();
+    setRecentSearches(updated);
   };
 
   return (
@@ -145,7 +234,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
         </div>
       </div>
 
-      {/* Center: Search input */}
+      {/* Center: Search input with smart live suggestions */}
       <form
         onSubmit={handleSearchSubmit}
         style={{
@@ -163,14 +252,22 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             position: 'absolute',
             left: '12px',
             color: 'var(--text-muted)',
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            zIndex: 2
           }}
         />
         <input
           type="text"
           className="navbar-search-input"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setIsDropdownOpen(true);
+          }}
+          onFocus={() => {
+            setIsDropdownOpen(true);
+            setRecentSearches(storage.getRecentSearches());
+          }}
           placeholder="Search songs, artists..."
           style={{
             width: '100%',
@@ -183,11 +280,21 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             fontSize: '0.85rem',
             transition: 'border-color var(--transition-fast), background var(--transition-fast)'
           }}
-          onFocus={() => {
-            if (!isSearchPage) {
-              navigate('/search');
-            }
-          }}
+        />
+
+        {/* Floating Typo-Tolerant Auto-Complete Dropdown */}
+        <SearchSuggestions
+          query={searchQuery}
+          suggestions={suggestions}
+          isOpen={isDropdownOpen}
+          isLoading={isSuggestLoading}
+          onClose={() => setIsDropdownOpen(false)}
+          onSelectSong={handleSelectSong}
+          onSelectQuery={handleSelectQuery}
+          recentSearches={recentSearches}
+          onRemoveRecent={handleRemoveRecent}
+          onClearRecent={handleClearRecent}
+          userInterests={userPreferences}
         />
       </form>
 
@@ -228,7 +335,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             justifyContent: 'center',
             transition: 'transform var(--transition-fast)'
           }}
-          title="Application Settings & YouTube API"
+          title="Application Settings"
         >
           <Settings size={17} />
         </button>
@@ -305,7 +412,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
                 border: '1px solid var(--border-medium)',
                 boxShadow: 'var(--shadow-lg)',
                 padding: '8px',
-                minWidth: '180px',
+                minWidth: '190px',
                 zIndex: 100,
                 display: 'flex',
                 flexDirection: 'column',
@@ -318,6 +425,32 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
                   {user.email}
                 </div>
               </div>
+
+              {/* Music Interests / Personalization Button */}
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  openInterestPicker();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  width: '100%',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+              >
+                <Sparkles size={14} style={{ color: 'var(--accent-solid)' }} />
+                <span>Music Interests</span>
+              </button>
+
               <button
                 onClick={() => {
                   setShowUserMenu(false);
