@@ -19,7 +19,8 @@ import {
   Minimize2,
   Loader2,
   Music2,
-  MoreVertical
+  MoreVertical,
+  RotateCw
 } from 'lucide-react';
 
 export default function AmbientMode({ isOpen, onClose }) {
@@ -51,6 +52,7 @@ export default function AmbientMode({ isOpen, onClose }) {
   const [scrubValue, setScrubValue] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [forcePortrait, setForcePortrait] = useState(false);
 
   const lyricsContainerRef = useRef(null);
   const activeLineRef = useRef(null);
@@ -142,7 +144,7 @@ export default function AmbientMode({ isOpen, onClose }) {
 
   return (
     <div
-      className="ambient-mode-overlay"
+      className={`ambient-mode-overlay ${forcePortrait ? 'disable-mobile-rotation' : ''}`}
       onMouseMove={handleMouseMove}
       style={{
         position: 'fixed',
@@ -217,7 +219,29 @@ export default function AmbientMode({ isOpen, onClose }) {
           <MoreVertical size={18} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Rotate 90° Horizontal Toggle Button */}
+          <button
+            onClick={() => setForcePortrait((prev) => !prev)}
+            style={{
+              background: forcePortrait ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(16px)',
+              transition: 'all 0.2s ease'
+            }}
+            title={forcePortrait ? 'Rotate to Horizontal' : 'Rotate to Vertical'}
+          >
+            <RotateCw size={17} />
+          </button>
+
           {/* Fullscreen / Rotate Screen Button */}
           <button
             onClick={toggleFullscreenMode}

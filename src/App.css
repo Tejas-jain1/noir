@@ -839,36 +839,91 @@
 }
 
 @media (max-width: 768px) and (orientation: portrait) {
+  .ambient-mode-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 100vw !important;
+    left: 100dvw !important;
+    width: 100vh !important;
+    width: 100dvh !important;
+    height: 100vw !important;
+    height: 100dvw !important;
+    transform: rotate(90deg) !important;
+    transform-origin: top left !important;
+    overflow: hidden !important;
+  }
+
+  .ambient-mode-overlay.disable-mobile-rotation {
+    transform: none !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+
   .ambient-cinema-stage {
-    flex-direction: column !important;
-    gap: 18px !important;
+    flex-direction: row !important;
+    gap: 24px !important;
     padding: 0 20px !important;
+    height: 62% !important;
+    min-height: 0 !important;
   }
+
   .ambient-artwork-column {
-    max-width: 240px !important;
-    width: 55vw !important;
-    gap: 12px !important;
-    align-items: center !important;
-    text-align: center !important;
+    max-width: 200px !important;
+    width: 28% !important;
+    flex-shrink: 0 !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+    text-align: left !important;
   }
+
+  .ambient-cover-wrapper {
+    border-radius: 16px !important;
+  }
+
   .ambient-lyrics-column {
-    width: 100% !important;
-    height: 48vh !important;
+    flex: 1 !important;
+    width: auto !important;
+    height: 100% !important;
+    max-height: 220px !important;
+  }
+
+  .ambient-mode-overlay header {
+    padding: 12px 20px !important;
+  }
+
+  .ambient-mode-overlay footer {
+    margin: 0 auto 10px !important;
+    padding: 8px 18px !important;
+    max-width: 90% !important;
   }
 }
 
-@media (orientation: landscape) and (max-height: 550px) {
+@media (orientation: landscape) {
+  .ambient-mode-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    transform: none !important;
+  }
+
   .ambient-cinema-stage {
     flex-direction: row !important;
-    gap: 28px !important;
-    padding: 0 24px !important;
+    gap: 32px !important;
+    padding: 0 28px !important;
   }
+
   .ambient-artwork-column {
-    max-width: 220px !important;
-    width: 28vw !important;
+    max-width: 240px !important;
+    width: 30% !important;
     gap: 12px !important;
   }
+
   .ambient-lyrics-column {
+    flex: 1 !important;
     height: 68vh !important;
   }
 }
