@@ -7,6 +7,7 @@ const KEYS = {
   SETTINGS: 'noir_settings',
   QUEUE: 'noir_saved_queue',
   RECENT_SEARCHES: 'noir_recent_searches',
+  RECENT_SEARCH_TRACKS: 'noir_recent_search_tracks',
   USER_PREFERENCES: 'noir_user_preferences'
 };
 
@@ -154,6 +155,56 @@ export const storage = {
   clearRecentSearches: () => {
     try {
       localStorage.removeItem(KEYS.RECENT_SEARCHES);
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  // Recent Search Track Objects (Spotify style)
+  getRecentSearchTracks: () => {
+    try {
+      const data = localStorage.getItem(KEYS.RECENT_SEARCH_TRACKS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      // Fallback to recently played tracks
+      const played = storage.getRecentlyPlayed();
+      return Array.isArray(played) ? played : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addRecentSearchTrack: (track) => {
+    if (!track || !track.id) return [];
+    try {
+      const current = storage.getRecentSearchTracks();
+      const filtered = current.filter(t => t.id !== track.id && t.title !== track.title);
+      const updated = [track, ...filtered].slice(0, 20);
+      localStorage.setItem(KEYS.RECENT_SEARCH_TRACKS, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.error('Error adding recent search track', e);
+      return [];
+    }
+  },
+
+  removeRecentSearchTrack: (trackId) => {
+    try {
+      const current = storage.getRecentSearchTracks();
+      const updated = current.filter(t => t.id !== trackId);
+      localStorage.setItem(KEYS.RECENT_SEARCH_TRACKS, JSON.stringify(updated));
+      return updated;
+    } catch {
+      return [];
+    }
+  },
+
+  clearRecentSearchTracks: () => {
+    try {
+      localStorage.removeItem(KEYS.RECENT_SEARCH_TRACKS);
       return [];
     } catch {
       return [];

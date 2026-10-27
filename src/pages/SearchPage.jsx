@@ -1,33 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { saavnApi, youtubeApi } from '../services/saavnApi';
 import { storage } from '../services/storage';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
-import { Search, Loader2, Play, Key, AlertCircle, Music, Sparkles, X } from 'lucide-react';
-
-const DEFAULT_SUGGESTIONS = [
-  'The Weeknd',
-  'Arijit Singh',
-  'Lo-Fi Chill',
-  'Dua Lipa',
-  'Billie Eilish',
-  'Diljit Dosanjh',
-  'Kendrick Lamar',
-  'Sidhu Moose Wala',
-  'Synthwave'
-];
+import { 
+  Search, 
+  Loader2, 
+  Play, 
+  AlertCircle, 
+  Music, 
+  PlusCircle, 
+  CheckCircle2, 
+  ArrowLeft, 
+  X 
+} from 'lucide-react';
 
 export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialQuery = searchParams.get('q') || '';
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInfo, setSearchInfo] = useState(null);
+
+  // Recent searched/played tracks (Spotify style)
+  const [recentTracks, setRecentTracks] = useState(() => storage.getRecentSearchTracks());
 
   // Suggestions dropdown state
   const [suggestions, setSuggestions] = useState(null);
@@ -36,7 +38,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
   const [recentSearches, setRecentSearches] = useState(() => storage.getRecentSearches());
 
   const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
-  const { userPreferences, likedSongs } = useLibrary();
+  const { userPreferences, likedSongs, isLiked, toggleLike } = useLibrary();
 
   const debounceSuggestTimerRef = useRef(null);
 
@@ -46,7 +48,20 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
     setQuery(q);
   }, [searchParams]);
 
-  // Rank / personalize results according to user's saved interests & liked songs
+  // Load initial recents from trending if storage has none
+  useEffect(() => {
+    if (recentTracks.length === 0) {
+      youtubeApi.getTrending().then((trending) => {
+        if (Array.isArray(trending) && trending.length > 0) {
+          const initial = trending.slice(0, 10);
+          setRecentTracks(initial);
+          initial.forEach(t => storage.addRecentSearchTrack(t));
+        }
+      }).catch(() => {});
+    }
+  }, [recentTracks.length]);
+
+  // Rank / personalize search results according to user's saved interests & liked songs
   const personalizeTracks = (tracks) => {
     if (!tracks || tracks.length === 0) return tracks;
 
@@ -85,24 +100,11 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
     });
   };
 
-  // Debounced search effect
+  // Debounced search effect (only runs when query has text)
   useEffect(() => {
     if (!query.trim()) {
-      setLoading(true);
-      // If user has preferred vibe or artist, load personalized recommendations
-      const initialKeyword = userPreferences?.genres?.[0] || userPreferences?.artists?.[0] || '';
-      const fetchPromise = initialKeyword
-        ? saavnApi.search(`${initialKeyword} hits`)
-        : youtubeApi.search('');
-
-      fetchPromise.then(res => {
-        const sorted = personalizeTracks(res.results || []);
-        setResults(sorted);
-        setSearchInfo(res);
-        setLoading(false);
-      }).catch(() => {
-        setLoading(false);
-      });
+      setResults([]);
+      setLoading(false);
       return;
     }
 
@@ -118,7 +120,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
       } finally {
         setLoading(false);
       }
-    }, 320);
+    }, 300);
 
     return () => clearTimeout(handler);
   }, [query, userPreferences, likedSongs]);
@@ -143,7 +145,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
       } finally {
         setIsSuggestLoading(false);
       }
-    }, 200);
+    }, 180);
 
     return () => {
       if (debounceSuggestTimerRef.current) clearTimeout(debounceSuggestTimerRef.current);
@@ -175,6 +177,8 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
 
     storage.addRecentSearch(song.title);
     setRecentSearches(storage.getRecentSearches());
+    const updated = storage.addRecentSearchTrack(song);
+    setRecentTracks(updated);
 
     if (song.audioUrl) {
       playTrack(song);
@@ -184,6 +188,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
     try {
       const full = await saavnApi.getSongDetails(song.id);
       if (full && full.audioUrl) {
+        storage.addRecentSearchTrack(full);
         playTrack(full);
         return;
       }
@@ -195,25 +200,62 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
     setSearchParams({ q: song.title });
   };
 
-  // Personalized tags combining user interests & liked songs
-  const personalizedTags = (userPreferences?.artists?.length || userPreferences?.genres?.length)
-    ? [...(userPreferences.genres || []), ...(userPreferences.artists || [])].slice(0, 9)
-    : DEFAULT_SUGGESTIONS;
+  const handlePlayRecent = (track) => {
+    const updated = storage.addRecentSearchTrack(track);
+    setRecentTracks(updated);
+    playTrack(track, recentTracks);
+  };
+
+  const handleRemoveRecentTrack = (trackId) => {
+    const updated = storage.removeRecentSearchTrack(trackId);
+    setRecentTracks(updated);
+  };
+
+  const handleClearAllRecents = () => {
+    const cleared = storage.clearRecentSearchTracks();
+    setRecentTracks(cleared);
+  };
 
   const topResult = results[0];
   const isTopPlaying = topResult && currentTrack?.id === topResult.id && isPlaying;
 
-  // Typo check: did the query differ from the topResult title?
-  const isCorrectedTypo = query.trim() && topResult && 
-    topResult.title.toLowerCase() !== query.trim().toLowerCase() &&
-    !query.trim().toLowerCase().includes(topResult.title.toLowerCase().slice(0, 4));
-
   return (
     <div className="page-container">
-      {/* Search Header Input with Smart Dropdown */}
-      <div>
-        <div style={{ position: 'relative', maxWidth: '640px' }}>
-          <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 2 }} />
+      {/* 1. Search Header Input with Back Arrow (matching Spotify layout) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', maxWidth: '640px' }}>
+        <button
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-primary)',
+            padding: '8px',
+            borderRadius: '50%',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}
+          title="Back"
+        >
+          <ArrowLeft size={22} />
+        </button>
+
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <Search
+            size={18}
+            style={{
+              position: 'absolute',
+              left: '16px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+              zIndex: 2,
+              pointerEvents: 'none'
+            }}
+          />
           <input
             type="text"
             value={query}
@@ -222,12 +264,12 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               setIsDropdownOpen(true);
               setRecentSearches(storage.getRecentSearches());
             }}
-            placeholder="Search songs, artists, or keywords (e.g. kesariya, lofi, arijiit)..."
+            placeholder="What do you want to listen to?"
             autoFocus
             style={{
               width: '100%',
-              height: '48px',
-              padding: '0 46px 0 46px',
+              height: '46px',
+              padding: query.trim() ? '0 44px 0 46px' : '0 18px 0 46px',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-medium)',
@@ -236,8 +278,9 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               boxShadow: 'var(--shadow-sm)'
             }}
           />
+
           {loading ? (
-            <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 2 }}>
+            <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 2 }}>
               <Loader2 size={18} className="brand-logo-spin" />
             </div>
           ) : query.trim() ? (
@@ -250,7 +293,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               }}
               style={{
                 position: 'absolute',
-                right: '16px',
+                right: '14px',
                 top: '50%',
                 transform: 'translateY(-50%)',
                 background: 'transparent',
@@ -284,109 +327,166 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
             userInterests={userPreferences}
           />
         </div>
-
-        {/* Suggestion Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {userPreferences?.genres?.length ? <Sparkles size={12} style={{ color: 'var(--accent-solid)' }} /> : null}
-            {userPreferences?.genres?.length ? 'For You:' : 'Try:'}
-          </span>
-          {personalizedTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => handleSuggestionClick(tag)}
-              style={{
-                fontSize: '0.75rem',
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-full)',
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-secondary)',
-                fontWeight: 500,
-                transition: 'all var(--transition-fast)',
-                cursor: 'pointer'
-              }}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Auto-Corrected Typo Feedback Banner if applicable */}
-      {query.trim() && topResult && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-          <span>Top match for</span>
-          <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>"{query}"</span>:
-          <span style={{ color: 'var(--accent-solid)', fontWeight: 600 }}>{topResult.title} by {topResult.artist}</span>
-        </div>
-      )}
-
-      {/* Notice Banner if Fallback or Missing Key */}
-      {searchInfo && searchInfo.source === 'fallback' && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: 'var(--radius-lg)',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-medium)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertCircle size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              {searchInfo.error || 'Showing matching curated audio catalog.'}
-            </span>
+      {/* 2. Recents Section: Rendered when search query is empty (Exactly matching user's Spotify screenshot) */}
+      {!query.trim() && (
+        <section style={{ marginTop: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              Recents
+            </h2>
+            {recentTracks.length > 0 && (
+              <button
+                onClick={handleClearAllRecents}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Clear All
+              </button>
+            )}
           </div>
 
-          <button
-            onClick={onOpenSettings}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-subtle)',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              whiteSpace: 'nowrap'
-            }}
-          >
-            <Key size={13} />
-            <span>Settings</span>
-          </button>
-        </div>
+          {recentTracks.length === 0 ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <Music size={40} style={{ marginBottom: '8px', opacity: 0.5 }} />
+              <p style={{ fontSize: '0.9rem', margin: 0 }}>No recent searches</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {recentTracks.map((track) => {
+                const liked = isLiked(track.id);
+                const isCurrent = currentTrack?.id === track.id;
+
+                return (
+                  <div
+                    key={track.id}
+                    onClick={() => handlePlayRecent(track)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 0',
+                      gap: '12px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      transition: 'background var(--transition-fast)'
+                    }}
+                  >
+                    {/* Left: Thumbnail & Song Metadata */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                      <img
+                        src={track.thumbnail}
+                        alt={track.title}
+                        style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '4px',
+                          objectFit: 'cover',
+                          flexShrink: 0,
+                          backgroundColor: 'var(--bg-surface)'
+                        }}
+                      />
+                      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <h4
+                          style={{
+                            margin: 0,
+                            fontSize: '0.95rem',
+                            fontWeight: 700,
+                            color: isCurrent ? 'var(--accent-solid)' : 'var(--text-primary)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          {track.title}
+                        </h4>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '0.8rem',
+                            color: 'var(--text-muted)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          Song • {track.artist}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right: Plus (+) / Checkmark (✓) and Remove (✕) */}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => toggleLike(track)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: liked ? '#1ed760' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'transform var(--transition-fast)'
+                        }}
+                        title={liked ? 'Saved to Liked Songs' : 'Save to Liked Songs'}
+                      >
+                        {liked ? (
+                          <CheckCircle2 size={21} fill="#1ed760" color="#000" />
+                        ) : (
+                          <PlusCircle size={21} />
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => handleRemoveRecentTrack(track.id)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Remove from recents"
+                      >
+                        <X size={19} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       )}
 
-      {/* Search Results */}
-      {loading && results.length === 0 ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0', color: 'var(--text-muted)', gap: '10px' }}>
-          <Loader2 size={24} className="brand-logo-spin" />
-          <span>Searching audio catalog...</span>
-        </div>
-      ) : results.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <Music size={48} strokeWidth={1.5} />
-          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>No results found for "{query}"</h3>
-          <p style={{ fontSize: '0.875rem' }}>Please try searching by artist, title, or try one of the suggestions above.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Top Result Card (if there is a query) */}
-          {query.trim() && topResult && (
+      {/* 3. Active Search Results: Shown only when user has typed a query */}
+      {query.trim() && (
+        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top Result Card if available */}
+          {topResult && (
             <div className="search-top-result-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
               <div>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>Top Result</h3>
                 <div
                   className="search-top-result-card"
                   onClick={() => {
+                    const updated = storage.addRecentSearchTrack(topResult);
+                    setRecentTracks(updated);
                     if (currentTrack?.id === topResult.id) togglePlay();
                     else playTrack(topResult, results);
                   }}
@@ -427,6 +527,8 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        const updated = storage.addRecentSearchTrack(topResult);
+                        setRecentTracks(updated);
                         if (currentTrack?.id === topResult.id) togglePlay();
                         else playTrack(topResult, results);
                       }}
@@ -453,10 +555,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
           {/* Songs List */}
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>
-              {query.trim() 
-                ? 'Songs' 
-                : (userPreferences?.genres?.length ? 'Recommended For You' : 'All Catalog Tracks')
-              }
+              Songs
             </h3>
 
             <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '10px', border: '1px solid var(--border-subtle)' }}>
