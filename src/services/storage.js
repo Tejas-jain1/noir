@@ -80,7 +80,21 @@ export const storage = {
   getRecentlyPlayed: () => {
     try {
       const data = localStorage.getItem(KEYS.RECENTLY_PLAYED);
-      return data ? JSON.parse(data) : [];
+      if (!data) return [];
+      const parsed = JSON.parse(data);
+      if (!Array.isArray(parsed)) return [];
+      // Automatically sanitize legacy mock songs (Blinding Lights, Get Lucky, etc.)
+      const legacyIds = new Set(['4NRXx6U8ABQ', 'Th4EkOPb2qY', '5NV6Rdv1a3I', 'H5v3kku4y6Q', 'd5gxZ5r0qSY']);
+      const sanitized = parsed.filter(t => 
+        t && t.id && 
+        !legacyIds.has(t.id) && 
+        t.title !== 'Blinding Lights' && 
+        t.title !== 'Get Lucky'
+      );
+      if (sanitized.length !== parsed.length) {
+        localStorage.setItem(KEYS.RECENTLY_PLAYED, JSON.stringify(sanitized));
+      }
+      return sanitized;
     } catch (e) {
       console.error('Error reading recently played', e);
       return [];

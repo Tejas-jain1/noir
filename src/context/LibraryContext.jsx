@@ -40,7 +40,19 @@ export function LibraryProvider({ children }) {
       if (Array.isArray(cached) && cached.length > 0) setPlaylists(cached);
     });
     offlineStorage.getHistory().then(cached => {
-      if (Array.isArray(cached) && cached.length > 0) setRecentlyPlayed(cached);
+      if (Array.isArray(cached) && cached.length > 0) {
+        const legacyIds = new Set(['4NRXx6U8ABQ', 'Th4EkOPb2qY', '5NV6Rdv1a3I', 'H5v3kku4y6Q', 'd5gxZ5r0qSY']);
+        const sanitized = cached.filter(t => 
+          t && t.id && 
+          !legacyIds.has(t.id) && 
+          t.title !== 'Blinding Lights' && 
+          t.title !== 'Get Lucky'
+        );
+        setRecentlyPlayed(sanitized);
+        if (sanitized.length !== cached.length) {
+          offlineStorage.setHistory(sanitized);
+        }
+      }
     });
 
     // 2. Supabase Auth state observer
@@ -233,6 +245,13 @@ export function LibraryProvider({ children }) {
     });
   }, []);
 
+  const clearRecentlyPlayed = useCallback(() => {
+    setRecentlyPlayed([]);
+    storage.saveRecentlyPlayed([]);
+    offlineStorage.setHistory([]);
+    showToast('Listening history cleared', 'info');
+  }, [showToast]);
+
   // Settings Management
   const updateSettings = useCallback((newSettings) => {
     setSettings(prev => {
@@ -287,6 +306,7 @@ export function LibraryProvider({ children }) {
         addTrackToPlaylist,
         removeTrackFromPlaylist,
         addToRecent,
+        clearRecentlyPlayed,
         updateSettings
       }}
     >

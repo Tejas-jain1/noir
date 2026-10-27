@@ -20,7 +20,7 @@ const FEATURED_ARTISTS = [
 
 export default function Home({ onOpenAddToPlaylist }) {
   const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
-  const { recentlyPlayed, isLiked, toggleLike, userPreferences, likedSongs } = useLibrary();
+  const { isLiked, toggleLike, userPreferences, likedSongs } = useLibrary();
   const navigate = useNavigate();
 
   const [trendingTracks, setTrendingTracks] = useState([]);
@@ -190,42 +190,7 @@ export default function Home({ onOpenAddToPlaylist }) {
         </section>
       )}
 
-      {/* 2. Recently Played Quick Grid (if any) */}
-      {recentlyPlayed.length > 0 && (
-        <section>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>Recently Played</span>
-            </h2>
-            <button
-              onClick={() => navigate('/recent')}
-              style={{ fontSize: '0.825rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              <span>View All</span>
-              <ChevronRight size={15} />
-            </button>
-          </div>
-
-          <div
-            className="mobile-cards-grid"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '16px'
-            }}
-          >
-            {recentlyPlayed.slice(0, 5).map((track) => (
-              <MusicCard
-                key={track.id}
-                track={track}
-                onOpenAddToPlaylist={onOpenAddToPlaylist}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 3. Trending Now */}
+      {/* 2. Trending Now */}
       <section>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div>

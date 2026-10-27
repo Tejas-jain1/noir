@@ -2,11 +2,11 @@ import React from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { usePlayer } from '../context/PlayerContext';
 import TrackList from '../components/TrackList';
-import { Clock, Play, Music } from 'lucide-react';
+import { Clock, Play, Music, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
-  const { recentlyPlayed } = useLibrary();
+  const { recentlyPlayed, clearRecentlyPlayed } = useLibrary();
   const { playTrack } = usePlayer();
   const navigate = useNavigate();
 
@@ -66,7 +66,7 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
 
       {/* Action Controls */}
       {recentlyPlayed.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
           <button
             onClick={handlePlayAll}
             style={{
@@ -83,6 +83,27 @@ export default function RecentlyPlayed({ onOpenAddToPlaylist }) {
             title="Play all history"
           >
             <Play size={22} fill="currentColor" style={{ marginLeft: '2px' }} />
+          </button>
+
+          <button
+            onClick={clearRecentlyPlayed}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-medium)',
+              color: 'var(--text-secondary)',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+            title="Clear listening history"
+          >
+            <Trash2 size={15} />
+            <span>Clear History</span>
           </button>
         </div>
       )}
