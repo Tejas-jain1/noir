@@ -158,7 +158,7 @@ export const saavnApi = {
   search: async (query) => {
     if (!query || !query.trim()) {
       return {
-        results: MOCK_TRACKS,
+        results: [],
         source: 'curated',
         hasKey: true
       };
@@ -197,8 +197,22 @@ export const saavnApi = {
   // Get Top Trending Songs directly from Saavn CDN
   getTrending: async () => {
     try {
-      // Query top trending hits from Saavn
-      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=trending%20top%20hits&n=20`;
+      // 1. Try official India Superhits Top 50 Chart playlist
+      const chartParams = `__call=playlist.getDetails&_format=json&listid=1134543272&api_version=4&ctx=web6dot0`;
+      const chartData = await fetchSaavnQuery(chartParams);
+
+      if (chartData && Array.isArray(chartData.list) && chartData.list.length > 0) {
+        const tracks = chartData.list
+          .map(formatSaavnTrack)
+          .filter(t => Boolean(t && t.audioUrl));
+
+        if (tracks.length > 0) {
+          return tracks;
+        }
+      }
+
+      // 2. Fallback query for top trending hits from Saavn
+      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=trending%20top%20hits&n=25`;
       const data = await fetchSaavnQuery(params);
 
       if (data && data.results && data.results.length > 0) {
@@ -211,10 +225,10 @@ export const saavnApi = {
         }
       }
     } catch (err) {
-      console.warn('Failed to fetch trending from Saavn, using curated catalog:', err);
+      console.warn('Failed to fetch trending from Saavn:', err);
     }
 
-    return MOCK_TRACKS;
+    return [];
   },
 
   // Resolve direct 320kbps CDN audio stream for any track (e.g. from mock catalog or playlist)

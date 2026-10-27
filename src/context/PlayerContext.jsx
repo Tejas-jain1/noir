@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useLibrary } from './LibraryContext';
-import { MOCK_TRACKS } from '../services/mockCatalog';
+import { storage } from '../services/storage';
 import { 
   updateMediaSessionMetadata, 
   setMediaSessionActionHandlers, 
@@ -18,17 +18,38 @@ export function PlayerProvider({ children }) {
   const { addToRecent, showToast, likedSongs, userPreferences } = useLibrary();
 
   // Playback state
-  const [currentTrack, setCurrentTrack] = useState(() => MOCK_TRACKS[0]);
+  const [currentTrack, setCurrentTrack] = useState(() => {
+    try {
+      const recent = storage.getRecentlyPlayed();
+      return recent && recent.length > 0 ? recent[0] : null;
+    } catch {
+      return null;
+    }
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(MOCK_TRACKS[0]?.duration || 200);
+  const [duration, setDuration] = useState(() => {
+    try {
+      const recent = storage.getRecentlyPlayed();
+      return recent && recent[0]?.duration ? recent[0].duration : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [preShuffleQueue, setPreShuffleQueue] = useState(null);
   const [repeatMode, setRepeatMode] = useState('all'); // 'off' | 'all' | 'one'
-  const [queue, setQueue] = useState(() => MOCK_TRACKS.slice(0, 10));
+  const [queue, setQueue] = useState(() => {
+    try {
+      const recent = storage.getRecentlyPlayed();
+      return recent && recent.length > 0 ? recent : [];
+    } catch {
+      return [];
+    }
+  });
   const [queueIndex, setQueueIndex] = useState(0);
   const [isMobilePlayerOpen, setIsMobilePlayerOpen] = useState(false);
 
@@ -368,7 +389,7 @@ export function PlayerProvider({ children }) {
   // Toggle Play / Pause
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !currentTrack) return;
 
     // If audio element has no source yet, trigger playback of current track
     if (!audio.src) {
