@@ -1,10 +1,10 @@
 import React from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { Settings, X, Sun, Moon, User, LogIn, LogOut, Sparkles, ChevronRight, Check } from 'lucide-react';
+import { Settings, X, Sun, Moon, User, LogIn, LogOut, Sparkles, Check } from 'lucide-react';
 
 export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
-  const { user, signOut, openInterestPicker, userPreferences } = useLibrary();
+  const { user, signOut, openInterestPicker } = useLibrary();
   const { toggleTheme, isDark } = useTheme();
 
   if (!isOpen) return null;
@@ -14,42 +14,15 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'var(--bg-overlay)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 1100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px'
-      }}
+      className="settings-modal-overlay"
       onClick={onClose}
     >
       <div
-        className="animate-slide-up"
+        className="settings-modal-card animate-slide-up"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: '480px',
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: 'var(--radius-xl)',
-          border: '1px solid var(--border-medium)',
-          boxShadow: 'var(--shadow-lg)',
-          overflow: 'hidden'
-        }}
       >
         {/* Header */}
-        <div
-          style={{
-            padding: '18px 22px',
-            borderBottom: '1px solid var(--border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
+        <div className="settings-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Settings size={20} style={{ color: 'var(--text-primary)' }} />
             <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>Settings</h3>
@@ -75,49 +48,50 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="settings-modal-body">
           
           {/* 1. Profile Section */}
           <section>
-            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: '10px' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
               Profile
             </label>
 
             {user ? (
               <div
                 style={{
-                  padding: '16px',
+                  padding: '14px',
                   borderRadius: 'var(--radius-lg)',
                   backgroundColor: 'var(--bg-surface)',
                   border: '1px solid var(--border-medium)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '14px'
+                  gap: '12px'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                     <div
                       style={{
-                        width: '44px',
-                        height: '44px',
+                        width: '42px',
+                        height: '42px',
                         borderRadius: '50%',
                         backgroundColor: 'var(--accent-solid)',
                         color: 'var(--accent-text)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '1.15rem',
-                        fontWeight: 700
+                        fontSize: '1.1rem',
+                        fontWeight: 700,
+                        flexShrink: 0
                       }}
                     >
                       {userInitial}
                     </div>
-                    <div>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <h4 style={{ fontSize: '0.925rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {displayName}
                       </h4>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {user.email}
                       </p>
                     </div>
@@ -125,21 +99,22 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
 
                   <span
                     style={{
-                      fontSize: '0.7rem',
+                      fontSize: '0.675rem',
                       fontWeight: 700,
                       textTransform: 'uppercase',
-                      padding: '3px 8px',
+                      padding: '2px 8px',
                       borderRadius: 'var(--radius-full)',
                       backgroundColor: 'var(--accent-subtle)',
-                      color: 'var(--accent-solid)'
+                      color: 'var(--accent-solid)',
+                      flexShrink: 0
                     }}
                   >
                     Active
                   </span>
                 </div>
 
-                {/* Music Preferences Shortcut */}
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                {/* Music Preferences & Sign Out Actions */}
+                <div className="settings-actions-row">
                   <button
                     type="button"
                     onClick={() => {
@@ -152,7 +127,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      padding: '9px 14px',
+                      padding: '9px 12px',
                       borderRadius: 'var(--radius-md)',
                       backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-subtle)',
@@ -160,21 +135,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                       fontSize: '0.825rem',
                       fontWeight: 600,
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                       transition: 'border-color var(--transition-fast)'
                     }}
                   >
-                    <Sparkles size={14} style={{ color: 'var(--accent-solid)' }} />
+                    <Sparkles size={14} style={{ color: 'var(--accent-solid)', flexShrink: 0 }} />
                     <span>Music Preferences</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      signOut();
-                    }}
+                    onClick={() => signOut()}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
                       padding: '9px 14px',
                       borderRadius: 'var(--radius-md)',
@@ -183,7 +158,8 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                       color: 'var(--text-muted)',
                       fontSize: '0.825rem',
                       fontWeight: 600,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <LogOut size={14} />
@@ -194,42 +170,43 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
             ) : (
               <div
                 style={{
-                  padding: '16px',
+                  padding: '14px',
                   borderRadius: 'var(--radius-lg)',
                   backgroundColor: 'var(--bg-surface)',
                   border: '1px solid var(--border-medium)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '14px'
+                  gap: '12px'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div
                     style={{
-                      width: '44px',
-                      height: '44px',
+                      width: '42px',
+                      height: '42px',
                       borderRadius: '50%',
                       backgroundColor: 'var(--bg-card)',
                       border: '1px solid var(--border-medium)',
                       color: 'var(--text-muted)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      flexShrink: 0
                     }}
                   >
-                    <User size={22} />
+                    <User size={20} />
                   </div>
                   <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    <h4 style={{ fontSize: '0.925rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
                       Guest User
                     </h4>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                      Sign in to sync your playlists and liked music across devices
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '2px 0 0', lineHeight: 1.4 }}>
+                      Sign in to sync your playlists and liked music
                     </p>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
+                <div className="settings-actions-row">
                   <button
                     type="button"
                     onClick={() => {
@@ -242,15 +219,16 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      padding: '10px 16px',
+                      padding: '10px 14px',
                       borderRadius: 'var(--radius-md)',
                       backgroundColor: 'var(--accent-solid)',
                       color: 'var(--accent-text)',
-                      fontSize: '0.85rem',
+                      fontSize: '0.825rem',
                       fontWeight: 700,
                       border: 'none',
                       cursor: 'pointer',
-                      boxShadow: 'var(--shadow-sm)'
+                      boxShadow: 'var(--shadow-sm)',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <LogIn size={15} />
@@ -266,6 +244,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '6px',
                       padding: '10px 14px',
                       borderRadius: 'var(--radius-md)',
@@ -274,7 +253,8 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                       color: 'var(--text-primary)',
                       fontSize: '0.825rem',
                       fontWeight: 600,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <Sparkles size={14} style={{ color: 'var(--accent-solid)' }} />
@@ -287,10 +267,10 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
 
           {/* 2. Interface Theme Section */}
           <section>
-            <label style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: '10px' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
               Interface Theme
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
               <button
                 type="button"
                 onClick={() => {
@@ -301,22 +281,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '14px',
+                  padding: '12px 10px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: isDark ? 'var(--bg-surface-hover)' : 'var(--bg-card)',
                   border: `2px solid ${isDark ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
                   color: 'var(--text-primary)',
                   fontWeight: 600,
-                  fontSize: '0.875rem',
+                  fontSize: '0.85rem',
                   cursor: 'pointer',
-                  position: 'relative',
                   transition: 'all var(--transition-fast)'
                 }}
               >
-                <Moon size={17} />
+                <Moon size={16} />
                 <span>Dark Theme</span>
                 {isDark && (
-                  <Check size={15} style={{ position: 'absolute', right: '12px', color: 'var(--accent-solid)' }} />
+                  <Check size={14} style={{ color: 'var(--accent-solid)', marginLeft: '2px' }} />
                 )}
               </button>
 
@@ -330,22 +309,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenAuth }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '14px',
+                  padding: '12px 10px',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: !isDark ? 'var(--bg-surface-hover)' : 'var(--bg-card)',
                   border: `2px solid ${!isDark ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
                   color: 'var(--text-primary)',
                   fontWeight: 600,
-                  fontSize: '0.875rem',
+                  fontSize: '0.85rem',
                   cursor: 'pointer',
-                  position: 'relative',
                   transition: 'all var(--transition-fast)'
                 }}
               >
-                <Sun size={17} />
+                <Sun size={16} />
                 <span>Light Theme</span>
                 {!isDark && (
-                  <Check size={15} style={{ position: 'absolute', right: '12px', color: 'var(--accent-solid)' }} />
+                  <Check size={14} style={{ color: 'var(--accent-solid)', marginLeft: '2px' }} />
                 )}
               </button>
             </div>

@@ -32,14 +32,12 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 24px',
-        gap: '16px',
         position: 'sticky',
         top: 0,
         zIndex: 15
       }}
     >
-      {/* Left: Mobile hamburger & History Navigation */}
+      {/* Left: Mobile hamburger & History Navigation + Mobile Brand Name */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <button
           onClick={onToggleMobileMenu}
@@ -101,21 +99,43 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             <ChevronRight size={18} />
           </button>
         </div>
+
+        {/* Mobile Brand Name: Placed on left next to hamburger to prevent collision */}
+        <div
+          onClick={() => navigate('/')}
+          className="navbar-brand-link mobile-only"
+          style={{ marginLeft: '2px' }}
+          title="NOIR - Home"
+        >
+          <div
+            style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--accent-solid)',
+              color: 'var(--accent-text)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'var(--shadow-xs)'
+            }}
+          >
+            <Disc size={14} />
+          </div>
+          <span className="navbar-brand-title">
+            NOIR
+          </span>
+        </div>
       </div>
 
-      {/* Center: App Name NOIR (where search bar was previously) */}
+      {/* Desktop Brand Name: Mathematically centered in navbar */}
       <div
         onClick={() => navigate('/')}
+        className="navbar-brand-link desktop-only"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          cursor: 'pointer',
-          userSelect: 'none',
           position: 'absolute',
           left: '50%',
-          transform: 'translateX(-50%)',
-          transition: 'transform var(--transition-fast)'
+          transform: 'translateX(-50%)'
         }}
         title="NOIR - Home"
       >
@@ -134,61 +154,29 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
         >
           <Disc size={16} />
         </div>
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            fontSize: '1.25rem',
-            letterSpacing: '0.08em',
-            color: 'var(--text-primary)'
-          }}
-        >
+        <span className="navbar-brand-title">
           NOIR
         </span>
       </div>
 
       {/* Right: Theme Toggle, Settings & Profile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+      <div className="navbar-right-actions">
         {/* Working Theme Toggle */}
         <button
           onClick={toggleTheme}
-          style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'transform var(--transition-fast), background var(--transition-fast)'
-          }}
+          className="navbar-icon-btn"
           title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
         >
-          {isDark ? <Sun size={17} /> : <Moon size={17} />}
+          {isDark ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
         {/* Settings Button */}
         <button
           onClick={onOpenSettings}
-          style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'transform var(--transition-fast)'
-          }}
+          className="navbar-icon-btn"
           title="Application Settings"
         >
-          <Settings size={17} />
+          <Settings size={16} />
         </button>
 
         {/* User Profile Pill / Auth Button */}
@@ -200,7 +188,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '4px 10px 4px 4px',
+                padding: '3px 8px 3px 3px',
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: 'var(--bg-surface)',
                 border: '1px solid var(--border-subtle)',
@@ -211,15 +199,15 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             >
               <div
                 style={{
-                  width: '28px',
-                  height: '28px',
+                  width: '26px',
+                  height: '26px',
                   borderRadius: '50%',
                   backgroundColor: 'var(--accent-solid)',
                   color: 'var(--accent-text)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '0.8rem',
+                  fontSize: '0.75rem',
                   fontWeight: 700
                 }}
               >
