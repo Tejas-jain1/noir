@@ -9,21 +9,8 @@ import {
   History, 
   X, 
   ArrowUpRight, 
-  Sparkles, 
-  Loader2,
-  TrendingUp
+  Loader2
 } from 'lucide-react';
-
-const DEFAULT_TRENDING = [
-  'Arijit Singh',
-  'Lo-Fi Chill',
-  'The Weeknd',
-  'Diljit Dosanjh',
-  'Sidhu Moose Wala',
-  'Bollywood Romantic',
-  'AP Dhillon',
-  'Hip-Hop Beats'
-];
 
 export default function SearchSuggestions({
   query,
@@ -138,13 +125,8 @@ export default function SearchSuggestions({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, flatItems.length, selectedIndex]);
 
-  // ALL HOOKS CALLED ABOVE - early return is now completely safe!
-  if (!isOpen) return null;
-
-  // Personalized trending chips if user has saved interests
-  const personalizedChips = (userInterests?.artists?.length || userInterests?.genres?.length)
-    ? [...(userInterests.artists || []), ...(userInterests.genres || [])].slice(0, 8)
-    : DEFAULT_TRENDING;
+  // ALL HOOKS CALLED ABOVE - Only render suggestions dropdown when open AND query is not empty
+  if (!isOpen || !hasQuery) return null;
 
   return (
     <div
@@ -167,134 +149,8 @@ export default function SearchSuggestions({
         backdropFilter: 'blur(20px)'
       }}
     >
-      {/* ─── EMPTY QUERY: Recent Searches & Recommendations ─── */}
-      {!hasQuery && (
-        <div style={{ padding: '16px' }}>
-          {/* Recent Searches */}
-          {recentSearches.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <History size={13} />
-                  Recent Searches
-                </span>
-                {onClearRecent && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onClearRecent();
-                    }}
-                    style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
-                    className="hover-underline"
-                  >
-                    Clear All
-                  </button>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {recentSearches.slice(0, 5).map((q) => (
-                  <div
-                    key={q}
-                    onClick={() => {
-                      if (onSelectQuery) onSelectQuery(q);
-                      onClose();
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      transition: 'background var(--transition-fast)'
-                    }}
-                    className="dropdown-hover-item"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                      <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {q}
-                      </span>
-                    </div>
-
-                    {onRemoveRecent && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveRecent(q);
-                        }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          padding: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer'
-                        }}
-                        title="Remove"
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Recommended / Trending Vibes & Artists */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-              {userInterests?.genres?.length ? (
-                <Sparkles size={13} style={{ color: 'var(--accent-solid)' }} />
-              ) : (
-                <TrendingUp size={13} style={{ color: 'var(--accent-solid)' }} />
-              )}
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
-                {userInterests?.genres?.length ? 'Recommended for Your Vibe' : 'Trending Searches'}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {personalizedChips.map((chip) => (
-                <button
-                  key={chip}
-                  onClick={() => {
-                    if (onSelectQuery) onSelectQuery(chip);
-                    onClose();
-                  }}
-                  style={{
-                    fontSize: '0.78rem',
-                    padding: '6px 12px',
-                    borderRadius: 'var(--radius-full)',
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all var(--transition-fast)'
-                  }}
-                  className="chip-hover-effect"
-                >
-                  <Search size={12} style={{ color: 'var(--text-muted)' }} />
-                  <span>{chip}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ─── ACTIVE QUERY: Spotify-Style Text Query Suggestions & Song Results ─── */}
-      {hasQuery && (
-        <div>
+      <div>
           {isLoading && !suggestions && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', color: 'var(--text-muted)', gap: '8px' }}>
               <Loader2 size={16} className="brand-logo-spin" />
@@ -445,7 +301,6 @@ export default function SearchSuggestions({
             </div>
           )}
         </div>
-      )}
     </div>
   );
 }
