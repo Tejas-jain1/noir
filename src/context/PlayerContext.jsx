@@ -15,7 +15,7 @@ import { saavnApi } from '../services/saavnApi';
 const PlayerContext = createContext();
 
 export function PlayerProvider({ children }) {
-  const { addToRecent, showToast } = useLibrary();
+  const { addToRecent, showToast, likedSongs, userPreferences } = useLibrary();
 
   // Playback state
   const [currentTrack, setCurrentTrack] = useState(() => MOCK_TRACKS[0]);
@@ -83,20 +83,6 @@ export function PlayerProvider({ children }) {
   const activeLyricIndex = lyricsData?.syncedLyrics
     ? findCurrentLyricIndex(lyricsData.syncedLyrics, currentTime)
     : -1;
-
-  // Handle Track Ended Logic
-  const handleTrackEnded = useCallback(() => {
-    const { repeatMode } = stateRef.current;
-    if (repeatMode === 'one') {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.currentTime = 0;
-        audio.play().catch(() => {});
-      }
-    } else if (nextTrackRef.current) {
-      nextTrackRef.current();
-    }
-  }, []);
 
   // Handle Audio Error
   const handleAudioError = useCallback(() => {
@@ -207,28 +193,137 @@ export function PlayerProvider({ children }) {
     }
   }, [addToRecent, startAudioPlayback, showToast]);
 
+  // Select Next Track from Liked Songs or Interested Artists / Genres
+  const playPersonalizedNextTrack = useCallback(async () => {
+    const cur = stateRef.current.currentTrack;
+    const curId = cur?.id;
+    
+    // Check both context state and local storage fallback
+    const effectiveLiked = (likedSongs && likedSongs.length > 0) ? likedSongs : storage.getLikedSongs();
+    const storedPrefs = storage.getUserPreferences('guest') || {};
+    const effectiveArtists = (userPreferences?.artists?.length > 0) ? userPreferences.artists : (storedPrefs.artists || []);
+    const effectiveGenres = (userPreferences?.genres?.length > 0) ? userPreferences.genres : (storedPrefs.genres || []);
+
+    const liked = (effectiveLiked || []).filter(t => t.id !== curId);
+    const artists = effectiveArtists;
+    const genres = effectiveGenres;
+
+    if (liked.length === 0 && artists.length === 0 && genres.length === 0) {
+      return false;
+    }
+
+    // 1. If user has liked songs, prioritize picking from liked songs (50% chance or if no artists)
+    const shouldPickLiked = liked.length > 0 && (artists.length === 0 || Math.random() < 0.5);
+
+    if (shouldPickLiked) {
+      const picked = liked[Math.floor(Math.random() * liked.length)];
+      if (picked) {
+        showToast(`Playing next from your Liked Songs: "${picked.title}"`, 'info', 3000);
+        setQueue(prev => [...prev, picked]);
+        setQueueIndex(prev => prev.length);
+        playTrack(picked);
+        return true;
+      }
+    }
+
+    // 2. If user has interested artists, fetch popular tracks by one of their favorite artists
+    if (artists.length > 0) {
+      const chosenArtist = artists[Math.floor(Math.random() * artists.length)];
+      try {
+        const res = await saavnApi.search(`${chosenArtist} hit songs`);
+        const candidates = (res.results || []).filter(t => t.id !== curId && t.audioUrl);
+        if (candidates.length > 0) {
+          const picked = candidates[Math.floor(Math.random() * Math.min(candidates.length, 6))];
+          showToast(`Playing next by ${chosenArtist}: "${picked.title}"`, 'info', 3000);
+          setQueue(prev => [...prev, picked]);
+          setQueueIndex(prev => prev.length);
+          playTrack(picked);
+          return true;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch personalized artist song:', err);
+      }
+    }
+
+    // 3. Fallback to liked songs if artist fetch failed
+    if (liked.length > 0) {
+      const picked = liked[Math.floor(Math.random() * liked.length)];
+      if (picked) {
+        showToast(`Playing from your Liked Songs: "${picked.title}"`, 'info', 3000);
+        setQueue(prev => [...prev, picked]);
+        setQueueIndex(prev => prev.length);
+        playTrack(picked);
+        return true;
+      }
+    }
+
+    // 4. If user has interested genres, pick from genre
+    if (genres.length > 0) {
+      const chosenGenre = genres[Math.floor(Math.random() * genres.length)];
+      try {
+        const res = await saavnApi.search(`${chosenGenre} hits`);
+        const candidates = (res.results || []).filter(t => t.id !== curId && t.audioUrl);
+        if (candidates.length > 0) {
+          const picked = candidates[0];
+          showToast(`Playing next from ${chosenGenre}: "${picked.title}"`, 'info', 3000);
+          setQueue(prev => [...prev, picked]);
+          setQueueIndex(prev => prev.length);
+          playTrack(picked);
+          return true;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch personalized genre song:', err);
+      }
+    }
+
+    return false;
+  }, [likedSongs, userPreferences, playTrack, showToast]);
+
   // Next Track Logic
-  const nextTrack = useCallback(() => {
+  const nextTrack = useCallback(async () => {
     const { queue, queueIndex, repeatMode } = stateRef.current;
     if (!queue || queue.length === 0) return;
 
     let nextIndex = queueIndex + 1;
-    if (nextIndex >= queue.length) {
-      if (repeatMode === 'all') {
-        nextIndex = 0;
-      } else {
-        if (audioRef.current) audioRef.current.pause();
-        setIsPlaying(false);
-        return;
+    if (nextIndex < queue.length) {
+      const next = queue[nextIndex];
+      if (next) {
+        setQueueIndex(nextIndex);
+        playTrack(next);
+      }
+    } else {
+      // Reached end of queue: continue playing from liked songs or interested artists
+      const playedPersonalized = await playPersonalizedNextTrack();
+      if (!playedPersonalized) {
+        if (repeatMode === 'all') {
+          setQueueIndex(0);
+          playTrack(queue[0]);
+        } else {
+          if (audioRef.current) audioRef.current.pause();
+          setIsPlaying(false);
+        }
       }
     }
+  }, [playTrack, playPersonalizedNextTrack]);
 
-    const next = queue[nextIndex];
-    if (next) {
-      setQueueIndex(nextIndex);
-      playTrack(next);
+  // Handle Track Ended Logic
+  const handleTrackEnded = useCallback(async () => {
+    const { repeatMode } = stateRef.current;
+    if (repeatMode === 'one') {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+      return;
     }
-  }, [playTrack]);
+
+    // When a song finishes, play next song from interested artist or liked songs!
+    const playedPersonalized = await playPersonalizedNextTrack();
+    if (!playedPersonalized) {
+      if (nextTrackRef.current) nextTrackRef.current();
+    }
+  }, [playPersonalizedNextTrack]);
 
   // Previous Track
   const prevTrack = useCallback(() => {

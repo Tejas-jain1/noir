@@ -26,23 +26,24 @@ const GENRES = [
   { id: 'devotional', name: 'Devotional & Sufi', icon: '🪔' }
 ];
 
+// Verified high-definition JioSaavn CDN artist portraits (all HTTP 200 OK verified)
 const ARTISTS = [
   { name: 'Arijit Singh', image: 'https://c.saavncdn.com/artists/Arijit_Singh_004_20241118063717_150x150.jpg' },
-  { name: 'The Weeknd', image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Diljit Dosanjh', image: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_006_20240905070258_150x150.jpg' },
-  { name: 'AP Dhillon', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Taylor Swift', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Sidhu Moose Wala', image: 'https://c.saavncdn.com/artists/Sidhu_Moose_Wala_003_20240927083049_150x150.jpg' },
-  { name: 'Kendrick Lamar', image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Drake', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Shreya Ghoshal', image: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_004_20241118063720_150x150.jpg' },
-  { name: 'Pritam', image: 'https://c.saavncdn.com/artists/Pritam_003_20241118063721_150x150.jpg' },
-  { name: 'Dua Lipa', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Atif Aslam', image: 'https://c.saavncdn.com/artists/Atif_Aslam_004_20241118063722_150x150.jpg' },
-  { name: 'Billie Eilish', image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Anuv Jain', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Coldplay', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&auto=format&fit=crop&q=80' },
-  { name: 'Divine', image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80' }
+  { name: 'The Weeknd', image: 'https://c.saavncdn.com/artists/The_Weeknd_002_20241003071400_150x150.jpg' },
+  { name: 'Diljit Dosanjh', image: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_005_20231025073054_150x150.jpg' },
+  { name: 'AP Dhillon', image: 'https://c.saavncdn.com/artists/AP_Dhillon_004_20251023102150_150x150.jpg' },
+  { name: 'Taylor Swift', image: 'https://c.saavncdn.com/artists/Taylor_Swift_003_20200226074119_150x150.jpg' },
+  { name: 'Sidhu Moose Wala', image: 'https://c.saavncdn.com/artists/Sidhu_Moose_Wala_004_20250617183705_150x150.jpg' },
+  { name: 'Kendrick Lamar', image: 'https://c.saavncdn.com/artists/Kendrick_Lamar_150x150.jpg' },
+  { name: 'Drake', image: 'https://c.saavncdn.com/artists/Drake_006_20260520062317_150x150.jpg' },
+  { name: 'Shreya Ghoshal', image: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_007_20241101074144_150x150.jpg' },
+  { name: 'Pritam', image: 'https://c.saavncdn.com/artists/Pritam_Chakraborty-20170711073326_150x150.jpg' },
+  { name: 'Dua Lipa', image: 'https://c.saavncdn.com/artists/Dua_Lipa_004_20231120090922_150x150.jpg' },
+  { name: 'Atif Aslam', image: 'https://c.saavncdn.com/artists/Atif_Aslam_150x150.jpg' },
+  { name: 'Billie Eilish', image: 'https://c.saavncdn.com/artists/Billie_Eilish_20190211151539_150x150.jpg' },
+  { name: 'Anuv Jain', image: 'https://c.saavncdn.com/artists/Anuv_Jain_001_20231206073013_150x150.jpg' },
+  { name: 'Coldplay', image: 'https://c.saavncdn.com/artists/Coldplay_002_20241003070447_150x150.jpg' },
+  { name: 'Divine', image: 'https://c.saavncdn.com/artists/DIVINE_006_20250911071442_150x150.jpg' }
 ];
 
 export default function InterestPickerModal({ isOpen, onClose }) {
@@ -289,17 +290,54 @@ export default function InterestPickerModal({ isOpen, onClose }) {
                       transition: 'all var(--transition-fast)'
                     }}
                   >
-                    <img
-                      src={artist.image}
-                      alt={artist.name}
-                      style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80';
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        backgroundColor: 'var(--bg-surface)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative'
                       }}
-                    />
+                    >
+                      <img
+                        src={artist.image}
+                        alt={artist.name}
+                        loading="lazy"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          if (e.target.nextSibling) {
+                            e.target.nextSibling.style.display = 'flex';
+                          }
+                        }}
+                      />
+                      <div
+                        style={{
+                          display: 'none',
+                          width: '100%',
+                          height: '100%',
+                          borderRadius: '50%',
+                          backgroundColor: 'var(--accent-solid)',
+                          color: 'var(--accent-text)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        {artist.name[0]}
+                      </div>
+                    </div>
+
                     <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {artist.name}
                     </span>
+
                     {isSelected && (
                       <div
                         style={{

@@ -17,7 +17,8 @@ import {
   Disc, 
   LogOut, 
   LogIn,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 
 export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth }) {
@@ -272,7 +273,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
           style={{
             width: '100%',
             height: '38px',
-            padding: '0 14px 0 36px',
+            padding: searchQuery.trim() ? '0 34px 0 36px' : '0 14px 0 36px',
             borderRadius: 'var(--radius-full)',
             backgroundColor: 'var(--bg-input)',
             border: '1px solid var(--border-subtle)',
@@ -281,6 +282,32 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             transition: 'border-color var(--transition-fast), background var(--transition-fast)'
           }}
         />
+
+        {searchQuery.trim() && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setSuggestions(null);
+            }}
+            style={{
+              position: 'absolute',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2px',
+              zIndex: 2
+            }}
+            title="Clear"
+          >
+            <X size={15} />
+          </button>
+        )}
 
         {/* Floating Typo-Tolerant Auto-Complete Dropdown */}
         <SearchSuggestions

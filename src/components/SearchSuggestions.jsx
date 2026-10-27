@@ -8,7 +8,7 @@ import {
   Play, 
   History, 
   X, 
-  ArrowRight, 
+  ArrowUpRight, 
   Sparkles, 
   Loader2,
   TrendingUp
@@ -63,42 +63,51 @@ export default function SearchSuggestions({
   }, [query, isOpen]);
 
   const hasQuery = Boolean(query && query.trim());
+  const cleanQuery = (query || '').trim();
+
+  // Generate Spotify-style query variations (e.g. jhol, jhol song, jhol acoustic, jhol playlist, jhol remix)
+  const queryPhrases = [];
+  if (hasQuery) {
+    const qLower = cleanQuery.toLowerCase();
+    queryPhrases.push(cleanQuery);
+    queryPhrases.push(`${cleanQuery} song`);
+    queryPhrases.push(`${cleanQuery} acoustic`);
+    queryPhrases.push(`${cleanQuery} playlist`);
+    queryPhrases.push(`${cleanQuery} remix`);
+    queryPhrases.push(`${cleanQuery} lofi`);
+
+    // Add album / topquery titles if different from base query
+    if (suggestions?.albums?.length > 0) {
+      suggestions.albums.slice(0, 2).forEach(al => {
+        if (al.title && !queryPhrases.some(p => p.toLowerCase() === al.title.toLowerCase())) {
+          queryPhrases.push(al.title);
+        }
+      });
+    }
+  }
+
   const songs = suggestions?.songs || [];
   const artists = suggestions?.artists || [];
   const albums = suggestions?.albums || [];
-  const topquery = suggestions?.topquery || [];
-  const topMatch = topquery[0] || songs[0] || null;
 
   // Flatten actionable items for keyboard navigation
   const flatItems = [];
   if (hasQuery) {
-    if (topMatch) flatItems.push({ type: 'top', data: topMatch });
+    queryPhrases.slice(0, 5).forEach(qp => flatItems.push({ type: 'phrase', data: qp }));
     songs.forEach(s => flatItems.push({ type: 'song', data: s }));
     artists.forEach(a => flatItems.push({ type: 'artist', data: a }));
-    albums.forEach(al => flatItems.push({ type: 'album', data: al }));
   }
 
   const handleItemClick = (item) => {
     if (!item) return;
-    if (item.type === 'song') {
+    if (item.type === 'phrase') {
+      if (onSelectQuery) onSelectQuery(item.data);
+      onClose();
+    } else if (item.type === 'song') {
       if (onSelectSong) onSelectSong(item.data);
       onClose();
     } else if (item.type === 'artist') {
       navigate(`/artist/${encodeURIComponent(item.data.name || item.data.title)}`);
-      onClose();
-    } else if (item.type === 'album') {
-      navigate(`/album/${item.data.id}`);
-      onClose();
-    } else if (item.type === 'top') {
-      if (item.data.type === 'artist') {
-        navigate(`/artist/${encodeURIComponent(item.data.title || item.data.name)}`);
-      } else if (item.data.type === 'album') {
-        navigate(`/album/${item.data.id}`);
-      } else if (onSelectSong) {
-        onSelectSong(item.data);
-      } else if (onSelectQuery) {
-        onSelectQuery(item.data.title);
-      }
       onClose();
     }
   };
@@ -149,13 +158,13 @@ export default function SearchSuggestions({
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border-medium)',
         borderRadius: 'var(--radius-xl)',
-        boxShadow: '0 12px 36px rgba(0, 0, 0, 0.45)',
+        boxShadow: '0 16px 40px rgba(0, 0, 0, 0.55)',
         zIndex: 100,
         overflow: 'hidden',
-        maxHeight: '480px',
+        maxHeight: '520px',
         overflowY: 'auto',
         animation: 'fadeIn 0.15s ease-out',
-        backdropFilter: 'blur(16px)'
+        backdropFilter: 'blur(20px)'
       }}
     >
       {/* ─── EMPTY QUERY: Recent Searches & Recommendations ─── */}
@@ -283,148 +292,132 @@ export default function SearchSuggestions({
         </div>
       )}
 
-      {/* ─── ACTIVE QUERY: Typo-Tolerant Suggestions ─── */}
+      {/* ─── ACTIVE QUERY: Spotify-Style Text Query Suggestions & Song Results ─── */}
       {hasQuery && (
         <div>
           {isLoading && !suggestions && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', color: 'var(--text-muted)', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', color: 'var(--text-muted)', gap: '8px' }}>
               <Loader2 size={16} className="brand-logo-spin" />
-              <span style={{ fontSize: '0.85rem' }}>Finding matches...</span>
+              <span style={{ fontSize: '0.85rem' }}>Finding matches for "{cleanQuery}"...</span>
             </div>
           )}
 
-          {/* Top Result / Did You Mean Card */}
-          {topMatch && (
-            <div
-              onClick={() => handleItemClick({ type: 'top', data: topMatch })}
-              style={{
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                backgroundColor: 'var(--bg-card)',
-                borderBottom: '1px solid var(--border-subtle)',
-                cursor: 'pointer',
-                transition: 'background var(--transition-fast)'
-              }}
-              className="dropdown-hover-item"
-            >
-              <img
-                src={topMatch.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80'}
-                alt={topMatch.title}
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: topMatch.type === 'artist' ? '50%' : 'var(--radius-md)',
-                  objectFit: 'cover',
-                  flexShrink: 0
-                }}
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80';
-                }}
-              />
+          {/* 1. Spotify-Style Text Query Suggestion Bars (e.g. jhol, jhol song, jhol acoustic...) */}
+          <div style={{ padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+            {queryPhrases.slice(0, 5).map((phrase, idx) => {
+              const isBaseQuery = phrase.toLowerCase() === cleanQuery.toLowerCase();
+              const suffix = phrase.slice(cleanQuery.length);
 
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                  <span
-                    style={{
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      padding: '1px 6px',
-                      borderRadius: 'var(--radius-full)',
-                      backgroundColor: 'var(--accent-subtle)',
-                      color: 'var(--text-primary)'
-                    }}
-                  >
-                    Top Match
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {topMatch.title}
-                </div>
-                {topMatch.subtitle && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {topMatch.subtitle}
-                  </div>
-                )}
-              </div>
-
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--accent-solid)',
-                  color: 'var(--accent-text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                <Play size={14} fill="currentColor" style={{ marginLeft: '1px' }} />
-              </div>
-            </div>
-          )}
-
-          {/* Songs List */}
-          {songs.length > 0 && (
-            <div style={{ padding: '6px 0', borderBottom: (artists.length > 0 || albums.length > 0) ? '1px solid var(--border-subtle)' : 'none' }}>
-              <div style={{ padding: '6px 16px', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-                Songs
-              </div>
-              {songs.slice(0, 4).map((song) => (
+              return (
                 <div
-                  key={song.id}
-                  onClick={() => handleItemClick({ type: 'song', data: song })}
+                  key={phrase + idx}
+                  onClick={() => {
+                    if (onSelectQuery) onSelectQuery(phrase);
+                    onClose();
+                  }}
                   style={{
-                    padding: '8px 16px',
+                    padding: '10px 18px',
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
                     gap: '12px',
+                    transition: 'background var(--transition-fast)'
+                  }}
+                  className="dropdown-hover-item"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <strong style={{ fontWeight: 700 }}>{cleanQuery}</strong>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{suffix}</span>
+                    </span>
+                  </div>
+
+                  <ArrowUpRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 2. Song Results with Album Art & Subtitle (Just like in the screenshot) */}
+          {songs.length > 0 && (
+            <div style={{ padding: '6px 0', borderBottom: artists.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}>
+              <div style={{ padding: '8px 18px 4px', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+                Songs
+              </div>
+              {songs.slice(0, 6).map((song) => (
+                <div
+                  key={song.id}
+                  onClick={() => {
+                    if (onSelectSong) onSelectSong(song);
+                    onClose();
+                  }}
+                  style={{
+                    padding: '10px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
                     cursor: 'pointer',
                     transition: 'background var(--transition-fast)'
                   }}
                   className="dropdown-hover-item"
                 >
                   <img
-                    src={song.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80'}
+                    src={song.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80'}
                     alt={song.title}
-                    style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 }}
+                    style={{ width: '42px', height: '42px', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 }}
                     onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80';
+                      e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80';
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {song.title}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {song.artist}
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                      Song • {song.artist || 'Artist'}
                     </div>
                   </div>
-                  <Music size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--accent-solid)',
+                      color: 'var(--accent-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Play size={14} fill="currentColor" style={{ marginLeft: '1px' }} />
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Artists List */}
+          {/* 3. Artists List */}
           {artists.length > 0 && (
-            <div style={{ padding: '6px 0', borderBottom: albums.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}>
-              <div style={{ padding: '6px 16px', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+            <div style={{ padding: '6px 0' }}>
+              <div style={{ padding: '8px 18px 4px', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
                 Artists
               </div>
               {artists.slice(0, 3).map((artist) => (
                 <div
                   key={artist.id}
-                  onClick={() => handleItemClick({ type: 'artist', data: artist })}
+                  onClick={() => {
+                    navigate(`/artist/${encodeURIComponent(artist.name)}`);
+                    onClose();
+                  }}
                   style={{
-                    padding: '8px 16px',
+                    padding: '8px 18px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px',
+                    gap: '14px',
                     cursor: 'pointer',
                     transition: 'background var(--transition-fast)'
                   }}
@@ -433,47 +426,24 @@ export default function SearchSuggestions({
                   <img
                     src={artist.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80'}
                     alt={artist.name}
-                    style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                    style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
                     onError={(e) => {
                       e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80';
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {artist.name}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      {artist.role || 'Artist'}
+                      Artist
                     </div>
                   </div>
-                  <User size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <User size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 </div>
               ))}
             </div>
           )}
-
-          {/* View All Search Results Footer */}
-          <div
-            onClick={() => {
-              if (onSelectQuery) onSelectQuery(query);
-              onClose();
-            }}
-            style={{
-              padding: '10px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backgroundColor: 'var(--bg-surface)',
-              cursor: 'pointer',
-              borderTop: '1px solid var(--border-subtle)'
-            }}
-            className="dropdown-hover-item"
-          >
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              See all results for "{query}"
-            </span>
-            <ArrowRight size={14} style={{ color: 'var(--text-secondary)' }} />
-          </div>
         </div>
       )}
     </div>

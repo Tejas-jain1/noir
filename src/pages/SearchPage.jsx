@@ -6,7 +6,7 @@ import { saavnApi, youtubeApi } from '../services/saavnApi';
 import { storage } from '../services/storage';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
-import { Search, Loader2, Play, Key, AlertCircle, Music, Sparkles } from 'lucide-react';
+import { Search, Loader2, Play, Key, AlertCircle, Music, Sparkles, X } from 'lucide-react';
 
 const DEFAULT_SUGGESTIONS = [
   'The Weeknd',
@@ -236,11 +236,38 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               boxShadow: 'var(--shadow-sm)'
             }}
           />
-          {loading && (
-            <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+          {loading ? (
+            <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 2 }}>
               <Loader2 size={18} className="brand-logo-spin" />
             </div>
-          )}
+          ) : query.trim() ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSearchParams({});
+                setSuggestions(null);
+              }}
+              style={{
+                position: 'absolute',
+                right: '16px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                zIndex: 2
+              }}
+              title="Clear search"
+            >
+              <X size={18} />
+            </button>
+          ) : null}
 
           {/* Smart Typo-Tolerant Suggestions Dropdown */}
           <SearchSuggestions
