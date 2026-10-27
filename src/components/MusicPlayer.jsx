@@ -48,9 +48,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     isMobilePlayerOpen,
     setIsMobilePlayerOpen,
     showLyrics,
-    setShowLyrics,
-    isAmbientOpen,
-    setIsAmbientOpen
+    setShowLyrics
   } = usePlayer();
 
   const { isLiked, toggleLike } = useLibrary();
@@ -58,6 +56,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAmbientOpen, setIsAmbientOpen] = useState(false);
 
   const menuRef = useRef(null);
   const menuButtonRef = useRef(null);
@@ -255,28 +254,11 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
+            gap: '6px',
             flexShrink: 0
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Ambient Cinema Mode Button */}
-          <button
-            onClick={() => setIsAmbientOpen(true)}
-            style={{
-              color: 'var(--accent-solid)',
-              padding: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '50%',
-              cursor: 'pointer'
-            }}
-            title="Open Ambient Cinema Mode"
-          >
-            <Sparkles size={18} />
-          </button>
-
           {/* Like Button */}
           <button
             onClick={() => toggleLike(currentTrack)}

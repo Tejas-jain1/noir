@@ -826,185 +826,80 @@
 }
 
 
-@keyframes ambientAuroraPulse1 {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translate(6%, 4%) scale(1.15);
-    opacity: 0.75;
-  }
-  100% {
-    transform: translate(-4%, -3%) scale(1.05);
-    opacity: 0.6;
-  }
-}
-
-@keyframes ambientAuroraPulse2 {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.45;
-  }
-  50% {
-    transform: translate(-6%, -5%) scale(1.18);
-    opacity: 0.68;
-  }
-  100% {
-    transform: translate(4%, 3%) scale(0.96);
-    opacity: 0.42;
-  }
-}
-
-@keyframes ambientAuroraPulse3 {
-  0% {
-    transform: translate(-50%, -50%) scale(0.92);
-    opacity: 0.25;
-  }
-  50% {
-    transform: translate(-48%, -52%) scale(1.16);
-    opacity: 0.48;
-  }
-  100% {
-    transform: translate(-52%, -48%) scale(1.04);
-    opacity: 0.3;
-  }
-}
-
-@keyframes art3dFloat {
-  0% {
-    transform: perspective(1000px) rotateY(-3deg) rotateX(2deg) translateY(0px);
-  }
-  50% {
-    transform: perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(-5px);
-  }
-  100% {
-    transform: perspective(1000px) rotateY(3deg) rotateX(-2deg) translateY(-8px);
-  }
-}
-
 /* ==========================================================================
-   Ambient Cinema Mode (Apple Music / Spotify TV Fullscreen Aurora View)
+   Ambient Cinema Mode (Apple Music / Spotify TV Horizontal Lyrics View)
    ========================================================================== */
 
 .ambient-lyrics-column::-webkit-scrollbar {
   display: none;
 }
 
-.ambient-lyric-item {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity, filter;
+.ambient-lyric-line:hover {
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
-.ambient-lyric-item:hover {
-  opacity: 0.95 !important;
-  filter: blur(0px) !important;
-  transform: perspective(1000px) translateZ(16px) scale(1.03) !important;
-}
-
-.ambient-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.14) !important;
-}
-
-/* Mobile Portrait (<= 768px vertical phones) */
 @media (max-width: 768px) and (orientation: portrait) {
   .ambient-mode-overlay {
     position: fixed !important;
     top: 0 !important;
+    left: 100vw !important;
+    left: 100dvw !important;
+    width: 100vh !important;
+    width: 100dvh !important;
+    height: 100vw !important;
+    height: 100dvw !important;
+    transform: rotate(90deg) !important;
+    transform-origin: top left !important;
+    overflow: hidden !important;
+  }
+
+  .ambient-mode-overlay.disable-mobile-rotation {
+    transform: none !important;
+    top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
-    width: 100dvw !important;
     height: 100vh !important;
-    height: 100dvh !important;
-    transform: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
-    overflow: hidden !important;
   }
 
   .ambient-cinema-stage {
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 12px !important;
-    padding: 0 16px !important;
-    flex: 1 !important;
+    flex-direction: row !important;
+    gap: 24px !important;
+    padding: 0 20px !important;
+    height: 62% !important;
     min-height: 0 !important;
-    overflow: hidden !important;
   }
 
   .ambient-artwork-column {
-    max-width: 220px !important;
-    width: 48% !important;
+    max-width: 200px !important;
+    width: 28% !important;
     flex-shrink: 0 !important;
-    gap: 8px !important;
-    align-items: center !important;
-    text-align: center !important;
-  }
-
-  .ambient-cover-container {
-    max-width: 160px !important;
-    width: 100% !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+    text-align: left !important;
   }
 
   .ambient-cover-wrapper {
-    border-radius: 18px !important;
-  }
-
-  .ambient-track-title {
-    font-size: 1.15rem !important;
-    text-align: center !important;
-  }
-
-  .ambient-track-artist {
-    font-size: 0.82rem !important;
-    text-align: center !important;
+    border-radius: 16px !important;
   }
 
   .ambient-lyrics-column {
     flex: 1 !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    padding: 0 16px 0 28px !important;
-    align-self: stretch !important;
+    width: auto !important;
+    height: 100% !important;
+    max-height: 220px !important;
   }
 
   .ambient-mode-overlay header {
-    padding: 10px 18px !important;
+    padding: 12px 20px !important;
   }
 
   .ambient-mode-overlay footer {
     margin: 0 auto 10px !important;
-    padding: 8px 16px !important;
-    max-width: 92% !important;
+    padding: 8px 18px !important;
+    max-width: 90% !important;
   }
 }
 
-/* Force side-by-side mode on mobile when user toggles cinema layout */
-.ambient-mode-overlay.force-cinema-layout .ambient-cinema-stage {
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 20px !important;
-  padding: 0 20px !important;
-}
-
-.ambient-mode-overlay.force-cinema-layout .ambient-artwork-column {
-  max-width: 180px !important;
-  width: 28% !important;
-  align-items: flex-start !important;
-  text-align: left !important;
-}
-
-.ambient-mode-overlay.force-cinema-layout .ambient-lyrics-column {
-  flex: 1 !important;
-  height: 80% !important;
-  padding: 0 20px 0 32px !important;
-}
-
-/* Landscape / Desktop (Desktop screen or phone physically held sideways) */
 @media (orientation: landscape) {
   .ambient-mode-overlay {
     position: fixed !important;
@@ -1017,35 +912,18 @@
 
   .ambient-cinema-stage {
     flex-direction: row !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: clamp(28px, 4.5vw, 64px) !important;
-    padding: 0 clamp(24px, 4vw, 64px) !important;
-    flex: 1 !important;
-    height: auto !important;
-    min-height: 0 !important;
+    gap: 32px !important;
+    padding: 0 28px !important;
   }
 
   .ambient-artwork-column {
-    max-width: 360px !important;
-    width: clamp(190px, 28vw, 340px) !important;
-    gap: 16px !important;
-    align-items: flex-start !important;
-    text-align: left !important;
-    align-self: center !important;
+    max-width: 240px !important;
+    width: 30% !important;
+    gap: 12px !important;
   }
 
   .ambient-lyrics-column {
     flex: 1 !important;
-    height: 75vh !important;
-    max-height: 560px !important;
-    padding: 0 24px 0 44px !important;
-    align-self: center !important;
-  }
-
-  .ambient-mode-overlay footer {
-    margin: 0 auto 16px !important;
-    padding: 10px 24px !important;
-    max-width: 780px !important;
+    height: 68vh !important;
   }
 }
