@@ -1,13 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useLibrary } from '../context/LibraryContext';
-import { usePlayer } from '../context/PlayerContext';
-import { saavnApi } from '../services/saavnApi';
-import { storage } from '../services/storage';
-import SearchSuggestions from './SearchSuggestions';
 import { 
-  Search, 
   Sun, 
   Moon, 
   Settings, 
@@ -17,121 +12,15 @@ import {
   Disc, 
   LogOut, 
   LogIn,
-  Sparkles,
-  X
+  Sparkles 
 } from 'lucide-react';
 
 export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth }) {
   const { toggleTheme, isDark } = useTheme();
-  const { user, signOut, userPreferences, openInterestPicker } = useLibrary();
-  const { playTrack } = usePlayer();
+  const { user, signOut, openInterestPicker } = useLibrary();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [suggestions, setSuggestions] = useState(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
-  const [recentSearches, setRecentSearches] = useState(() => storage.getRecentSearches());
-
-  const isSearchPage = location.pathname === '/search';
-  const debounceTimerRef = useRef(null);
-
-  // Sync search input if URL has search param
-  useEffect(() => {
-    if (isSearchPage) {
-      const params = new URLSearchParams(location.search);
-      const q = params.get('q') || '';
-      setSearchQuery(q);
-    }
-  }, [location.search, isSearchPage]);
-
-  // Live typo-tolerant suggestions debounce effect
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSuggestions(null);
-      setIsSuggestLoading(false);
-      return;
-    }
-
-    setIsSuggestLoading(true);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    debounceTimerRef.current = setTimeout(async () => {
-      try {
-        const data = await saavnApi.getAutocomplete(searchQuery.trim());
-        setSuggestions(data);
-      } catch (err) {
-        console.warn('Navbar autocomplete fetch error:', err);
-      } finally {
-        setIsSuggestLoading(false);
-      }
-    }, 220);
-
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, [searchQuery]);
-
-  const handleSearchSubmit = (e) => {
-    if (e) e.preventDefault();
-    setIsDropdownOpen(false);
-    if (searchQuery.trim()) {
-      storage.addRecentSearch(searchQuery.trim());
-      setRecentSearches(storage.getRecentSearches());
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate('/search');
-    }
-  };
-
-  const handleSelectSong = async (song) => {
-    setIsDropdownOpen(false);
-    if (!song) return;
-
-    // Save title to recent searches
-    storage.addRecentSearch(song.title);
-    setRecentSearches(storage.getRecentSearches());
-
-    // If already has direct audio stream
-    if (song.audioUrl) {
-      playTrack(song);
-      return;
-    }
-
-    // Resolve 320kbps stream via songDetails or search
-    try {
-      const full = await saavnApi.getSongDetails(song.id);
-      if (full && full.audioUrl) {
-        playTrack(full);
-        return;
-      }
-    } catch {
-      // Fallback
-    }
-
-    // Otherwise navigate to search for it
-    navigate(`/search?q=${encodeURIComponent(song.title)}`);
-  };
-
-  const handleSelectQuery = (queryText) => {
-    setIsDropdownOpen(false);
-    setSearchQuery(queryText);
-    storage.addRecentSearch(queryText);
-    setRecentSearches(storage.getRecentSearches());
-    navigate(`/search?q=${encodeURIComponent(queryText)}`);
-  };
-
-  const handleRemoveRecent = (queryText) => {
-    const updated = storage.removeRecentSearch(queryText);
-    setRecentSearches(updated);
-  };
-
-  const handleClearRecent = () => {
-    const updated = storage.clearRecentSearches();
-    setRecentSearches(updated);
-  };
 
   return (
     <header
@@ -162,7 +51,9 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: 'var(--radius-sm)',
-            backgroundColor: 'var(--accent-subtle)'
+            backgroundColor: 'var(--accent-subtle)',
+            border: 'none',
+            cursor: 'pointer'
           }}
           title="Open menu"
         >
@@ -182,6 +73,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
               transition: 'background var(--transition-fast)'
             }}
             title="Go back"
@@ -201,6 +93,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
               transition: 'background var(--transition-fast)'
             }}
             title="Go forward"
@@ -235,96 +128,6 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
         </div>
       </div>
 
-      {/* Center: Search input with smart live suggestions */}
-      <form
-        onSubmit={handleSearchSubmit}
-        style={{
-          flex: 1,
-          maxWidth: '460px',
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          minWidth: 0
-        }}
-      >
-        <Search
-          size={16}
-          style={{
-            position: 'absolute',
-            left: '12px',
-            color: 'var(--text-muted)',
-            pointerEvents: 'none',
-            zIndex: 2
-          }}
-        />
-        <input
-          type="text"
-          className="navbar-search-input"
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setIsDropdownOpen(true);
-          }}
-          onFocus={() => {
-            setIsDropdownOpen(true);
-            setRecentSearches(storage.getRecentSearches());
-          }}
-          placeholder="Search songs, artists..."
-          style={{
-            width: '100%',
-            height: '38px',
-            padding: searchQuery.trim() ? '0 34px 0 36px' : '0 14px 0 36px',
-            borderRadius: 'var(--radius-full)',
-            backgroundColor: 'var(--bg-input)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)',
-            fontSize: '0.85rem',
-            transition: 'border-color var(--transition-fast), background var(--transition-fast)'
-          }}
-        />
-
-        {searchQuery.trim() && (
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setSuggestions(null);
-            }}
-            style={{
-              position: 'absolute',
-              right: '12px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2px',
-              zIndex: 2
-            }}
-            title="Clear"
-          >
-            <X size={15} />
-          </button>
-        )}
-
-        {/* Floating Typo-Tolerant Auto-Complete Dropdown */}
-        <SearchSuggestions
-          query={searchQuery}
-          suggestions={suggestions}
-          isOpen={isDropdownOpen}
-          isLoading={isSuggestLoading}
-          onClose={() => setIsDropdownOpen(false)}
-          onSelectSong={handleSelectSong}
-          onSelectQuery={handleSelectQuery}
-          recentSearches={recentSearches}
-          onRemoveRecent={handleRemoveRecent}
-          onClearRecent={handleClearRecent}
-          userInterests={userPreferences}
-        />
-      </form>
-
       {/* Right: Theme Toggle, Settings & Profile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {/* Working Theme Toggle */}
@@ -340,6 +143,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            cursor: 'pointer',
             transition: 'transform var(--transition-fast), background var(--transition-fast)'
           }}
           title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
@@ -360,6 +164,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            cursor: 'pointer',
             transition: 'transform var(--transition-fast)'
           }}
           title="Application Settings"
@@ -418,6 +223,8 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
                 color: 'var(--accent-text)',
                 fontSize: '0.8rem',
                 fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
                 transition: 'opacity var(--transition-fast)'
               }}
               title="Sign in with Supabase"
@@ -471,6 +278,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
                   fontWeight: 600,
                   width: '100%',
                   textAlign: 'left',
+                  border: 'none',
                   cursor: 'pointer'
                 }}
               >
@@ -495,6 +303,7 @@ export default function Navbar({ onOpenSettings, onToggleMobileMenu, onOpenAuth 
                   fontWeight: 600,
                   width: '100%',
                   textAlign: 'left',
+                  border: 'none',
                   cursor: 'pointer'
                 }}
               >
