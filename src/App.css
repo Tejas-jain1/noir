@@ -826,6 +826,39 @@
 }
 
 
+@keyframes artHaloBreathe {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.45;
+    filter: blur(24px);
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.8;
+    filter: blur(34px);
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0.95;
+    filter: blur(44px);
+  }
+}
+
+@keyframes art3dFloat {
+  0% {
+    transform: perspective(1000px) rotateY(-4deg) rotateX(2deg) translateY(0px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(168, 85, 247, 0.25);
+  }
+  50% {
+    transform: perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(-6px);
+    box-shadow: 0 26px 60px rgba(0, 0, 0, 0.8), 0 0 45px rgba(168, 85, 247, 0.4);
+  }
+  100% {
+    transform: perspective(1000px) rotateY(3deg) rotateX(-2deg) translateY(-10px);
+    box-shadow: 0 32px 75px rgba(0, 0, 0, 0.85), 0 0 55px rgba(168, 85, 247, 0.5);
+  }
+}
+
 /* ==========================================================================
    Ambient Cinema Mode (Apple Music / Spotify TV Horizontal Lyrics View)
    ========================================================================== */
@@ -834,8 +867,15 @@
   display: none;
 }
 
+.ambient-lyric-line {
+  will-change: transform, opacity, filter;
+}
+
 .ambient-lyric-line:hover {
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: #ffffff !important;
+  opacity: 0.95 !important;
+  filter: blur(0px) !important;
+  transform: perspective(1000px) translateZ(18px) scale(1.03) !important;
 }
 
 .ambient-menu-item:hover {
@@ -868,39 +908,66 @@
   .ambient-cinema-stage {
     flex-direction: row !important;
     gap: 24px !important;
-    padding: 0 20px !important;
-    height: 62% !important;
+    padding: 0 24px !important;
+    flex: 1 !important;
+    height: auto !important;
     min-height: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .ambient-artwork-column {
-    max-width: 200px !important;
-    width: 28% !important;
+    max-width: 220px !important;
+    width: 26% !important;
     flex-shrink: 0 !important;
     gap: 10px !important;
     align-items: flex-start !important;
+    align-self: center !important;
     text-align: left !important;
   }
 
   .ambient-cover-wrapper {
-    border-radius: 16px !important;
+    border-radius: 18px !important;
   }
 
   .ambient-lyrics-column {
     flex: 1 !important;
     width: auto !important;
-    height: 100% !important;
-    max-height: 220px !important;
+    height: 80% !important;
+    max-height: 270px !important;
+    align-self: center !important;
   }
 
   .ambient-mode-overlay header {
-    padding: 12px 20px !important;
+    padding: 10px 24px !important;
   }
 
   .ambient-mode-overlay footer {
     margin: 0 auto 10px !important;
     padding: 8px 18px !important;
-    max-width: 90% !important;
+    max-width: 88% !important;
+  }
+
+  /* When user clicks manual rotation button to stay vertical portrait */
+  .ambient-mode-overlay.disable-mobile-rotation .ambient-cinema-stage {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 20px !important;
+    padding: 0 16px !important;
+  }
+
+  .ambient-mode-overlay.disable-mobile-rotation .ambient-artwork-column {
+    max-width: 240px !important;
+    width: 65% !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .ambient-mode-overlay.disable-mobile-rotation .ambient-lyrics-column {
+    width: 100% !important;
+    height: 42vh !important;
+    max-height: 320px !important;
+    text-align: center !important;
   }
 }
 
@@ -916,18 +983,25 @@
 
   .ambient-cinema-stage {
     flex-direction: row !important;
-    gap: 32px !important;
-    padding: 0 28px !important;
+    gap: clamp(32px, 5vw, 68px) !important;
+    padding: 0 clamp(20px, 4vw, 56px) !important;
+    flex: 1 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .ambient-artwork-column {
-    max-width: 240px !important;
-    width: 30% !important;
-    gap: 12px !important;
+    max-width: 360px !important;
+    width: clamp(200px, 28vw, 340px) !important;
+    gap: 16px !important;
+    align-self: center !important;
   }
 
   .ambient-lyrics-column {
     flex: 1 !important;
-    height: 68vh !important;
+    height: 75vh !important;
+    align-self: center !important;
   }
 }

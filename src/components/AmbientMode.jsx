@@ -449,38 +449,86 @@ export default function AmbientMode({ isOpen, onClose }) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'flex-start',
-            gap: '20px',
+            gap: '16px',
             flexShrink: 0,
-            maxWidth: '440px',
-            width: 'clamp(260px, 34vw, 420px)'
+            maxWidth: '420px',
+            width: 'clamp(220px, 30vw, 380px)',
+            position: 'relative'
           }}
         >
-          {/* Rounded Square Cover Art (Matching User's Screenshot) */}
+          {/* Cover Container with Dynamic Halo Glow & 3D Float */}
           <div
-            className="ambient-cover-wrapper"
+            className="ambient-cover-container"
             style={{
+              position: 'relative',
               width: '100%',
               aspectRatio: '1/1',
-              borderRadius: '24px',
-              overflow: 'hidden',
-              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.75), 0 0 40px rgba(0, 0, 0, 0.4)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              backgroundColor: '#18181c',
-              position: 'relative'
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           >
-            <img
-              src={currentTrack.thumbnail}
-              alt={currentTrack.title}
+            {/* 1. Pulsing Ambient Halo Aura behind artwork */}
+            <div
+              className="ambient-art-halo"
+              style={{
+                position: 'absolute',
+                inset: '-16px',
+                borderRadius: '36px',
+                background: 'radial-gradient(circle at center, rgba(168, 85, 247, 0.6) 0%, rgba(59, 130, 246, 0.25) 45%, transparent 75%)',
+                filter: 'blur(30px)',
+                opacity: isPlaying ? 0.85 : 0.35,
+                zIndex: 0,
+                animation: isPlaying ? 'artHaloBreathe 4s ease-in-out infinite alternate' : 'none',
+                pointerEvents: 'none'
+              }}
+            />
+
+            {/* 2. Rotating Luminous Color Orbit */}
+            <div
+              className="ambient-art-orbit"
+              style={{
+                position: 'absolute',
+                inset: '-4px',
+                borderRadius: '26px',
+                background: 'conic-gradient(from 0deg, var(--accent-solid, #a855f7), #3b82f6, #ec4899, var(--accent-solid, #a855f7))',
+                opacity: isPlaying ? 0.35 : 0.1,
+                filter: 'blur(8px)',
+                zIndex: 0,
+                animation: isPlaying ? 'spin 14s linear infinite' : 'none',
+                pointerEvents: 'none'
+              }}
+            />
+
+            {/* 3. 3D Floating Cover Art */}
+            <div
+              className="ambient-cover-wrapper"
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
+                borderRadius: '24px',
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                backgroundColor: '#18181c',
+                position: 'relative',
+                zIndex: 2,
+                animation: isPlaying ? 'art3dFloat 6s ease-in-out infinite alternate' : 'none',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.75), 0 0 35px rgba(168, 85, 247, 0.25)'
               }}
-              onError={(e) => {
-                e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
-              }}
-            />
+            >
+              <img
+                src={currentTrack.thumbnail}
+                alt={currentTrack.title}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+                onError={(e) => {
+                  e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+                }}
+              />
+            </div>
           </div>
 
           {/* Track Info & Like */}
@@ -496,7 +544,7 @@ export default function AmbientMode({ isOpen, onClose }) {
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2
                 style={{
-                  fontSize: 'clamp(1.3rem, 2.4vw, 1.85rem)',
+                  fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)',
                   fontWeight: 700,
                   margin: 0,
                   color: '#ffffff',
@@ -504,7 +552,7 @@ export default function AmbientMode({ isOpen, onClose }) {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   letterSpacing: '-0.02em',
-                  textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                  textShadow: '0 2px 10px rgba(0,0,0,0.6)'
                 }}
                 title={currentTrack.title}
               >
@@ -512,7 +560,7 @@ export default function AmbientMode({ isOpen, onClose }) {
               </h2>
               <p
                 style={{
-                  fontSize: 'clamp(0.95rem, 1.6vw, 1.15rem)',
+                  fontSize: 'clamp(0.9rem, 1.5vw, 1.1rem)',
                   color: 'rgba(255, 255, 255, 0.65)',
                   margin: '4px 0 0',
                   whiteSpace: 'nowrap',
@@ -547,17 +595,20 @@ export default function AmbientMode({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Apple Music-style Animated Synchronized Lyrics */}
+        {/* RIGHT COLUMN: 3D Spatial Animated Synchronized Lyrics */}
         <div
           ref={lyricsContainerRef}
           className="ambient-lyrics-column"
           style={{
             flex: 1,
-            height: 'min(540px, 72vh)',
+            height: 'min(560px, 75vh)',
             overflowY: 'auto',
             position: 'relative',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%)',
+            perspective: '1200px',
+            perspectiveOrigin: 'center center',
+            transformStyle: 'preserve-3d',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none'
           }}
@@ -584,12 +635,46 @@ export default function AmbientMode({ isOpen, onClose }) {
                 paddingBottom: '200px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '30px'
+                gap: '28px',
+                transformStyle: 'preserve-3d'
               }}
             >
               {lyricsData.syncedLyrics.map((line, idx) => {
                 const isActive = idx === activeLyricIndex;
+                const dist = activeLyricIndex >= 0 ? Math.abs(idx - activeLyricIndex) : 1;
                 const isPast = idx < activeLyricIndex;
+
+                let zTranslate = 0;
+                let scale = 1;
+                let blur = 0;
+                let opacity = 0.4;
+                let rotateX = 0;
+
+                if (isActive) {
+                  zTranslate = 36;
+                  scale = 1.06;
+                  blur = 0;
+                  opacity = 1;
+                  rotateX = 0;
+                } else if (dist === 1) {
+                  zTranslate = 8;
+                  scale = 0.98;
+                  blur = 0.6;
+                  opacity = 0.55;
+                  rotateX = isPast ? 3 : -3;
+                } else if (dist === 2) {
+                  zTranslate = -18;
+                  scale = 0.92;
+                  blur = 1.8;
+                  opacity = 0.32;
+                  rotateX = isPast ? 6 : -6;
+                } else {
+                  zTranslate = -45;
+                  scale = 0.86;
+                  blur = 3.2;
+                  opacity = 0.14;
+                  rotateX = isPast ? 8 : -8;
+                }
 
                 return (
                   <p
@@ -599,25 +684,23 @@ export default function AmbientMode({ isOpen, onClose }) {
                     style={{
                       margin: 0,
                       fontSize: isActive
-                        ? 'clamp(1.5rem, 2.8vw, 2.25rem)'
-                        : 'clamp(1.15rem, 2.1vw, 1.6rem)',
+                        ? 'clamp(1.5rem, 3vw, 2.35rem)'
+                        : 'clamp(1.15rem, 2.1vw, 1.65rem)',
                       fontWeight: isActive ? 800 : 600,
-                      color: isActive
-                        ? '#ffffff'
-                        : isPast
-                        ? 'rgba(255, 255, 255, 0.45)'
-                        : 'rgba(255, 255, 255, 0.35)',
+                      color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
                       lineHeight: 1.35,
                       letterSpacing: '-0.02em',
                       cursor: 'pointer',
-                      transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-                      transform: isActive ? 'scale(1.02)' : 'none',
+                      transform: `perspective(1000px) translateZ(${zTranslate}px) scale(${scale}) rotateX(${rotateX}deg)`,
                       transformOrigin: 'left center',
+                      filter: `blur(${blur}px)`,
+                      opacity,
+                      transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                       textShadow: isActive
-                        ? '0 0 28px rgba(255, 255, 255, 0.35), 0 2px 10px rgba(0,0,0,0.8)'
+                        ? '0 0 28px rgba(255, 255, 255, 0.55), 0 0 60px rgba(168, 85, 247, 0.3), 0 2px 10px rgba(0,0,0,0.9)'
                         : 'none'
                     }}
-                    className="ambient-lyric-line"
+                    className={`ambient-lyric-line ${isActive ? 'is-active-3d' : ''}`}
                   >
                     {line.text}
                   </p>
