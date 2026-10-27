@@ -20,7 +20,8 @@ import {
   Loader2,
   Music2,
   MoreVertical,
-  RotateCw
+  RotateCw,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function AmbientMode({ isOpen, onClose }) {
@@ -53,10 +54,30 @@ export default function AmbientMode({ isOpen, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [forcePortrait, setForcePortrait] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const lyricsContainerRef = useRef(null);
   const activeLineRef = useRef(null);
   const hideControlsTimerRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuBtnRef = useRef(null);
+
+  // Close 3-dots menu on outside click
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        menuBtnRef.current &&
+        !menuBtnRef.current.contains(e.target)
+      ) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, [isMenuOpen]);
 
   // Sync scrubValue with currentTime
   useEffect(() => {
@@ -200,24 +221,140 @@ export default function AmbientMode({ isOpen, onClose }) {
           transition: 'opacity 0.35s ease'
         }}
       >
-        <button
-          style={{
-            background: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '50%',
-            width: '40px',
-            height: '40px',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            backdropFilter: 'blur(16px)'
-          }}
-          title="Ambient Mode"
-        >
-          <MoreVertical size={18} />
-        </button>
+        {/* Left: 3-Dots More Options Button & Dropdown */}
+        <div style={{ position: 'relative' }}>
+          <button
+            ref={menuBtnRef}
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+            style={{
+              background: isMenuOpen ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(16px)',
+              transition: 'all 0.2s ease'
+            }}
+            title="Options Menu"
+          >
+            <MoreVertical size={18} />
+          </button>
+
+          {/* 3-Dots Dropdown Menu */}
+          {isMenuOpen && (
+            <div
+              ref={menuRef}
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                left: 0,
+                width: '220px',
+                backgroundColor: 'rgba(18, 18, 24, 0.94)',
+                border: '1px solid rgba(255, 255, 255, 0.16)',
+                borderRadius: '16px',
+                padding: '6px',
+                backdropFilter: 'blur(24px)',
+                boxShadow: '0 18px 40px rgba(0, 0, 0, 0.75)',
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                animation: 'fadeIn 0.15s ease-out'
+              }}
+            >
+              {/* Back to normal mode */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onClose();
+                }}
+                className="ambient-menu-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: '#ffffff',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease'
+                }}
+              >
+                <ArrowLeft size={16} style={{ color: 'var(--accent-solid, #a855f7)' }} />
+                <span>Back to normal mode</span>
+              </button>
+
+              <div style={{ height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.1)', margin: '2px 6px' }} />
+
+              {/* Rotate Orientation */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setForcePortrait((prev) => !prev);
+                }}
+                className="ambient-menu-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontSize: '0.86rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease'
+                }}
+              >
+                <RotateCw size={16} />
+                <span>{forcePortrait ? 'Horizontal View' : 'Vertical View'}</span>
+              </button>
+
+              {/* Fullscreen toggle */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  toggleFullscreenMode();
+                }}
+                className="ambient-menu-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  fontSize: '0.86rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease'
+                }}
+              >
+                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Rotate 90° Horizontal Toggle Button */}
@@ -644,24 +781,26 @@ export default function AmbientMode({ isOpen, onClose }) {
             <button
               onClick={togglePlay}
               style={{
-                width: '44px',
-                height: '44px',
+                width: '46px',
+                height: '46px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--accent-solid, #a855f7)',
+                backgroundColor: 'rgba(255, 255, 255, 0.16)',
+                border: '1px solid rgba(255, 255, 255, 0.28)',
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 16px rgba(168, 85, 247, 0.4)',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
                 cursor: 'pointer',
-                transition: 'transform 0.15s ease'
+                backdropFilter: 'blur(12px)',
+                transition: 'all 0.15s ease'
               }}
               title={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
-                <Pause size={20} fill="currentColor" />
+                <Pause size={20} fill="#ffffff" />
               ) : (
-                <Play size={20} fill="currentColor" style={{ marginLeft: '2px' }} />
+                <Play size={20} fill="#ffffff" style={{ marginLeft: '2px' }} />
               )}
             </button>
 
