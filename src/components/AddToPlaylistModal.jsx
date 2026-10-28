@@ -14,7 +14,7 @@ export default function AddToPlaylistModal({ track, isOpen, onClose, onOpenCreat
         inset: 0,
         backgroundColor: 'var(--bg-overlay)',
         backdropFilter: 'blur(8px)',
-        zIndex: 1100,
+        zIndex: 3500,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

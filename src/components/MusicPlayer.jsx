@@ -763,6 +763,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
       <AmbientMode
         isOpen={isAmbientOpen}
         onClose={() => setIsAmbientOpen(false)}
+        onOpenAddToPlaylist={onOpenAddToPlaylist}
       />
     </>
   );

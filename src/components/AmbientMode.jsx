@@ -20,10 +20,13 @@ import {
   Loader2,
   Music2,
   MoreVertical,
-  RotateCw
+  ListPlus,
+  ListMusic,
+  Share2,
+  ArrowLeft
 } from 'lucide-react';
 
-export default function AmbientMode({ isOpen, onClose }) {
+export default function AmbientMode({ isOpen, onClose, onOpenAddToPlaylist }) {
   const {
     currentTrack,
     isPlaying,
@@ -41,22 +44,51 @@ export default function AmbientMode({ isOpen, onClose }) {
     toggleMute,
     toggleShuffle,
     cycleRepeat,
+    addToQueue,
     lyricsData,
     lyricsLoading,
     activeLyricIndex
   } = usePlayer();
 
-  const { isLiked, toggleLike } = useLibrary();
+  const { isLiked, toggleLike, showToast } = useLibrary();
 
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [forcePortrait, setForcePortrait] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const lyricsContainerRef = useRef(null);
   const activeLineRef = useRef(null);
   const hideControlsTimerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  // Sync fullscreen state with document.fullscreenElement
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Dismiss 3-dots menu on click outside or touch outside
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   // Sync scrubValue with currentTime
   useEffect(() => {
@@ -144,7 +176,7 @@ export default function AmbientMode({ isOpen, onClose }) {
 
   return (
     <div
-      className={`ambient-mode-overlay ${forcePortrait ? 'disable-mobile-rotation' : ''}`}
+      className="ambient-mode-overlay"
       onMouseMove={handleMouseMove}
       style={{
         position: 'fixed',
@@ -187,7 +219,7 @@ export default function AmbientMode({ isOpen, onClose }) {
         }}
       />
 
-      {/* ─── 2. Top Navigation Bar (3-Dots, Fullscreen & Exit) ─── */}
+      {/* ─── 2. Top Navigation Bar (3-Dots Menu, Fullscreen & Exit) ─── */}
       <header
         style={{
           display: 'flex',
@@ -200,32 +232,13 @@ export default function AmbientMode({ isOpen, onClose }) {
           transition: 'opacity 0.35s ease'
         }}
       >
-        <button
-          style={{
-            background: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '50%',
-            width: '40px',
-            height: '40px',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            backdropFilter: 'blur(16px)'
-          }}
-          title="Ambient Mode"
-        >
-          <MoreVertical size={18} />
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Rotate 90° Horizontal Toggle Button */}
+        {/* Left: 3-Dots Menu Container */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
           <button
-            onClick={() => setForcePortrait((prev) => !prev)}
+            onClick={() => setIsMenuOpen((prev) => !prev)}
             style={{
-              background: forcePortrait ? 'var(--accent-solid, #a855f7)' : 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: isMenuOpen ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
               borderRadius: '50%',
               width: '40px',
               height: '40px',
@@ -235,14 +248,108 @@ export default function AmbientMode({ isOpen, onClose }) {
               justifyContent: 'center',
               cursor: 'pointer',
               backdropFilter: 'blur(16px)',
-              transition: 'all 0.2s ease'
+              transition: 'background-color 0.2s ease, transform 0.15s ease'
             }}
-            title={forcePortrait ? 'Rotate to Horizontal' : 'Rotate to Vertical'}
+            title="Ambient options"
+            aria-expanded={isMenuOpen}
           >
-            <RotateCw size={17} />
+            <MoreVertical size={18} />
           </button>
 
-          {/* Fullscreen / Rotate Screen Button */}
+          {/* 3-Dots Dropdown Popover */}
+          {isMenuOpen && (
+            <div className="ambient-popover-menu">
+              {/* Back to normal mode */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onClose();
+                }}
+                className="ambient-menu-item"
+              >
+                <ArrowLeft size={16} />
+                <span>Back to normal mode</span>
+              </button>
+
+              {/* Fullscreen Toggle */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  toggleFullscreenMode();
+                }}
+                className="ambient-menu-item"
+              >
+                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                <span>{isFullscreen ? 'Exit full screen' : 'Full screen'}</span>
+              </button>
+
+              <div style={{ height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.08)', margin: '4px 6px' }} />
+
+              {/* Add to playlist */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  if (onOpenAddToPlaylist) {
+                    onOpenAddToPlaylist(currentTrack);
+                  }
+                }}
+                className="ambient-menu-item"
+              >
+                <ListPlus size={16} />
+                <span>Add to playlist</span>
+              </button>
+
+              {/* Add to queue */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  addToQueue(currentTrack);
+                  if (showToast) {
+                    showToast(`Added "${currentTrack.title}" to queue`, 'info');
+                  }
+                }}
+                className="ambient-menu-item"
+              >
+                <ListMusic size={16} />
+                <span>Add to queue</span>
+              </button>
+
+              {/* Favorite / Like Toggle */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  toggleLike(currentTrack);
+                }}
+                className="ambient-menu-item"
+              >
+                <Heart size={16} fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : 'currentColor'} />
+                <span>{liked ? 'Remove from favorites' : 'Add to favorites'}</span>
+              </button>
+
+              <div style={{ height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.08)', margin: '4px 6px' }} />
+
+              {/* Share track link */}
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  const shareUrl = window.location.origin + (currentTrack.id ? `?track=${currentTrack.id}` : '');
+                  if (navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(shareUrl).then(() => {
+                      if (showToast) showToast('Track link copied to clipboard!', 'success');
+                    }).catch(() => {});
+                  }
+                }}
+                className="ambient-menu-item"
+              >
+                <Share2 size={16} />
+                <span>Share song</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Quick Fullscreen & Close Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             onClick={toggleFullscreenMode}
             style={{
@@ -256,9 +363,10 @@ export default function AmbientMode({ isOpen, onClose }) {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              backdropFilter: 'blur(16px)'
+              backdropFilter: 'blur(16px)',
+              transition: 'all 0.2s ease'
             }}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Landscape Fullscreen'}
+            title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
           >
             {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
@@ -277,7 +385,8 @@ export default function AmbientMode({ isOpen, onClose }) {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              backdropFilter: 'blur(16px)'
+              backdropFilter: 'blur(16px)',
+              transition: 'all 0.2s ease'
             }}
             title="Exit Ambient Mode (Esc)"
           >
@@ -348,6 +457,7 @@ export default function AmbientMode({ isOpen, onClose }) {
 
           {/* Track Info & Like */}
           <div
+            className="ambient-track-details"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -630,38 +740,45 @@ export default function AmbientMode({ isOpen, onClose }) {
               onClick={prevTrack}
               style={{
                 color: '#ffffff',
-                padding: '6px',
+                padding: '8px',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
-                cursor: 'pointer'
+                justifyContent: 'center',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.15s ease'
               }}
               title="Previous Track"
             >
-              <SkipBack size={21} />
+              <SkipBack size={21} fill="#ffffff" color="#ffffff" strokeWidth={0} />
             </button>
 
             <button
               onClick={togglePlay}
               style={{
-                width: '44px',
-                height: '44px',
+                width: '46px',
+                height: '46px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--accent-solid, #a855f7)',
-                color: '#ffffff',
+                backgroundColor: '#ffffff',
+                color: '#000000',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 16px rgba(168, 85, 247, 0.4)',
+                boxShadow: '0 4px 18px rgba(0, 0, 0, 0.5), 0 0 14px rgba(255, 255, 255, 0.25)',
+                border: 'none',
                 cursor: 'pointer',
-                transition: 'transform 0.15s ease'
+                transition: 'transform 0.15s ease, background-color 0.15s ease'
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
               title={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
-                <Pause size={20} fill="currentColor" />
+                <Pause size={22} fill="#000000" color="#000000" strokeWidth={0} />
               ) : (
-                <Play size={20} fill="currentColor" style={{ marginLeft: '2px' }} />
+                <Play size={22} fill="#000000" color="#000000" strokeWidth={0} style={{ marginLeft: '3px' }} />
               )}
             </button>
 
@@ -669,15 +786,19 @@ export default function AmbientMode({ isOpen, onClose }) {
               onClick={nextTrack}
               style={{
                 color: '#ffffff',
-                padding: '6px',
+                padding: '8px',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
-                cursor: 'pointer'
+                justifyContent: 'center',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.15s ease'
               }}
               title="Next Track"
             >
-              <SkipForward size={21} />
+              <SkipForward size={21} fill="#ffffff" color="#ffffff" strokeWidth={0} />
             </button>
           </div>
 
@@ -698,7 +819,10 @@ export default function AmbientMode({ isOpen, onClose }) {
           </button>
 
           {/* Volume Control */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div
+            className="ambient-volume-control"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
             <button
               onClick={toggleMute}
               style={{

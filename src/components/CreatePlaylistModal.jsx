@@ -32,7 +32,7 @@ export default function CreatePlaylistModal({ isOpen, onClose }) {
         inset: 0,
         backgroundColor: 'var(--bg-overlay)',
         backdropFilter: 'blur(8px)',
-        zIndex: 1100,
+        zIndex: 3600,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
