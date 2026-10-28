@@ -1,6 +1,7 @@
 // JioSaavn CDN Audio & Metadata API Service
 import CryptoJS from 'crypto-js';
-import { MOCK_TRACKS, searchMockCatalog } from './mockCatalog';
+import { searchMockCatalog } from './mockCatalog';
+import { buildTrackSearchQuery } from './playbackUtils';
 
 const DES_KEY = '38346591';
 const JIOSAAVN_PROXY_PATH = '/api/saavn';
@@ -106,6 +107,11 @@ export function formatSaavnTrack(item) {
     durationFormatted,
     audioUrl, // Direct 320kbps CDN stream from aac.saavncdn.com
     source: 'saavn_cdn',
+    genre: decodeHtml(moreInfo.genre || item.genre || moreInfo.primary_genre || ''),
+    mood: decodeHtml(moreInfo.mood || item.mood || ''),
+    energy: moreInfo.energy ?? item.energy ?? null,
+    language: decodeHtml(item.language || moreInfo.language || ''),
+    tags: Array.isArray(moreInfo.tags) ? moreInfo.tags.map(decodeHtml) : [],
     year: item.year || moreInfo.release_date || '',
     playCount: item.play_count || ''
   };
@@ -237,7 +243,8 @@ export const saavnApi = {
     if (track.audioUrl) return track.audioUrl;
 
     try {
-      const searchQuery = `${track.title} ${track.artist}`.trim();
+      const searchQuery = buildTrackSearchQuery(track);
+      if (!searchQuery) return null;
       const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchQuery)}&n=5`;
       const data = await fetchSaavnQuery(params);
 

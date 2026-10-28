@@ -19,6 +19,7 @@ import {
   ListPlus,
   PlusCircle,
   Sparkles,
+  Radio,
   Mic2,
   MoreHorizontal,
   Loader2
@@ -44,6 +45,8 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     toggleMute,
     toggleShuffle,
     cycleRepeat,
+    autoplayEnabled,
+    toggleAutoplay,
     addToQueue,
     isMobilePlayerOpen,
     setIsMobilePlayerOpen,
@@ -311,6 +314,21 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
             <SkipForward size={18} />
           </button>
 
+          <button
+            onClick={toggleAutoplay}
+            aria-label={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
+            aria-pressed={autoplayEnabled}
+            style={{
+              color: autoplayEnabled ? 'var(--accent-solid)' : 'var(--text-muted)',
+              padding: '6px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
+          >
+            <Radio size={17} />
+          </button>
+
           {/* Mobile 3-Dots More Options Button */}
           <button
             onClick={() => setIsMenuOpen((prev) => !prev)}
@@ -402,6 +420,24 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
               title="Next"
             >
               <SkipForward size={19} />
+            </button>
+
+            <button
+              onClick={toggleAutoplay}
+              aria-label={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
+              aria-pressed={autoplayEnabled}
+              style={{
+                color: autoplayEnabled ? 'var(--accent-solid)' : 'var(--text-muted)',
+                padding: '6px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
+            >
+              <Radio size={18} />
             </button>
           </div>
 

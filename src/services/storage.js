@@ -4,6 +4,8 @@ const KEYS = {
   LIKED_SONGS: 'noir_liked_songs',
   PLAYLISTS: 'noir_playlists',
   RECENTLY_PLAYED: 'noir_recently_played',
+  SKIPPED_TRACKS: 'noir_skipped_tracks',
+  AUTOPLAY: 'noir_autoplay_enabled',
   SETTINGS: 'noir_settings',
   QUEUE: 'noir_saved_queue',
   RECENT_SEARCHES: 'noir_recent_searches',
@@ -36,9 +38,10 @@ const DEFAULT_PLAYLISTS = [
 ];
 
 export const storage = {
-  getLikedSongs: () => {
+  getLikedSongs: (userId = 'guest') => {
     try {
-      const data = localStorage.getItem(KEYS.LIKED_SONGS);
+      const scopedKey = `${KEYS.LIKED_SONGS}_${userId}`;
+      const data = localStorage.getItem(scopedKey) || (userId === 'guest' ? localStorage.getItem(KEYS.LIKED_SONGS) : null);
       return data ? JSON.parse(data) : [];
     } catch (e) {
       console.error('Error reading liked songs from localStorage', e);
@@ -46,16 +49,21 @@ export const storage = {
     }
   },
 
-  saveLikedSongs: (songs) => {
+  saveLikedSongs: (songs, userId = 'guest') => {
     try {
-      localStorage.setItem(KEYS.LIKED_SONGS, JSON.stringify(songs));
+      localStorage.setItem(`${KEYS.LIKED_SONGS}_${userId}`, JSON.stringify(songs));
+      if (userId === 'guest') localStorage.setItem(KEYS.LIKED_SONGS, JSON.stringify(songs));
     } catch (e) {
       console.error('Error saving liked songs', e);
     }
   },
 
-  getPlaylists: () => {
+  getPlaylists: (userId = 'guest') => {
     try {
+      if (userId !== 'guest') {
+        const scoped = localStorage.getItem(`${KEYS.PLAYLISTS}_${userId}`);
+        return scoped ? JSON.parse(scoped) : [];
+      }
       const data = localStorage.getItem(KEYS.PLAYLISTS);
       if (!data) {
         // Initialize default playlists on first run
@@ -69,17 +77,19 @@ export const storage = {
     }
   },
 
-  savePlaylists: (playlists) => {
+  savePlaylists: (playlists, userId = 'guest') => {
     try {
-      localStorage.setItem(KEYS.PLAYLISTS, JSON.stringify(playlists));
+      localStorage.setItem(`${KEYS.PLAYLISTS}_${userId}`, JSON.stringify(playlists));
+      if (userId === 'guest') localStorage.setItem(KEYS.PLAYLISTS, JSON.stringify(playlists));
     } catch (e) {
       console.error('Error saving playlists', e);
     }
   },
 
-  getRecentlyPlayed: () => {
+  getRecentlyPlayed: (userId = 'guest') => {
     try {
-      const data = localStorage.getItem(KEYS.RECENTLY_PLAYED);
+      const scopedKey = `${KEYS.RECENTLY_PLAYED}_${userId}`;
+      const data = localStorage.getItem(scopedKey) || (userId === 'guest' ? localStorage.getItem(KEYS.RECENTLY_PLAYED) : null);
       if (!data) return [];
       const parsed = JSON.parse(data);
       if (!Array.isArray(parsed)) return [];
@@ -92,7 +102,8 @@ export const storage = {
         t.title !== 'Get Lucky'
       );
       if (sanitized.length !== parsed.length) {
-        localStorage.setItem(KEYS.RECENTLY_PLAYED, JSON.stringify(sanitized));
+        localStorage.setItem(scopedKey, JSON.stringify(sanitized));
+        if (userId === 'guest') localStorage.setItem(KEYS.RECENTLY_PLAYED, JSON.stringify(sanitized));
       }
       return sanitized;
     } catch (e) {
@@ -101,11 +112,51 @@ export const storage = {
     }
   },
 
-  saveRecentlyPlayed: (tracks) => {
+  saveRecentlyPlayed: (tracks, userId = 'guest') => {
     try {
-      localStorage.setItem(KEYS.RECENTLY_PLAYED, JSON.stringify(tracks));
+      localStorage.setItem(`${KEYS.RECENTLY_PLAYED}_${userId}`, JSON.stringify(tracks));
+      if (userId === 'guest') localStorage.setItem(KEYS.RECENTLY_PLAYED, JSON.stringify(tracks));
     } catch (e) {
       console.error('Error saving recently played', e);
+    }
+  },
+
+  getSkippedTracks: (userId = 'guest') => {
+    try {
+      const data = localStorage.getItem(`${KEYS.SKIPPED_TRACKS}_${userId}`);
+      const parsed = data ? JSON.parse(data) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addSkippedTrack: (track, userId = 'guest') => {
+    if (!track?.id) return [];
+    const current = storage.getSkippedTracks(userId);
+    const updated = [track, ...current.filter(item => item?.id !== track.id)].slice(0, 50);
+    try {
+      localStorage.setItem(`${KEYS.SKIPPED_TRACKS}_${userId}`, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error saving skipped tracks', e);
+    }
+    return updated;
+  },
+
+  getAutoplayEnabled: (userId = 'guest') => {
+    try {
+      const value = localStorage.getItem(`${KEYS.AUTOPLAY}_${userId}`);
+      return value === null ? true : value === 'true';
+    } catch {
+      return true;
+    }
+  },
+
+  saveAutoplayEnabled: (enabled, userId = 'guest') => {
+    try {
+      localStorage.setItem(`${KEYS.AUTOPLAY}_${userId}`, String(Boolean(enabled)));
+    } catch (e) {
+      console.error('Error saving autoplay setting', e);
     }
   },
 
@@ -226,13 +277,13 @@ export const storage = {
   },
 
   // User Preferences (Interests: genres, favorite artists, etc.)
-  getUserPreferences: (userId = 'guest') => {
+  getUserPreferences: (userId = 'guest', fallbackToGuest = true) => {
     try {
       const key = `${KEYS.USER_PREFERENCES}_${userId}`;
       const data = localStorage.getItem(key);
       if (data) return JSON.parse(data);
       // Fallback to guest preferences if specific user not found yet
-      if (userId !== 'guest') {
+      if (userId !== 'guest' && fallbackToGuest) {
         const guestData = localStorage.getItem(`${KEYS.USER_PREFERENCES}_guest`);
         if (guestData) return JSON.parse(guestData);
       }
@@ -246,10 +297,6 @@ export const storage = {
     try {
       const key = `${KEYS.USER_PREFERENCES}_${userId}`;
       localStorage.setItem(key, JSON.stringify(preferences));
-      if (userId !== 'guest') {
-        // Also keep sync in guest key so it persists across logouts if needed
-        localStorage.setItem(`${KEYS.USER_PREFERENCES}_guest`, JSON.stringify(preferences));
-      }
     } catch (e) {
       console.error('Error saving user preferences', e);
     }

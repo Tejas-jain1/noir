@@ -90,9 +90,8 @@ export const supabaseService = {
 
   // Playlists Cloud Sync
   async loadPlaylists(userId) {
-    if (!supabase || !userId) {
-      return await offlineStorage.getPlaylists();
-    }
+    if (!userId) return await offlineStorage.getPlaylists();
+    if (!supabase) return storage.getPlaylists(userId);
 
     try {
       const { data, error } = await supabase
@@ -121,13 +120,14 @@ export const supabaseService = {
               durationFormatted: t.duration ? `${Math.floor(t.duration / 60)}:${String(t.duration % 60).padStart(2, '0')}` : '3:30'
             }))
         }));
-        await offlineStorage.setPlaylists(mapped);
+        storage.savePlaylists(mapped, userId);
+        if (userId === 'guest') await offlineStorage.setPlaylists(mapped);
         return mapped;
       }
-      return await offlineStorage.getPlaylists();
+      return storage.getPlaylists(userId);
     } catch (err) {
-      console.warn('[Supabase] Failed to fetch cloud playlists, using offline store:', err);
-      return await offlineStorage.getPlaylists();
+      console.warn('[Supabase] Failed to fetch account playlists, using that account\'s local cache:', err);
+      return storage.getPlaylists(userId);
     }
   },
 
@@ -177,9 +177,8 @@ export const supabaseService = {
 
   // Liked Tracks Cloud Sync
   async loadLikedSongs(userId) {
-    if (!supabase || !userId) {
-      return await offlineStorage.getLikedSongs();
-    }
+    if (!userId) return await offlineStorage.getLikedSongs();
+    if (!supabase) return storage.getLikedSongs(userId);
 
     try {
       const { data, error } = await supabase
@@ -199,13 +198,14 @@ export const supabaseService = {
           duration: t.duration,
           durationFormatted: t.duration ? `${Math.floor(t.duration / 60)}:${String(t.duration % 60).padStart(2, '0')}` : '3:30'
         }));
-        await offlineStorage.setLikedSongs(mapped);
+        storage.saveLikedSongs(mapped, userId);
+        if (userId === 'guest') await offlineStorage.setLikedSongs(mapped);
         return mapped;
       }
-      return await offlineStorage.getLikedSongs();
+      return storage.getLikedSongs(userId);
     } catch (err) {
-      console.warn('[Supabase] Failed to load liked tracks, using offline store:', err);
-      return await offlineStorage.getLikedSongs();
+      console.warn('[Supabase] Failed to load account liked tracks, using that account\'s local cache:', err);
+      return storage.getLikedSongs(userId);
     }
   },
 
@@ -247,10 +247,52 @@ export const supabaseService = {
     }
   },
 
+  async loadHistory(userId) {
+    if (!userId) return storage.getRecentlyPlayed('guest');
+    if (!supabase) return storage.getRecentlyPlayed(userId);
+
+    try {
+      const { data, error } = await supabase
+        .from('listening_history')
+        .select('track_id, title, artist, artwork, duration, played_at')
+        .eq('user_id', userId)
+        .order('played_at', { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+
+      const tracks = (data || []).map(item => ({
+        id: item.track_id,
+        title: item.title || '',
+        artist: item.artist || '',
+        thumbnail: item.artwork || '',
+        duration: item.duration || 0,
+        durationFormatted: item.duration ? `${Math.floor(item.duration / 60)}:${String(item.duration % 60).padStart(2, '0')}` : '3:30',
+        playedAt: item.played_at || ''
+      })).filter(track => track.id && track.title);
+
+      storage.saveRecentlyPlayed(tracks, userId);
+      return tracks;
+    } catch (err) {
+      console.warn('[Supabase] Failed to fetch account listening history, using that account\'s local cache:', err);
+      return storage.getRecentlyPlayed(userId);
+    }
+  },
+
+  async clearHistory(userId) {
+    if (!supabase || !userId) return;
+    try {
+      const { error } = await supabase.from('listening_history').delete().eq('user_id', userId);
+      if (error) throw error;
+    } catch (err) {
+      console.warn('[Supabase] Failed to clear account listening history:', err);
+    }
+  },
+
   // User Preferences Cloud Sync
   async loadUserPreferences(userId) {
     // 1. Check local storage first for fast response
-    const local = storage.getUserPreferences(userId);
+    const local = storage.getUserPreferences(userId, false);
     if (!supabase || !userId) return local;
 
     try {

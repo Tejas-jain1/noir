@@ -4,6 +4,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { saavnApi, youtubeApi } from '../services/saavnApi';
 import { storage } from '../services/storage';
+import { createSingleTrackQueue } from '../services/playbackUtils';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
 import { 
@@ -181,7 +182,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
     setRecentTracks(updated);
 
     if (song.audioUrl) {
-      playTrack(song);
+      playTrack(song, createSingleTrackQueue(song), { searchQuery: query });
       return;
     }
 
@@ -189,7 +190,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
       const full = await saavnApi.getSongDetails(song.id);
       if (full && full.audioUrl) {
         storage.addRecentSearchTrack(full);
-        playTrack(full);
+        playTrack(full, createSingleTrackQueue(full), { searchQuery: query });
         return;
       }
     } catch {
@@ -203,7 +204,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
   const handlePlayRecent = (track) => {
     const updated = storage.addRecentSearchTrack(track);
     setRecentTracks(updated);
-    playTrack(track, recentTracks);
+    playTrack(track, createSingleTrackQueue(track), { searchQuery: query });
   };
 
   const handleRemoveRecentTrack = (trackId) => {
@@ -488,7 +489,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                     const updated = storage.addRecentSearchTrack(topResult);
                     setRecentTracks(updated);
                     if (currentTrack?.id === topResult.id) togglePlay();
-                    else playTrack(topResult, results);
+                    else playTrack(topResult, createSingleTrackQueue(topResult), { searchQuery: query });
                   }}
                   style={{
                     backgroundColor: 'var(--bg-card)',
@@ -530,7 +531,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
                         const updated = storage.addRecentSearchTrack(topResult);
                         setRecentTracks(updated);
                         if (currentTrack?.id === topResult.id) togglePlay();
-                        else playTrack(topResult, results);
+                        else playTrack(topResult, createSingleTrackQueue(topResult), { searchQuery: query });
                       }}
                       style={{
                         width: '44px',
@@ -562,6 +563,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist }) {
               <TrackList
                 tracks={results}
                 onOpenAddToPlaylist={onOpenAddToPlaylist}
+                onTrackPlay={(track) => playTrack(track, createSingleTrackQueue(track), { searchQuery: query })}
               />
             </div>
           </div>

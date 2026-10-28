@@ -11,11 +11,36 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { fetchLyricsForTrack, findCurrentLyricIndex } from '../services/lyricsService';
 import { supabaseService } from '../services/supabaseClient';
 import { saavnApi } from '../services/saavnApi';
+import {
+  buildAutoplaySearchTiers,
+  createRecommendationContext,
+  getRealPlayableSaavnTracks,
+  getRecommendationVibeLabel,
+  rankRecommendationCandidates,
+  selectRecommendationForTier
+} from '../services/recommendationEngine';
+import {
+  appendQueueTrack,
+  getNextQueuedTrack,
+  getNextRepeatMode,
+  getPreviousQueueIndex,
+  shuffleQueuePreservingCurrent
+} from '../services/playbackUtils';
 
 const PlayerContext = createContext();
 
 export function PlayerProvider({ children }) {
-  const { addToRecent, showToast, likedSongs, userPreferences } = useLibrary();
+  const {
+    addToRecent,
+    showToast,
+    likedSongs,
+    userPreferences,
+    playlists,
+    recentlyPlayed,
+    libraryOwnerId,
+    user
+  } = useLibrary();
+  const activeUserId = user?.id;
 
   // Playback state
   const [currentTrack, setCurrentTrack] = useState(() => {
@@ -52,6 +77,12 @@ export function PlayerProvider({ children }) {
   });
   const [queueIndex, setQueueIndex] = useState(0);
   const [isMobilePlayerOpen, setIsMobilePlayerOpen] = useState(false);
+  const [recommendationContext, setRecommendationContext] = useState(null);
+  const [autoplayEnabled, setAutoplayEnabled] = useState(() => storage.getAutoplayEnabled('guest'));
+
+  useEffect(() => {
+    setAutoplayEnabled(storage.getAutoplayEnabled(user?.id || 'guest'));
+  }, [user?.id]);
 
   // Synchronized Lyrics State
   const [lyricsData, setLyricsData] = useState(null);
@@ -63,6 +94,7 @@ export function PlayerProvider({ children }) {
 
   // References
   const audioRef = useRef(null);
+  const userIdRef = useRef(user?.id || 'guest');
   const stateRef = useRef({ currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue });
   const nextTrackRef = useRef(null);
   const prevTrackRef = useRef(null);
@@ -72,6 +104,10 @@ export function PlayerProvider({ children }) {
   useEffect(() => {
     stateRef.current = { currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue };
   }, [currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue]);
+
+  useEffect(() => {
+    userIdRef.current = user?.id || 'guest';
+  }, [user?.id]);
 
   // Load synchronized lyrics whenever currentTrack changes
   useEffect(() => {
@@ -112,7 +148,7 @@ export function PlayerProvider({ children }) {
     const track = stateRef.current.currentTrack;
     showToast(`Playback error for "${track?.title || 'current track'}". Playing next...`, 'error', 3500);
     setTimeout(() => {
-      if (nextTrackRef.current) nextTrackRef.current();
+      if (nextTrackRef.current) nextTrackRef.current('error');
     }, 1200);
   }, [showToast]);
 
@@ -159,8 +195,12 @@ export function PlayerProvider({ children }) {
   }, [isMuted, volume]);
 
   // Core Play Track Function
-  const playTrack = useCallback((track, newQueue = null) => {
+  const playTrack = useCallback((track, newQueue = null, playOptions = {}) => {
     if (!track) return;
+
+    if (!playOptions.preserveRecommendationContext) {
+      setRecommendationContext(createRecommendationContext(track, playOptions.searchQuery || ''));
+    }
 
     setCurrentTrack(track);
     setCurrentTime(0);
@@ -168,12 +208,9 @@ export function PlayerProvider({ children }) {
     setIsBuffering(true);
     addToRecent(track);
 
-    // Record listening history to Supabase (if signed in)
-    supabaseService.getCurrentUser().then((user) => {
-      if (user) {
-        supabaseService.recordHistory(track, user.id);
-      }
-    });
+    // Use the account active when playback started so an auth switch cannot
+    // attribute this track to a different user's listening history.
+    if (activeUserId) supabaseService.recordHistory(track, activeUserId);
 
     // Queue updates
     if (newQueue && Array.isArray(newQueue)) {
@@ -207,114 +244,104 @@ export function PlayerProvider({ children }) {
           setIsPlaying(false);
           showToast(`Stream currently unavailable for "${track.title}"`, 'error');
           setTimeout(() => {
-            if (nextTrackRef.current) nextTrackRef.current();
+            if (nextTrackRef.current) nextTrackRef.current('error');
           }, 1200);
         }
       });
     }
-  }, [addToRecent, startAudioPlayback, showToast]);
+  }, [addToRecent, startAudioPlayback, showToast, activeUserId]);
 
-  // Select Next Track from Liked Songs or Interested Artists / Genres
+  // Choose a radio-style recommendation without changing the active vibe context.
   const playPersonalizedNextTrack = useCallback(async () => {
     const cur = stateRef.current.currentTrack;
-    const curId = cur?.id;
-    
-    // Check both context state and local storage fallback
-    const effectiveLiked = (likedSongs && likedSongs.length > 0) ? likedSongs : storage.getLikedSongs();
-    const storedPrefs = storage.getUserPreferences('guest') || {};
-    const effectiveArtists = (userPreferences?.artists?.length > 0) ? userPreferences.artists : (storedPrefs.artists || []);
-    const effectiveGenres = (userPreferences?.genres?.length > 0) ? userPreferences.genres : (storedPrefs.genres || []);
+    const { queue = [] } = stateRef.current;
+    const profileId = user?.id || 'guest';
+    const profileReady = libraryOwnerId === profileId;
+    const history = profileReady ? (recentlyPlayed || []) : [];
+    const recentHistory = history.slice(0, 12);
+    const preferences = profileReady ? (userPreferences || {}) : {};
+    const liked = profileReady ? (likedSongs || []) : [];
+    const savedPlaylists = profileReady ? (playlists || []) : [];
+    const context = recommendationContext || createRecommendationContext(cur);
+    const skippedTracks = storage.getSkippedTracks(profileId);
+    const excludedTracks = [...queue, ...recentHistory];
+    const rankingOptions = {
+      excludedTracks,
+      skippedTracks,
+      userPreferences: preferences,
+      likedTracks: liked,
+      recentTracks: history
+    };
+    const vibeLabel = getRecommendationVibeLabel(context);
+    const localCandidates = [
+      ...liked,
+      ...history,
+      ...savedPlaylists.flatMap(playlist => Array.isArray(playlist?.tracks) ? playlist.tracks : [])
+    ].filter(track => track?.id && track?.title && (track.audioUrl || track.artist))
+      .map(track => ({ track, retrievedFor: {} }));
 
-    const liked = (effectiveLiked || []).filter(t => t.id !== curId);
-    const artists = effectiveArtists;
-    const genres = effectiveGenres;
+    const playRecommendation = (track, label) => {
+      if (!track) return false;
+      if (stateRef.current.currentTrack?.id !== cur?.id || userIdRef.current !== profileId) return false;
+      const nextQueue = appendQueueTrack(queue, track);
+      const vibeText = vibeLabel ? ` for ${vibeLabel}` : '';
+      showToast(`Playing next${vibeText} (${label}): "${track.title}"`, 'info', 3000);
+      playTrack(track, nextQueue, { preserveRecommendationContext: true });
+      return true;
+    };
 
-    if (liked.length === 0 && artists.length === 0 && genres.length === 0) {
-      return false;
-    }
-
-    // 1. If user has liked songs, prioritize picking from liked songs (50% chance or if no artists)
-    const shouldPickLiked = liked.length > 0 && (artists.length === 0 || Math.random() < 0.5);
-
-    if (shouldPickLiked) {
-      const picked = liked[Math.floor(Math.random() * liked.length)];
-      if (picked) {
-        showToast(`Playing next from your Liked Songs: "${picked.title}"`, 'info', 3000);
-        setQueue(prev => [...prev, picked]);
-        setQueueIndex(prev => prev.length);
-        playTrack(picked);
-        return true;
-      }
-    }
-
-    // 2. If user has interested artists, fetch popular tracks by one of their favorite artists
-    if (artists.length > 0) {
-      const chosenArtist = artists[Math.floor(Math.random() * artists.length)];
-      try {
-        const res = await saavnApi.search(`${chosenArtist} hit songs`);
-        const candidates = (res.results || []).filter(t => t.id !== curId && t.audioUrl);
-        if (candidates.length > 0) {
-          const picked = candidates[Math.floor(Math.random() * Math.min(candidates.length, 6))];
-          showToast(`Playing next by ${chosenArtist}: "${picked.title}"`, 'info', 3000);
-          setQueue(prev => [...prev, picked]);
-          setQueueIndex(prev => prev.length);
-          playTrack(picked);
-          return true;
+    const tiers = buildAutoplaySearchTiers(context, {
+      userPreferences: preferences,
+      recentTracks: history
+    });
+    for (const tier of tiers.filter(item => item.id !== 'broader')) {
+      if (stateRef.current.currentTrack?.id !== cur?.id || userIdRef.current !== profileId) return false;
+      const batches = await Promise.all(tier.queries.map(async query => {
+        try {
+          const response = await saavnApi.search(query.query);
+          return getRealPlayableSaavnTracks(response).map(track => ({ track, retrievedFor: query }));
+        } catch (err) {
+          console.warn(`Failed to search ${tier.id} autoplay recommendations for "${query.query}":`, err);
+          return [];
         }
-      } catch (err) {
-        console.warn('Failed to fetch personalized artist song:', err);
-      }
+      }));
+      if (stateRef.current.currentTrack?.id !== cur?.id || userIdRef.current !== profileId) return false;
+      const ranked = rankRecommendationCandidates([...localCandidates, ...batches.flat()], context, rankingOptions);
+      const selected = selectRecommendationForTier(ranked, tier.id, context);
+      if (selected) return playRecommendation(selected.track, tier.id.replace('-', ' '));
     }
 
-    // 3. Fallback to liked songs if artist fetch failed
-    if (liked.length > 0) {
-      const picked = liked[Math.floor(Math.random() * liked.length)];
-      if (picked) {
-        showToast(`Playing from your Liked Songs: "${picked.title}"`, 'info', 3000);
-        setQueue(prev => [...prev, picked]);
-        setQueueIndex(prev => prev.length);
-        playTrack(picked);
-        return true;
-      }
+    // Trending is a final fallback and must still match a classified strong vibe.
+    try {
+      const trending = await saavnApi.getTrending();
+      if (stateRef.current.currentTrack?.id !== cur?.id || userIdRef.current !== profileId) return false;
+      const realTrending = (trending || []).filter(track => track?.source === 'saavn_cdn' && track.audioUrl);
+      const rankedTrending = rankRecommendationCandidates(realTrending, context, rankingOptions);
+      const selectedTrending = selectRecommendationForTier(rankedTrending, 'broader', context);
+      if (selectedTrending) return playRecommendation(selectedTrending.track, 'trending fallback');
+    } catch (err) {
+      console.warn('Failed to fetch trending autoplay recommendation:', err);
     }
-
-    // 4. If user has interested genres, pick from genre
-    if (genres.length > 0) {
-      const chosenGenre = genres[Math.floor(Math.random() * genres.length)];
-      try {
-        const res = await saavnApi.search(`${chosenGenre} hits`);
-        const candidates = (res.results || []).filter(t => t.id !== curId && t.audioUrl);
-        if (candidates.length > 0) {
-          const picked = candidates[0];
-          showToast(`Playing next from ${chosenGenre}: "${picked.title}"`, 'info', 3000);
-          setQueue(prev => [...prev, picked]);
-          setQueueIndex(prev => prev.length);
-          playTrack(picked);
-          return true;
-        }
-      } catch (err) {
-        console.warn('Failed to fetch personalized genre song:', err);
-      }
-    }
-
     return false;
-  }, [likedSongs, userPreferences, playTrack, showToast]);
+  }, [libraryOwnerId, likedSongs, userPreferences, playlists, recentlyPlayed, recommendationContext, user?.id, playTrack, showToast]);
 
   // Next Track Logic
-  const nextTrack = useCallback(async () => {
-    const { queue, queueIndex, repeatMode } = stateRef.current;
+  const nextTrack = useCallback(async (reason = 'manual') => {
+    const { queue, queueIndex, repeatMode, currentTrack: activeTrack } = stateRef.current;
     if (!queue || queue.length === 0) return;
+    if (reason === 'manual' && activeTrack?.id) {
+      storage.addSkippedTrack(activeTrack, user?.id || 'guest');
+    }
 
-    let nextIndex = queueIndex + 1;
-    if (nextIndex < queue.length) {
-      const next = queue[nextIndex];
-      if (next) {
-        setQueueIndex(nextIndex);
-        playTrack(next);
-      }
+    const next = getNextQueuedTrack(queue, queueIndex);
+    if (next) {
+      const nextIndex = queueIndex + 1;
+      setQueueIndex(nextIndex);
+      playTrack(next);
     } else {
       // Reached end of queue: continue playing from liked songs or interested artists
-      const playedPersonalized = await playPersonalizedNextTrack();
+      const playedPersonalized = autoplayEnabled ? await playPersonalizedNextTrack() : false;
+      if (stateRef.current.currentTrack?.id !== activeTrack?.id) return;
       if (!playedPersonalized) {
         if (repeatMode === 'all') {
           setQueueIndex(0);
@@ -325,7 +352,7 @@ export function PlayerProvider({ children }) {
         }
       }
     }
-  }, [playTrack, playPersonalizedNextTrack]);
+  }, [autoplayEnabled, user?.id, playTrack, playPersonalizedNextTrack]);
 
   // Handle Track Ended Logic
   const handleTrackEnded = useCallback(async () => {
@@ -339,12 +366,9 @@ export function PlayerProvider({ children }) {
       return;
     }
 
-    // When a song finishes, play next song from interested artist or liked songs!
-    const playedPersonalized = await playPersonalizedNextTrack();
-    if (!playedPersonalized) {
-      if (nextTrackRef.current) nextTrackRef.current();
-    }
-  }, [playPersonalizedNextTrack]);
+    // nextTrack honors the active queue first, then continues with personalized autoplay.
+    if (nextTrackRef.current) await nextTrackRef.current('ended');
+  }, []);
 
   // Previous Track
   const prevTrack = useCallback(() => {
@@ -357,10 +381,7 @@ export function PlayerProvider({ children }) {
     const { queue, queueIndex } = stateRef.current;
     if (!queue || queue.length === 0) return;
 
-    let prevIndex = queueIndex - 1;
-    if (prevIndex < 0) {
-      prevIndex = queue.length - 1;
-    }
+    const prevIndex = getPreviousQueueIndex(queue, queueIndex);
 
     const prev = queue[prevIndex];
     if (prev) {
@@ -491,14 +512,7 @@ export function PlayerProvider({ children }) {
       const willShuffle = !prev;
       if (willShuffle) {
         setPreShuffleQueue([...queue]);
-        const remaining = queue.filter((_, i) => i !== queueIndex);
-        for (let i = remaining.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          const temp = remaining[i];
-          remaining[i] = remaining[j];
-          remaining[j] = temp;
-        }
-        const newQueue = currentTrack ? [currentTrack, ...remaining] : remaining;
+        const newQueue = shuffleQueuePreservingCurrent(queue, currentTrack, queueIndex);
         setQueue(newQueue);
         setQueueIndex(0);
         showToast('Shuffle enabled', 'info');
@@ -518,22 +532,30 @@ export function PlayerProvider({ children }) {
 
   const cycleRepeat = useCallback(() => {
     setRepeatMode(prev => {
-      if (prev === 'off') {
-        showToast('Repeat all tracks', 'info');
-        return 'all';
-      }
-      if (prev === 'all') {
-        showToast('Repeat current track', 'info');
-        return 'one';
-      }
-      showToast('Repeat off', 'info');
-      return 'off';
+      const nextMode = getNextRepeatMode(prev);
+      const message = nextMode === 'all'
+        ? 'Repeat all tracks'
+        : nextMode === 'one'
+          ? 'Repeat current track'
+          : 'Repeat off';
+      showToast(message, 'info');
+      return nextMode;
     });
   }, [showToast]);
 
+  const toggleAutoplay = useCallback(() => {
+    const profileId = user?.id || 'guest';
+    setAutoplayEnabled(previous => {
+      const next = !previous;
+      storage.saveAutoplayEnabled(next, profileId);
+      showToast(`Autoplay ${next ? 'enabled' : 'disabled'}`, 'info');
+      return next;
+    });
+  }, [user?.id, showToast]);
+
   const addToQueue = useCallback((track) => {
     if (!track) return;
-    setQueue(prev => [...prev, track]);
+    setQueue(prev => appendQueueTrack(prev, track));
     showToast(`Added "${track.title}" to queue`, 'success');
   }, [showToast]);
 
@@ -579,6 +601,8 @@ export function PlayerProvider({ children }) {
         repeatMode,
         queue,
         queueIndex,
+        recommendationContext,
+        autoplayEnabled,
         isMobilePlayerOpen,
         setIsMobilePlayerOpen,
         lyricsData,
@@ -596,6 +620,7 @@ export function PlayerProvider({ children }) {
         toggleMute,
         toggleShuffle,
         cycleRepeat,
+        toggleAutoplay,
         addToQueue,
         removeFromQueue,
         clearQueue,

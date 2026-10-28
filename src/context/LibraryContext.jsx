@@ -5,12 +5,19 @@ import { supabaseService, isSupabaseConfigured } from '../services/supabaseClien
 import { notifyAdminOnAuth } from '../services/adminNotification';
 
 const LibraryContext = createContext();
+const LEGACY_HISTORY_IDS = new Set(['4NRXx6U8ABQ', 'Th4EkOPb2qY', '5NV6Rdv1a3I', 'H5v3kku4y6Q', 'd5gxZ5r0qSY']);
+
+const sanitizeHistory = (tracks) => (Array.isArray(tracks) ? tracks : []).filter(track =>
+  track && track.id && !LEGACY_HISTORY_IDS.has(track.id) &&
+  track.title !== 'Blinding Lights' && track.title !== 'Get Lucky'
+);
 
 export function LibraryProvider({ children }) {
   const [user, setUser] = useState(null);
   const [likedSongs, setLikedSongs] = useState(() => storage.getLikedSongs());
   const [playlists, setPlaylists] = useState(() => storage.getPlaylists());
-  const [recentlyPlayed, setRecentlyPlayed] = useState(() => storage.getRecentlyPlayed());
+  const [recentlyPlayed, setRecentlyPlayed] = useState(() => storage.getRecentlyPlayed('guest'));
+  const [libraryOwnerId, setLibraryOwnerId] = useState(null);
   const [settings, setSettings] = useState(() => storage.getSettings());
   const [userPreferences, setUserPreferences] = useState(() => storage.getUserPreferences('guest'));
   const [isInterestPickerOpen, setIsInterestPickerOpen] = useState(false);
@@ -32,74 +39,71 @@ export function LibraryProvider({ children }) {
 
   // Initialize Supabase Auth listener & IndexedDB data hydration
   useEffect(() => {
-    // 1. Initial hydration from IndexedDB
-    offlineStorage.getLikedSongs().then(cached => {
-      if (Array.isArray(cached) && cached.length > 0) setLikedSongs(cached);
-    });
-    offlineStorage.getPlaylists().then(cached => {
-      if (Array.isArray(cached) && cached.length > 0) setPlaylists(cached);
-    });
-    offlineStorage.getHistory().then(cached => {
-      if (Array.isArray(cached) && cached.length > 0) {
-        const legacyIds = new Set(['4NRXx6U8ABQ', 'Th4EkOPb2qY', '5NV6Rdv1a3I', 'H5v3kku4y6Q', 'd5gxZ5r0qSY']);
-        const sanitized = cached.filter(t => 
-          t && t.id && 
-          !legacyIds.has(t.id) && 
-          t.title !== 'Blinding Lights' && 
-          t.title !== 'Get Lucky'
-        );
-        setRecentlyPlayed(sanitized);
-        if (sanitized.length !== cached.length) {
-          offlineStorage.setHistory(sanitized);
-        }
-      }
-    });
+    let isMounted = true;
+    let authEventSeen = false;
+    let loadVersion = 0;
 
-    // 2. Supabase Auth state observer
-    supabaseService.getCurrentUser().then(async (currentUser) => {
+    const loadLibraryForUser = async (currentUser) => {
+      const version = ++loadVersion;
       setUser(currentUser);
-      if (currentUser) {
-        supabaseService.loadLikedSongs(currentUser.id).then(setLikedSongs);
-        supabaseService.loadPlaylists(currentUser.id).then(setPlaylists);
-        const prefs = await supabaseService.loadUserPreferences(currentUser.id);
-        setUserPreferences(prefs);
-        if (!prefs || !prefs.onboarding_completed) {
-          setIsInterestPickerOpen(true);
-        }
-      }
-    });
+      setLibraryOwnerId(null);
 
-    const { data: { subscription } } = supabaseService.onAuthStateChange(async (_event, session) => {
-      const u = session?.user || null;
-      setUser(u);
-      if (u) {
-        if (_event === 'SIGNED_IN') {
-          notifyAdminOnAuth(u, 'Signed In');
-        }
-        const cloudLikes = await supabaseService.loadLikedSongs(u.id);
-        const cloudPlaylists = await supabaseService.loadPlaylists(u.id);
-        const cloudPrefs = await supabaseService.loadUserPreferences(u.id);
+      if (currentUser) {
+        const [cloudLikes, cloudPlaylists, cloudPrefs, cloudHistory] = await Promise.all([
+          supabaseService.loadLikedSongs(currentUser.id),
+          supabaseService.loadPlaylists(currentUser.id),
+          supabaseService.loadUserPreferences(currentUser.id),
+          supabaseService.loadHistory(currentUser.id)
+        ]);
+        if (!isMounted || version !== loadVersion) return;
+
         setLikedSongs(cloudLikes);
         setPlaylists(cloudPlaylists);
         setUserPreferences(cloudPrefs);
-
-        // Prompt new user for music interests if not completed
-        if (!cloudPrefs || !cloudPrefs.onboarding_completed) {
-          setIsInterestPickerOpen(true);
-        }
-
-        showToast(`Signed in as ${u.email}`, 'success');
-      } else {
-        const offlineLikes = await offlineStorage.getLikedSongs();
-        const offlinePls = await offlineStorage.getPlaylists();
-        setLikedSongs(offlineLikes);
-        setPlaylists(offlinePls);
-        const guestPrefs = storage.getUserPreferences('guest');
-        setUserPreferences(guestPrefs);
+        setRecentlyPlayed(sanitizeHistory(cloudHistory));
+        setLibraryOwnerId(currentUser.id);
+        if (!cloudPrefs || !cloudPrefs.onboarding_completed) setIsInterestPickerOpen(true);
+        return;
       }
+
+      const [offlineLikes, offlinePlaylists, offlineHistory] = await Promise.all([
+        offlineStorage.getLikedSongs(),
+        offlineStorage.getPlaylists(),
+        offlineStorage.getHistory()
+      ]);
+      if (!isMounted || version !== loadVersion) return;
+
+      const localGuestHistory = storage.getRecentlyPlayed('guest');
+      const guestHistory = sanitizeHistory(localGuestHistory.length ? localGuestHistory : offlineHistory);
+      setLikedSongs(Array.isArray(offlineLikes) ? offlineLikes : []);
+      setPlaylists(Array.isArray(offlinePlaylists) ? offlinePlaylists : []);
+      setRecentlyPlayed(guestHistory);
+      setUserPreferences(storage.getUserPreferences('guest'));
+      setLibraryOwnerId('guest');
+      storage.saveRecentlyPlayed(guestHistory, 'guest');
+      if (guestHistory.length !== offlineHistory.length) offlineStorage.setHistory(guestHistory);
+    };
+
+    // Initial session load and auth changes share one versioned loader so a stale account response cannot replace the active user's history.
+    supabaseService.getCurrentUser().then(currentUser => {
+      if (!authEventSeen) return loadLibraryForUser(currentUser);
+      return undefined;
+    }).catch(() => {
+      if (!authEventSeen) return loadLibraryForUser(null);
+      return undefined;
+    });
+
+    const { data: { subscription } } = supabaseService.onAuthStateChange(async (event, session) => {
+      authEventSeen = true;
+      const activeUser = session?.user || null;
+      if (activeUser && event === 'SIGNED_IN') notifyAdminOnAuth(activeUser, 'Signed In');
+      await loadLibraryForUser(activeUser);
+      if (activeUser && isMounted) showToast(`Signed in as ${activeUser.email}`, 'success');
     });
 
     return () => {
+      isMounted = false;
+      loadVersion += 1;
       subscription?.unsubscribe();
     };
   }, [showToast]);
@@ -121,8 +125,9 @@ export function LibraryProvider({ children }) {
         updated = [track, ...prev];
         showToast(`Added "${track.title}" to Liked Songs`, 'success');
       }
-      storage.saveLikedSongs(updated);
-      offlineStorage.setLikedSongs(updated);
+      const ownerId = user?.id || 'guest';
+      storage.saveLikedSongs(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setLikedSongs(updated);
 
       if (user) {
         supabaseService.toggleLikeTrack(track, !exists, user.id);
@@ -144,8 +149,9 @@ export function LibraryProvider({ children }) {
 
     setPlaylists(prev => {
       const updated = [newPlaylist, ...prev];
-      storage.savePlaylists(updated);
-      offlineStorage.setPlaylists(updated);
+      const ownerId = user?.id || 'guest';
+      storage.savePlaylists(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
 
       if (user) {
         supabaseService.savePlaylist(newPlaylist, user.id);
@@ -168,8 +174,9 @@ export function LibraryProvider({ children }) {
         }
         return pl;
       });
-      storage.savePlaylists(updated);
-      offlineStorage.setPlaylists(updated);
+      const ownerId = user?.id || 'guest';
+      storage.savePlaylists(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
       return updated;
     });
     showToast('Playlist updated', 'success');
@@ -179,8 +186,9 @@ export function LibraryProvider({ children }) {
     setPlaylists(prev => {
       const target = prev.find(p => p.id === id);
       const updated = prev.filter(pl => pl.id !== id);
-      storage.savePlaylists(updated);
-      offlineStorage.setPlaylists(updated);
+      const ownerId = user?.id || 'guest';
+      storage.savePlaylists(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
       if (user) supabaseService.deletePlaylist(id, user.id);
       if (target) showToast(`Deleted playlist "${target.name}"`, 'info');
       return updated;
@@ -207,8 +215,9 @@ export function LibraryProvider({ children }) {
         }
         return pl;
       });
-      storage.savePlaylists(updated);
-      offlineStorage.setPlaylists(updated);
+      const ownerId = user?.id || 'guest';
+      storage.savePlaylists(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
       return updated;
     });
   }, [user, showToast]);
@@ -226,8 +235,9 @@ export function LibraryProvider({ children }) {
         }
         return pl;
       });
-      storage.savePlaylists(updated);
-      offlineStorage.setPlaylists(updated);
+      const ownerId = user?.id || 'guest';
+      storage.savePlaylists(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
       return updated;
     });
     showToast('Removed track from playlist', 'info');
@@ -236,21 +246,28 @@ export function LibraryProvider({ children }) {
   // Recently Played Management
   const addToRecent = useCallback((track) => {
     if (!track || !track.id) return;
+    const historyUserId = user?.id || 'guest';
+    const baseHistory = libraryOwnerId === historyUserId ? recentlyPlayed : storage.getRecentlyPlayed(historyUserId);
+    setLibraryOwnerId(historyUserId);
     setRecentlyPlayed(prev => {
-      const filtered = prev.filter(t => t.id !== track.id);
+      const source = libraryOwnerId === historyUserId ? prev : baseHistory;
+      const filtered = source.filter(t => t.id !== track.id);
       const updated = [track, ...filtered].slice(0, 30);
-      storage.saveRecentlyPlayed(updated);
-      offlineStorage.setHistory(updated);
+      storage.saveRecentlyPlayed(updated, historyUserId);
+      if (historyUserId === 'guest') offlineStorage.setHistory(updated);
       return updated;
     });
-  }, []);
+  }, [user, libraryOwnerId, recentlyPlayed]);
 
   const clearRecentlyPlayed = useCallback(() => {
+    const historyUserId = user?.id || 'guest';
     setRecentlyPlayed([]);
-    storage.saveRecentlyPlayed([]);
-    offlineStorage.setHistory([]);
+    setLibraryOwnerId(historyUserId);
+    storage.saveRecentlyPlayed([], historyUserId);
+    if (historyUserId === 'guest') offlineStorage.setHistory([]);
+    else supabaseService.clearHistory(historyUserId);
     showToast('Listening history cleared', 'info');
-  }, [showToast]);
+  }, [user, showToast]);
 
   // Settings Management
   const updateSettings = useCallback((newSettings) => {
@@ -289,6 +306,7 @@ export function LibraryProvider({ children }) {
         likedSongs,
         playlists,
         recentlyPlayed,
+        libraryOwnerId,
         settings,
         userPreferences,
         saveUserPreferences: savePreferences,

@@ -7,6 +7,7 @@ export default function TrackList({
   playlistId = null, 
   onRemoveFromPlaylist = null,
   onOpenAddToPlaylist = null,
+  onTrackPlay = null,
   emptyMessage = "No tracks found."
 }) {
   if (!tracks || tracks.length === 0) {
@@ -50,6 +51,7 @@ export default function TrackList({
           playlistId={playlistId}
           onRemoveFromPlaylist={onRemoveFromPlaylist}
           onOpenAddToPlaylist={onOpenAddToPlaylist}
+          onTrackPlay={onTrackPlay}
         />
       ))}
     </div>

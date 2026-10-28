@@ -9,6 +9,7 @@ import {
   SkipBack,
   SkipForward,
   Shuffle,
+  Radio,
   Repeat,
   Repeat1,
   Heart,
@@ -30,6 +31,7 @@ export default function FullscreenPlayer() {
     isMuted,
     shuffle,
     repeatMode,
+    autoplayEnabled,
     togglePlay,
     seekTo,
     nextTrack,
@@ -37,6 +39,7 @@ export default function FullscreenPlayer() {
     setVolumeLevel,
     toggleMute,
     toggleShuffle,
+    toggleAutoplay,
     cycleRepeat,
     isMobilePlayerOpen,
     setIsMobilePlayerOpen,
@@ -376,6 +379,21 @@ export default function FullscreenPlayer() {
             title={shuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
           >
             <Shuffle size={20} />
+          </button>
+
+          <button
+            onClick={toggleAutoplay}
+            aria-label={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
+            aria-pressed={autoplayEnabled}
+            style={{
+              color: autoplayEnabled ? 'var(--accent-solid)' : 'var(--text-muted)',
+              padding: '10px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
+          >
+            <Radio size={20} />
           </button>
 
           <button

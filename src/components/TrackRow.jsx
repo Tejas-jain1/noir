@@ -8,7 +8,8 @@ export default function TrackRow({
   index, 
   playlistId = null, 
   onRemoveFromPlaylist = null,
-  onOpenAddToPlaylist = null 
+  onOpenAddToPlaylist = null,
+  onTrackPlay = null
 }) {
   const { currentTrack, isPlaying, playTrack, togglePlay, addToQueue } = usePlayer();
   const { isLiked, toggleLike } = useLibrary();
@@ -19,13 +20,17 @@ export default function TrackRow({
   const isCurrent = currentTrack?.id === track.id;
   const isThisPlaying = isCurrent && isPlaying;
   const liked = isLiked(track.id);
+  const startTrack = (selectedTrack) => {
+    if (onTrackPlay) onTrackPlay(selectedTrack);
+    else playTrack(selectedTrack);
+  };
 
   const handlePlayToggle = (e) => {
     e.stopPropagation();
     if (isCurrent) {
       togglePlay();
     } else {
-      playTrack(track);
+      startTrack(track);
     }
   };
 
@@ -38,7 +43,7 @@ export default function TrackRow({
         setShowMenu(false);
       }}
       onClick={() => {
-        if (!isCurrent) playTrack(track);
+        if (!isCurrent) startTrack(track);
         else togglePlay();
       }}
       style={{
