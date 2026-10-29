@@ -5,11 +5,7 @@ import {
   Compass,
   Disc3,
   Flame,
-  Headphones,
-  HeartCrack,
-  MoonStar,
   Music2,
-  PartyPopper,
   Play,
   Radio,
   Sparkles,
@@ -18,27 +14,12 @@ import {
 import MusicCard from '../components/MusicCard';
 import { useLibrary } from '../context/LibraryContext';
 import { usePlayer } from '../context/PlayerContext';
+import { normalizeTrackTitle } from '../services/playbackUtils';
 import { saavnApi } from '../services/saavnApi';
 
-const MOOD_COLLECTIONS = [
-  { id: 'chill', name: 'Chill & Focus', description: 'Lo-fi, calm, and easy listening', query: 'lofi chill relaxing songs', icon: Headphones },
-  { id: 'heartbreak', name: 'Heartbreak', description: 'Emotional songs for quiet moments', query: 'sad heartbreak emotional songs', icon: HeartCrack },
-  { id: 'romantic', name: 'Romantic', description: 'Love songs and soft melodies', query: 'romantic love songs', icon: MoonStar },
-  { id: 'party', name: 'Party & Energy', description: 'Dance music for a louder mood', query: 'party dance energetic hits', icon: PartyPopper }
-];
-
-const GENRE_COLLECTIONS = [
-  { id: 'hip-hop', name: 'Hip-hop & Rap', query: 'hip hop rap songs' },
-  { id: 'pop', name: 'Pop', query: 'pop hits' },
-  { id: 'rnb', name: 'R&B & Soul', query: 'rnb soul songs' },
-  { id: 'electronic', name: 'Electronic', query: 'electronic edm dance music' },
-  { id: 'rock', name: 'Rock', query: 'rock alternative songs' },
-  { id: 'bollywood', name: 'Bollywood', query: 'latest bollywood songs' },
-  { id: 'punjabi', name: 'Punjabi', query: 'punjabi hits' },
-  { id: 'lofi', name: 'Lo-fi', query: 'lofi chillhop beats' }
-];
-
 const normalizeLabel = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const normalizeExploreTrackTitle = (title) => normalizeTrackTitle(String(title || '')
+  .replace(/\b(?:duet|female|male|trending|new|alternate|alternative)\s+version\s*$/i, ' '));
 const hasTrackIdentity = (track) => Boolean(track?.id && typeof track.title === 'string' && track.title.trim());
 
 const getPlayableTracks = (response) => response?.source === 'saavn_cdn' && Array.isArray(response.results)
@@ -52,6 +33,36 @@ const uniqueTracks = (tracks) => {
     seen.add(track.id);
     return true;
   });
+};
+
+const filterFreshTracks = (tracks, previouslyShown) => {
+  const seenIds = new Set((previouslyShown || []).map(track => track?.id).filter(Boolean));
+  const seenTitles = new Set((previouslyShown || []).map(track => normalizeExploreTrackTitle(track?.title)).filter(Boolean));
+
+  return uniqueTracks(tracks).filter(track => {
+    const title = normalizeExploreTrackTitle(track.title);
+    if (seenIds.has(track.id) || !title || seenTitles.has(title)) return false;
+    seenIds.add(track.id);
+    seenTitles.add(title);
+    return true;
+  });
+};
+
+const collectFreshTracks = async (initialTracks, loadPage, previouslyShown, startPage, minimumCount) => {
+  const freshTracks = [];
+  for (let offset = 0; offset < 4 && freshTracks.length < minimumCount; offset += 1) {
+    let candidates = initialTracks;
+    if (offset > 0) {
+      try {
+        candidates = await loadPage(startPage + offset);
+      } catch {
+        candidates = [];
+      }
+    }
+    const remaining = minimumCount - freshTracks.length;
+    freshTracks.push(...filterFreshTracks(candidates, [...previouslyShown, ...freshTracks]).slice(0, remaining));
+  }
+  return freshTracks;
 };
 
 const trackYear = (track) => {
@@ -167,7 +178,8 @@ export default function Explore({ onOpenAddToPlaylist }) {
   const navigate = useNavigate();
   const { playTrack } = usePlayer();
   const { playlists: savedPlaylists = [], showToast } = useLibrary();
-  const collectionRequestRef = useRef(0);
+  const feedRequestRef = useRef(0);
+  const shownFeedTracksRef = useRef([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [sectionErrors, setSectionErrors] = useState({});
@@ -176,25 +188,29 @@ export default function Explore({ onOpenAddToPlaylist }) {
   const [popularArtists, setPopularArtists] = useState([]);
   const [featuredAlbums, setFeaturedAlbums] = useState([]);
   const [featuredPlaylists, setFeaturedPlaylists] = useState([]);
-  const [selectedCollection, setSelectedCollection] = useState(null);
-  const [collectionTracks, setCollectionTracks] = useState([]);
-  const [collectionLoading, setCollectionLoading] = useState(false);
-  const [collectionError, setCollectionError] = useState('');
   const [openingPlaylistId, setOpeningPlaylistId] = useState('');
 
   useEffect(() => {
     let active = true;
+    const requestId = ++feedRequestRef.current;
     const loadExploreData = async () => {
       setLoading(true);
       setSectionErrors({});
+      setTrendingTracks([]);
+      setNewReleases([]);
+      setPopularArtists([]);
+      setFeaturedAlbums([]);
+      setFeaturedPlaylists([]);
       const currentYear = new Date().getFullYear();
+      const forceRefresh = reloadKey > 0;
+      const page = reloadKey + 1;
       const results = await Promise.allSettled([
-        saavnApi.getTrending(),
-        saavnApi.search(`latest songs ${currentYear}`),
-        saavnApi.getAutocomplete('top artists'),
-        saavnApi.getAutocomplete('trending')
+        saavnApi.getTrending({ forceRefresh, page }),
+        saavnApi.search(`latest songs ${currentYear}`, { forceRefresh, page }),
+        saavnApi.getAutocomplete('top artists', { forceRefresh }),
+        saavnApi.getAutocomplete('trending', { forceRefresh })
       ]);
-      if (!active) return;
+      if (!active || requestId !== feedRequestRef.current) return;
 
       const nextErrors = {};
       const [trendingResult, releaseResult, artistsResult, playlistsResult] = results;
@@ -203,12 +219,42 @@ export default function Explore({ onOpenAddToPlaylist }) {
         ? uniqueTracks(trendingResult.value.filter(track => track?.source === 'saavn_cdn' && track.audioUrl))
         : [];
       if (trendingResult.status === 'rejected' || liveTrending.length === 0) nextErrors.trending = 'Trending music could not be loaded.';
-      setTrendingTracks(liveTrending);
+      const previousTracks = shownFeedTracksRef.current;
+      const nextTrending = forceRefresh
+        ? await collectFreshTracks(
+          liveTrending,
+          pageNumber => saavnApi.getTrending({ forceRefresh: true, page: pageNumber }),
+          previousTracks,
+          page,
+          12
+        )
+        : liveTrending;
+      if (!active || requestId !== feedRequestRef.current) return;
+      setTrendingTracks(nextTrending);
 
       const latestResponse = releaseResult.status === 'fulfilled' ? releaseResult.value : null;
       const latestTracks = sortRecentTracks(getPlayableTracks(latestResponse));
       const recentTracks = latestTracks.filter(track => !trackYear(track) || trackYear(track) >= currentYear - 2);
-      setNewReleases((recentTracks.length >= 4 ? recentTracks : latestTracks).slice(0, 16));
+      const releaseCandidates = recentTracks.length >= 4 ? recentTracks : latestTracks;
+      const nextReleases = forceRefresh
+        ? await collectFreshTracks(
+          releaseCandidates,
+          async pageNumber => {
+            const response = await saavnApi.search(`latest songs ${currentYear}`, { forceRefresh: true, page: pageNumber });
+            const pageTracks = sortRecentTracks(getPlayableTracks(response));
+            const recentPageTracks = pageTracks.filter(track => !trackYear(track) || trackYear(track) >= currentYear - 2);
+            return recentPageTracks.length >= 4 ? recentPageTracks : pageTracks;
+          },
+          [...previousTracks, ...nextTrending],
+          page,
+          8
+        )
+        : releaseCandidates.slice(0, 16);
+      if (!active || requestId !== feedRequestRef.current) return;
+      setNewReleases(nextReleases);
+      shownFeedTracksRef.current = uniqueTracks(forceRefresh
+        ? [...shownFeedTracksRef.current, ...nextTrending, ...nextReleases]
+        : [...nextTrending, ...nextReleases]);
       if (releaseResult.status === 'rejected' || !latestResponse || latestResponse.source !== 'saavn_cdn') {
         nextErrors.releases = 'New releases are unavailable right now.';
       }
@@ -252,34 +298,6 @@ export default function Explore({ onOpenAddToPlaylist }) {
   }, [featuredAlbums, newReleases, trendingTracks]);
   const allSongs = useMemo(() => uniqueTracks([...newReleases, ...trendingTracks]), [newReleases, trendingTracks]);
   const actualSavedPlaylists = savedPlaylists.filter(playlist => Array.isArray(playlist?.tracks) && playlist.tracks.length > 0);
-
-  const loadCollection = async (collection) => {
-    const requestId = ++collectionRequestRef.current;
-    setSelectedCollection(collection);
-    setCollectionTracks([]);
-    setCollectionError('');
-    setCollectionLoading(true);
-    try {
-      const response = await saavnApi.search(collection.query);
-      if (requestId !== collectionRequestRef.current) return;
-      const tracks = getPlayableTracks(response);
-      if (response?.source !== 'saavn_cdn') {
-        setCollectionError('Live music results are unavailable right now.');
-      } else {
-        setCollectionTracks(uniqueTracks(tracks));
-      }
-    } catch (error) {
-      if (requestId !== collectionRequestRef.current) return;
-      console.warn(`Failed to load Explore collection "${collection.name}":`, error);
-      setCollectionError('This collection could not be loaded.');
-    } finally {
-      if (requestId === collectionRequestRef.current) setCollectionLoading(false);
-    }
-  };
-
-  const retryCollection = () => {
-    if (selectedCollection) loadCollection(selectedCollection);
-  };
 
   const handleFeaturedPlaylistClick = async (playlist) => {
     setOpeningPlaylistId(playlist.id);
@@ -328,10 +346,11 @@ export default function Explore({ onOpenAddToPlaylist }) {
     }
   };
 
-  const reloadExplore = () => setReloadKey(key => key + 1);
-  const renderCollectionAction = () => (
-    <span className="explore-card-arrow" aria-hidden="true"><ArrowRight size={17} /></span>
-  );
+  const reloadExplore = () => {
+    setLoading(true);
+    setSectionErrors({});
+    setReloadKey(key => key + 1);
+  };
 
   return (
     <div className="page-container explore-page">
@@ -341,7 +360,7 @@ export default function Explore({ onOpenAddToPlaylist }) {
           <div>
             <p className="explore-eyebrow">NOIR DISCOVERY</p>
             <h1>Explore music</h1>
-            <p>Find your next favorite in what’s moving, new, and made for your mood.</p>
+            <p>Find your next favorite in what’s moving, new, and worth another listen.</p>
           </div>
         </div>
         <button className="explore-refresh-button" type="button" onClick={reloadExplore} disabled={loading}>
@@ -352,7 +371,7 @@ export default function Explore({ onOpenAddToPlaylist }) {
 
       <TrackRail
         title="Trending now"
-        subtitle="Live chart favorites from Saavn"
+        subtitle={reloadKey === 0 ? 'Live chart favorites from Saavn' : 'Fresh catalog results from Saavn'}
         icon={<Flame size={19} />}
         tracks={trendingTracks}
         loading={loading}
@@ -487,72 +506,10 @@ export default function Explore({ onOpenAddToPlaylist }) {
         )}
       </section>
 
-      <section className="explore-section">
-        <SectionHeading icon={<MoonStar size={19} />} title="Find a mood" subtitle="Choose a mood to load matching songs from the live catalog" />
-        <div className="explore-collection-grid">
-          {MOOD_COLLECTIONS.map(collection => {
-            const Icon = collection.icon;
-            const isSelected = selectedCollection?.id === collection.id;
-            return (
-              <button
-                className={`explore-collection-card${isSelected ? ' selected' : ''}`}
-                key={collection.id}
-                type="button"
-                onClick={() => loadCollection(collection)}
-                aria-pressed={isSelected}
-              >
-                <span className="explore-collection-number">MOOD RADIO</span>
-                <span className="explore-collection-icon"><Icon size={19} /></span>
-                <strong>{collection.name}</strong>
-                <span className="explore-collection-description">{collection.description}</span>
-                {renderCollectionAction()}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="explore-section">
-        <SectionHeading icon={<Radio size={19} />} title="Browse by genre" subtitle="Pick a sound and explore real tracks from Saavn" />
-        <div className="explore-genre-grid">
-          {GENRE_COLLECTIONS.map(collection => {
-            const isSelected = selectedCollection?.id === collection.id;
-            return (
-              <button
-                className={`explore-genre-card${isSelected ? ' selected' : ''}`}
-                key={collection.id}
-                type="button"
-                onClick={() => loadCollection(collection)}
-                aria-pressed={isSelected}
-              >
-                <span>{collection.name}</span>
-                <ArrowRight size={16} />
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {selectedCollection && (
-        <div className="explore-selected-collection">
-          <TrackRail
-            title={selectedCollection.name}
-            subtitle={selectedCollection.description || `Songs from ${selectedCollection.name}`}
-            icon={<Sparkles size={19} />}
-            tracks={collectionTracks}
-            loading={collectionLoading}
-            error={collectionError}
-            emptyText={`No playable songs were found for ${selectedCollection.name}.`}
-            onRetry={retryCollection}
-            onOpenAddToPlaylist={onOpenAddToPlaylist}
-          />
-        </div>
-      )}
-
       {!loading && allSongs.length === 0 && Object.values(sectionErrors).some(Boolean) && (
         <div className="explore-page-empty" role="status">
           <Music2 size={22} />
-          <p>Live discovery is having trouble connecting. Mood and genre searches may still work.</p>
+          <p>Live discovery is having trouble connecting. Refresh to try loading the feed again.</p>
           <button type="button" onClick={reloadExplore}>Retry discovery</button>
         </div>
       )}

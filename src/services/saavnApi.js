@@ -133,10 +133,12 @@ export function formatSaavnTrack(item) {
 }
 
 // Fetch helper with multi-tier proxy & fallback
-async function fetchSaavnQuery(paramsString) {
+async function fetchSaavnQuery(paramsString, { forceRefresh = false } = {}) {
+  const cacheOptions = forceRefresh ? { cache: 'no-store' } : undefined;
+
   // 1. Try proxied endpoint (Vite dev proxy or Vercel production rewrite)
   try {
-    const res = await fetch(`${JIOSAAVN_PROXY_PATH}?${paramsString}`);
+    const res = await fetch(`${JIOSAAVN_PROXY_PATH}?${paramsString}`, cacheOptions);
     if (res.ok) {
       const data = await res.json();
       return data;
@@ -148,7 +150,8 @@ async function fetchSaavnQuery(paramsString) {
   // 2. Try direct fetch (if CORS allowed)
   try {
     const res = await fetch(`${JIOSAAVN_DIRECT_URL}?${paramsString}`, {
-      headers: { 'Accept': 'application/json' }
+      headers: { 'Accept': 'application/json' },
+      ...cacheOptions
     });
     if (res.ok) {
       const data = await res.json();
@@ -162,7 +165,7 @@ async function fetchSaavnQuery(paramsString) {
   try {
     const targetUrl = `${JIOSAAVN_DIRECT_URL}?${paramsString}`;
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    const res = await fetch(proxyUrl);
+    const res = await fetch(proxyUrl, cacheOptions);
     if (res.ok) {
       const data = await res.json();
       return data;
@@ -176,7 +179,7 @@ async function fetchSaavnQuery(paramsString) {
 
 export const saavnApi = {
   // Search tracks using JioSaavn CDN
-  search: async (query) => {
+  search: async (query, { forceRefresh = false, page = 1 } = {}) => {
     if (!query || !query.trim()) {
       return {
         results: [],
@@ -186,8 +189,9 @@ export const saavnApi = {
     }
 
     try {
-      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(query.trim())}&n=30&p=1`;
-      const data = await fetchSaavnQuery(params);
+      const requestedPage = Math.max(1, Math.floor(Number(page) || 1));
+      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(query.trim())}&n=30&p=${requestedPage}`;
+      const data = await fetchSaavnQuery(params, { forceRefresh });
 
       if (data && data.results && data.results.length > 0) {
         const tracks = data.results
@@ -216,25 +220,29 @@ export const saavnApi = {
   },
 
   // Get Top Trending Songs directly from Saavn CDN
-  getTrending: async () => {
+  getTrending: async ({ forceRefresh = false, page = 1 } = {}) => {
+    const requestedPage = Math.max(1, Math.floor(Number(page) || 1));
     try {
-      // 1. Try official India Superhits Top 50 Chart playlist
-      const chartParams = `__call=playlist.getDetails&_format=json&listid=1134543272&api_version=4&ctx=web6dot0`;
-      const chartData = await fetchSaavnQuery(chartParams);
+      // Keep the official chart for the initial feed; subsequent refreshes use
+      // real paginated Saavn search results so the visible songs can change.
+      if (requestedPage === 1) {
+        const chartParams = `__call=playlist.getDetails&_format=json&listid=1134543272&api_version=4&ctx=web6dot0`;
+        const chartData = await fetchSaavnQuery(chartParams, { forceRefresh });
 
-      if (chartData && Array.isArray(chartData.list) && chartData.list.length > 0) {
-        const tracks = chartData.list
-          .map(formatSaavnTrack)
-          .filter(t => Boolean(t && t.audioUrl));
+        if (chartData && Array.isArray(chartData.list) && chartData.list.length > 0) {
+          const tracks = chartData.list
+            .map(formatSaavnTrack)
+            .filter(t => Boolean(t && t.audioUrl));
 
-        if (tracks.length > 0) {
-          return tracks;
+          if (tracks.length > 0) {
+            return tracks;
+          }
         }
       }
 
-      // 2. Fallback query for top trending hits from Saavn
-      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=trending%20top%20hits&n=25`;
-      const data = await fetchSaavnQuery(params);
+      // Search another real catalog page on refresh rather than repeating the same chart.
+      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=trending%20top%20hits&n=25&p=${requestedPage}`;
+      const data = await fetchSaavnQuery(params, { forceRefresh });
 
       if (data && data.results && data.results.length > 0) {
         const tracks = data.results
@@ -323,19 +331,20 @@ export const saavnApi = {
   },
 
   // Autocomplete / Live suggestions with typo & fuzzy matching
-  getAutocomplete: async (query) => {
+  getAutocomplete: async (query, { forceRefresh = false } = {}) => {
     if (!query || !query.trim()) return null;
     const cleanKey = query.trim().toLowerCase();
 
     // Check cache
     const cached = suggestionsCache.get(cleanKey);
-    if (cached && Date.now() - cached.ts < SUGGESTIONS_CACHE_TTL) {
+    if (!forceRefresh && cached && Date.now() - cached.ts < SUGGESTIONS_CACHE_TTL) {
       return cached.data;
     }
+    if (forceRefresh) suggestionsCache.delete(cleanKey);
 
     try {
       const params = `__call=autocomplete.get&_format=json&_marker=0&ctx=web6dot0&query=${encodeURIComponent(cleanKey)}`;
-      const data = await fetchSaavnQuery(params);
+      const data = await fetchSaavnQuery(params, { forceRefresh });
 
       if (!data) return null;
 
