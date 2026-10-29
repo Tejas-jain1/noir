@@ -1,126 +1,561 @@
-import React, { useState } from 'react';
-import { MOCK_TRACKS, EXPLORE_GENRES } from '../services/mockCatalog';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ArrowRight,
+  Compass,
+  Disc3,
+  Flame,
+  Headphones,
+  HeartCrack,
+  MoonStar,
+  Music2,
+  PartyPopper,
+  Play,
+  Radio,
+  Sparkles,
+  Users
+} from 'lucide-react';
 import MusicCard from '../components/MusicCard';
-import { Compass } from 'lucide-react';
+import { useLibrary } from '../context/LibraryContext';
+import { usePlayer } from '../context/PlayerContext';
+import { saavnApi } from '../services/saavnApi';
 
-const MOODS = [
-  { name: 'Late Night Vibe', desc: 'Dark, melodic synthwave and midnight soul', query: 'synthwave' },
-  { name: 'Deep Focus', desc: 'Instrumental cadence, lo-fi, and acoustic calm', query: 'lofi' },
-  { name: 'High Energy', desc: 'Punchy bass, hip-hop rhythm, and stadium anthems', query: 'hiphop' },
-  { name: 'Pure Melancholy', desc: 'Gentle vocals, piano reverbs, and indie acoustics', query: 'rock' }
+const MOOD_COLLECTIONS = [
+  { id: 'chill', name: 'Chill & Focus', description: 'Lo-fi, calm, and easy listening', query: 'lofi chill relaxing songs', icon: Headphones },
+  { id: 'heartbreak', name: 'Heartbreak', description: 'Emotional songs for quiet moments', query: 'sad heartbreak emotional songs', icon: HeartCrack },
+  { id: 'romantic', name: 'Romantic', description: 'Love songs and soft melodies', query: 'romantic love songs', icon: MoonStar },
+  { id: 'party', name: 'Party & Energy', description: 'Dance music for a louder mood', query: 'party dance energetic hits', icon: PartyPopper }
 ];
 
-export default function Explore({ onOpenAddToPlaylist }) {
-  const [selectedGenre, setSelectedGenre] = useState('all');
+const GENRE_COLLECTIONS = [
+  { id: 'hip-hop', name: 'Hip-hop & Rap', query: 'hip hop rap songs' },
+  { id: 'pop', name: 'Pop', query: 'pop hits' },
+  { id: 'rnb', name: 'R&B & Soul', query: 'rnb soul songs' },
+  { id: 'electronic', name: 'Electronic', query: 'electronic edm dance music' },
+  { id: 'rock', name: 'Rock', query: 'rock alternative songs' },
+  { id: 'bollywood', name: 'Bollywood', query: 'latest bollywood songs' },
+  { id: 'punjabi', name: 'Punjabi', query: 'punjabi hits' },
+  { id: 'lofi', name: 'Lo-fi', query: 'lofi chillhop beats' }
+];
 
-  const filteredTracks = selectedGenre === 'all'
-    ? MOCK_TRACKS
-    : MOCK_TRACKS.filter(t => t.genre.toLowerCase().includes(selectedGenre) || (t.album && t.album.toLowerCase().includes(selectedGenre)));
+const normalizeLabel = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const hasTrackIdentity = (track) => Boolean(track?.id && typeof track.title === 'string' && track.title.trim());
 
+const getPlayableTracks = (response) => response?.source === 'saavn_cdn' && Array.isArray(response.results)
+  ? response.results.filter(track => hasTrackIdentity(track) && track.audioUrl)
+  : [];
+
+const uniqueTracks = (tracks) => {
+  const seen = new Set();
+  return tracks.filter(track => {
+    if (!hasTrackIdentity(track) || seen.has(track.id)) return false;
+    seen.add(track.id);
+    return true;
+  });
+};
+
+const trackYear = (track) => {
+  const match = String(track?.releaseDate || track?.year || '').match(/(?:19|20)\d{2}/);
+  return match ? Number(match[0]) : 0;
+};
+
+const sortRecentTracks = (tracks) => {
+  const unique = uniqueTracks(tracks);
+  const withDates = unique.some(track => trackYear(track) > 0);
+  if (!withDates) return unique;
+  return unique.sort((a, b) => trackYear(b) - trackYear(a));
+};
+
+const buildAlbumCards = (tracks) => {
+  const albums = new Map();
+  for (const track of uniqueTracks(tracks)) {
+    const title = String(track.album || '').trim();
+    const key = normalizeLabel(title);
+    if (!title || !key || ['single', 'unknownalbum'].includes(key)) continue;
+    const album = albums.get(key) || {
+      id: key,
+      title,
+      artist: track.artist || 'Various Artists',
+      image: track.thumbnail || '',
+      year: track.year || '',
+      tracks: []
+    };
+    if (!album.tracks.some(item => item.id === track.id)) album.tracks.push(track);
+    albums.set(key, album);
+  }
+  return [...albums.values()].slice(0, 12);
+};
+
+const artistsFromTracks = (tracks) => {
+  const artists = new Map();
+  for (const track of uniqueTracks(tracks)) {
+    const name = String(track.artist || '').split(',')[0].trim();
+    const key = normalizeLabel(name);
+    if (name && key && !artists.has(key)) {
+      artists.set(key, { id: key, name, image: track.thumbnail || '', role: 'Artist' });
+    }
+  }
+  return [...artists.values()].slice(0, 10);
+};
+
+function SectionHeading({ icon, title, subtitle, action }) {
   return (
-    <div className="page-container">
-      {/* Page Title */}
+    <div className="explore-section-heading">
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Compass size={22} />
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Explore Genres & Moods</h1>
-        </div>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-          Curated musical textures crafted for monochrome aesthetics
-        </p>
+        <h2>{icon}<span>{title}</span></h2>
+        {subtitle && <p>{subtitle}</p>}
       </div>
+      {action}
+    </div>
+  );
+}
 
-      {/* Mood Showcase Banners */}
-      <div className="explore-moods-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-        {MOODS.map((mood, idx) => (
-          <div
-            key={mood.name}
-            onClick={() => setSelectedGenre(mood.query)}
-            style={{
-              padding: '20px',
-              borderRadius: 'var(--radius-lg)',
-              backgroundColor: 'var(--bg-secondary)',
-              border: `1px solid ${selectedGenre === mood.query ? 'var(--accent-solid)' : 'var(--border-medium)'}`,
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              minHeight: '120px',
-              boxShadow: 'var(--shadow-sm)',
-              transition: 'transform var(--transition-fast), border-color var(--transition-fast)'
-            }}
-          >
-            <div>
-              <span style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
-                Mood 0{idx + 1}
-              </span>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '4px 0 2px' }}>
-                {mood.name}
-              </h3>
-            </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              {mood.desc}
-            </p>
+function SectionMessage({ loading, error, emptyText, onRetry }) {
+  if (loading) {
+    return (
+      <div className="explore-track-rail" aria-label="Loading music">
+        {[0, 1, 2, 3, 4].map(index => (
+          <div className="explore-skeleton-card" key={index} aria-hidden="true">
+            <div className="explore-skeleton-art" />
+            <div className="explore-skeleton-line" />
+            <div className="explore-skeleton-line short" />
           </div>
         ))}
       </div>
+    );
+  }
 
-      {/* Genre Filter Pills */}
-      <div style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}>
-        <div className="explore-pills-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', paddingBottom: '6px', scrollbarWidth: 'none', width: '100%', maxWidth: '100%', minWidth: 0 }}>
-          {EXPLORE_GENRES.map(genre => {
-            const isActive = selectedGenre === genre.id;
+  if (!error) return <div className="explore-empty" role="status">{emptyText}</div>;
+  return (
+    <div className="explore-empty" role="status">
+      <span>{error}</span>
+      {onRetry && <button type="button" onClick={onRetry}>Try again</button>}
+    </div>
+  );
+}
+
+function TrackRail({ title, subtitle, icon, tracks, loading, error, emptyText, onRetry, onOpenAddToPlaylist }) {
+  return (
+    <section className="explore-section">
+      <SectionHeading icon={icon} title={title} subtitle={subtitle} />
+      {tracks.length > 0 ? (
+        <div className="explore-track-rail">
+          {tracks.map(track => (
+            <div className="explore-track-card" key={track.id}>
+              <MusicCard track={track} playQueue={tracks} onOpenAddToPlaylist={onOpenAddToPlaylist} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <SectionMessage loading={loading} error={error} emptyText={emptyText} onRetry={onRetry} />
+      )}
+    </section>
+  );
+}
+
+function ArtworkFallback({ children, visible = false }) {
+  return <span className="explore-artwork-fallback" style={{ display: visible ? 'flex' : 'none' }} aria-hidden="true">{children}</span>;
+}
+
+function handleArtworkError(event) {
+  event.currentTarget.style.display = 'none';
+  const fallback = event.currentTarget.nextElementSibling;
+  if (fallback?.classList.contains('explore-artwork-fallback')) fallback.style.display = 'flex';
+}
+
+export default function Explore({ onOpenAddToPlaylist }) {
+  const navigate = useNavigate();
+  const { playTrack } = usePlayer();
+  const { playlists: savedPlaylists = [], showToast } = useLibrary();
+  const collectionRequestRef = useRef(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [sectionErrors, setSectionErrors] = useState({});
+  const [trendingTracks, setTrendingTracks] = useState([]);
+  const [newReleases, setNewReleases] = useState([]);
+  const [popularArtists, setPopularArtists] = useState([]);
+  const [featuredAlbums, setFeaturedAlbums] = useState([]);
+  const [featuredPlaylists, setFeaturedPlaylists] = useState([]);
+  const [selectedCollection, setSelectedCollection] = useState(null);
+  const [collectionTracks, setCollectionTracks] = useState([]);
+  const [collectionLoading, setCollectionLoading] = useState(false);
+  const [collectionError, setCollectionError] = useState('');
+  const [openingPlaylistId, setOpeningPlaylistId] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadExploreData = async () => {
+      setLoading(true);
+      setSectionErrors({});
+      const currentYear = new Date().getFullYear();
+      const results = await Promise.allSettled([
+        saavnApi.getTrending(),
+        saavnApi.search(`latest songs ${currentYear}`),
+        saavnApi.getAutocomplete('top artists'),
+        saavnApi.getAutocomplete('trending')
+      ]);
+      if (!active) return;
+
+      const nextErrors = {};
+      const [trendingResult, releaseResult, artistsResult, playlistsResult] = results;
+
+      const liveTrending = trendingResult.status === 'fulfilled' && Array.isArray(trendingResult.value)
+        ? uniqueTracks(trendingResult.value.filter(track => track?.source === 'saavn_cdn' && track.audioUrl))
+        : [];
+      if (trendingResult.status === 'rejected' || liveTrending.length === 0) nextErrors.trending = 'Trending music could not be loaded.';
+      setTrendingTracks(liveTrending);
+
+      const latestResponse = releaseResult.status === 'fulfilled' ? releaseResult.value : null;
+      const latestTracks = sortRecentTracks(getPlayableTracks(latestResponse));
+      const recentTracks = latestTracks.filter(track => !trackYear(track) || trackYear(track) >= currentYear - 2);
+      setNewReleases((recentTracks.length >= 4 ? recentTracks : latestTracks).slice(0, 16));
+      if (releaseResult.status === 'rejected' || !latestResponse || latestResponse.source !== 'saavn_cdn') {
+        nextErrors.releases = 'New releases are unavailable right now.';
+      }
+
+      const artistsResponse = artistsResult.status === 'fulfilled' ? artistsResult.value : null;
+      const apiArtists = (artistsResponse?.artists || [])
+        .filter(artist => artist?.id && artist?.name)
+        .filter((artist, index, list) => list.findIndex(item => normalizeLabel(item.name) === normalizeLabel(artist.name)) === index)
+        .slice(0, 10);
+      setPopularArtists(apiArtists.length > 0 ? apiArtists : artistsFromTracks([...liveTrending, ...latestTracks]));
+      if (artistsResult.status === 'rejected' || !artistsResponse) nextErrors.artists = 'Popular artists could not be loaded.';
+
+      const playlistsResponse = playlistsResult.status === 'fulfilled' ? playlistsResult.value : null;
+      const apiAlbums = (playlistsResponse?.albums || [])
+        .filter(album => album?.id && album?.title && Array.isArray(album.trackIds) && album.trackIds.length > 0)
+        .filter(album => !['releases', 'unknownalbum'].includes(normalizeLabel(album.title)))
+        .slice(0, 8);
+      setFeaturedAlbums(apiAlbums);
+      const apiPlaylists = (playlistsResponse?.playlists || [])
+        .filter(playlist => playlist?.id && playlist?.title)
+        .filter((playlist, index, list) => list.findIndex(item => item.id === playlist.id) === index)
+        .slice(0, 6);
+      setFeaturedPlaylists(apiPlaylists);
+      if (playlistsResult.status === 'rejected' || !playlistsResponse || apiPlaylists.length === 0) {
+        nextErrors.playlists = 'Featured playlists could not be loaded.';
+      }
+
+      setSectionErrors(nextErrors);
+      setLoading(false);
+    };
+
+    loadExploreData();
+    return () => { active = false; };
+  }, [reloadKey]);
+
+  const albums = useMemo(() => {
+    const liveAlbumCards = featuredAlbums.map(album => ({ ...album, key: `saavn-${album.id}`, tracks: [] }));
+    const trackAlbumCards = buildAlbumCards([...newReleases, ...trendingTracks]);
+    const seen = new Set(liveAlbumCards.map(album => normalizeLabel(album.title)));
+    return [...liveAlbumCards, ...trackAlbumCards.filter(album => !seen.has(normalizeLabel(album.title)))].slice(0, 12);
+  }, [featuredAlbums, newReleases, trendingTracks]);
+  const allSongs = useMemo(() => uniqueTracks([...newReleases, ...trendingTracks]), [newReleases, trendingTracks]);
+  const actualSavedPlaylists = savedPlaylists.filter(playlist => Array.isArray(playlist?.tracks) && playlist.tracks.length > 0);
+
+  const loadCollection = async (collection) => {
+    const requestId = ++collectionRequestRef.current;
+    setSelectedCollection(collection);
+    setCollectionTracks([]);
+    setCollectionError('');
+    setCollectionLoading(true);
+    try {
+      const response = await saavnApi.search(collection.query);
+      if (requestId !== collectionRequestRef.current) return;
+      const tracks = getPlayableTracks(response);
+      if (response?.source !== 'saavn_cdn') {
+        setCollectionError('Live music results are unavailable right now.');
+      } else {
+        setCollectionTracks(uniqueTracks(tracks));
+      }
+    } catch (error) {
+      if (requestId !== collectionRequestRef.current) return;
+      console.warn(`Failed to load Explore collection "${collection.name}":`, error);
+      setCollectionError('This collection could not be loaded.');
+    } finally {
+      if (requestId === collectionRequestRef.current) setCollectionLoading(false);
+    }
+  };
+
+  const retryCollection = () => {
+    if (selectedCollection) loadCollection(selectedCollection);
+  };
+
+  const handleFeaturedPlaylistClick = async (playlist) => {
+    setOpeningPlaylistId(playlist.id);
+    try {
+      const details = await saavnApi.getPlaylistDetails(playlist.id);
+      const tracks = uniqueTracks(details?.tracks || []);
+      if (tracks.length > 0) {
+        playTrack(tracks[0], tracks);
+        showToast(`Playing ${details.title || playlist.title}`, 'success');
+      } else if (!details) {
+        showToast('This playlist could not be loaded', 'error');
+      } else {
+        showToast(`No playable tracks are available in ${playlist.title}`, 'info');
+      }
+    } catch (error) {
+      console.warn(`Failed to open playlist "${playlist.title}":`, error);
+      showToast('This playlist could not be loaded', 'error');
+    } finally {
+      setOpeningPlaylistId('');
+    }
+  };
+
+  const handleAlbumClick = async (album) => {
+    if (!album.trackIds?.length) {
+      if (album.tracks?.length) playTrack(album.tracks[0], album.tracks);
+      else showToast(`No playable songs are available for ${album.title}`, 'info');
+      return;
+    }
+
+    setOpeningPlaylistId(`album-${album.id}`);
+    try {
+      const tracks = uniqueTracks(await saavnApi.getAlbumTracks(album.trackIds));
+      if (tracks.length > 0) {
+        playTrack(tracks[0], tracks);
+        showToast(`Playing ${album.title}`, 'success');
+      } else if (album.tracks?.length) {
+        playTrack(album.tracks[0], album.tracks);
+      } else {
+        showToast(`No playable songs are available for ${album.title}`, 'info');
+      }
+    } catch (error) {
+      console.warn(`Failed to load album "${album.title}":`, error);
+      showToast(`This album could not be loaded`, 'error');
+    } finally {
+      setOpeningPlaylistId('');
+    }
+  };
+
+  const reloadExplore = () => setReloadKey(key => key + 1);
+  const renderCollectionAction = () => (
+    <span className="explore-card-arrow" aria-hidden="true"><ArrowRight size={17} /></span>
+  );
+
+  return (
+    <div className="page-container explore-page">
+      <header className="explore-page-header">
+        <div className="explore-page-title">
+          <span className="explore-page-icon"><Compass size={22} /></span>
+          <div>
+            <p className="explore-eyebrow">NOIR DISCOVERY</p>
+            <h1>Explore music</h1>
+            <p>Find your next favorite in what’s moving, new, and made for your mood.</p>
+          </div>
+        </div>
+        <button className="explore-refresh-button" type="button" onClick={reloadExplore} disabled={loading}>
+          <Radio size={16} />
+          <span>{loading ? 'Refreshing' : 'Refresh'}</span>
+        </button>
+      </header>
+
+      <TrackRail
+        title="Trending now"
+        subtitle="Live chart favorites from Saavn"
+        icon={<Flame size={19} />}
+        tracks={trendingTracks}
+        loading={loading}
+        error={sectionErrors.trending}
+        emptyText="No trending tracks are available right now."
+        onRetry={reloadExplore}
+        onOpenAddToPlaylist={onOpenAddToPlaylist}
+      />
+
+      <TrackRail
+        title="New releases"
+        subtitle="Recent songs surfaced by the live catalog"
+        icon={<Sparkles size={19} />}
+        tracks={newReleases}
+        loading={loading}
+        error={sectionErrors.releases}
+        emptyText="No new releases are available right now."
+        onRetry={reloadExplore}
+        onOpenAddToPlaylist={onOpenAddToPlaylist}
+      />
+
+      <section className="explore-section">
+        <SectionHeading icon={<Users size={19} />} title="Popular artists" subtitle="Artists surfaced by Saavn’s live catalog" />
+        {loading ? (
+          <div className="explore-entity-rail" aria-label="Loading artists">
+            {[0, 1, 2, 3, 4, 5].map(index => <div className="explore-artist-skeleton" key={index}><div /><span /><span /></div>)}
+          </div>
+        ) : popularArtists.length > 0 ? (
+          <div className="explore-entity-rail">
+            {popularArtists.map(artist => (
+              <button
+                className="explore-artist-card"
+                key={artist.id}
+                type="button"
+                onClick={() => navigate(`/artist/${encodeURIComponent(artist.name)}`)}
+                aria-label={`Explore ${artist.name}`}
+              >
+                <span className="explore-artist-artwork">
+                  {artist.image ? <><img src={artist.image} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Users size={24} /></ArtworkFallback></> : <ArtworkFallback visible><Users size={24} /></ArtworkFallback>}
+                </span>
+                <strong>{artist.name}</strong>
+                <span>{artist.role || 'Artist'}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <SectionMessage error={sectionErrors.artists} emptyText="Artist discovery is empty right now." onRetry={reloadExplore} />
+        )}
+      </section>
+
+      <section className="explore-section">
+        <SectionHeading icon={<Disc3 size={19} />} title="Albums to explore" subtitle="Albums grouped from live songs and chart results" />
+        {loading ? (
+          <div className="explore-entity-rail" aria-label="Loading albums">
+            {[0, 1, 2, 3, 4].map(index => <div className="explore-entity-skeleton" key={index}><div /><span /><span /></div>)}
+          </div>
+        ) : albums.length > 0 ? (
+          <div className="explore-entity-rail">
+            {albums.map(album => (
+              <button
+                className="explore-album-card"
+                key={album.key || album.id}
+                type="button"
+                onClick={() => handleAlbumClick(album)}
+                disabled={openingPlaylistId === `album-${album.id}`}
+                aria-label={`Play ${album.title} by ${album.artist}`}
+              >
+                <span className="explore-entity-artwork">
+                  {album.image ? <><img src={album.image} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Disc3 size={25} /></ArtworkFallback></> : <ArtworkFallback visible><Disc3 size={25} /></ArtworkFallback>}
+                  <span className="explore-play-overlay">
+                    {openingPlaylistId === `album-${album.id}` ? <span className="explore-mini-spinner" /> : <Play size={18} fill="currentColor" />}
+                  </span>
+                </span>
+                <strong>{album.title}</strong>
+                <span>{album.artist}{album.year ? ` · ${album.year}` : ''}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <SectionMessage emptyText="Albums will appear here when the live catalog returns music." />
+        )}
+      </section>
+
+      <section className="explore-section">
+        <SectionHeading icon={<Music2 size={19} />} title="Featured playlists" subtitle="Live Saavn playlists and your saved collections" />
+        {loading ? (
+          <div className="explore-entity-rail" aria-label="Loading playlists">
+            {[0, 1, 2, 3, 4].map(index => <div className="explore-entity-skeleton" key={index}><div /><span /><span /></div>)}
+          </div>
+        ) : featuredPlaylists.length > 0 || actualSavedPlaylists.length > 0 ? (
+          <div className="explore-entity-rail">
+            {featuredPlaylists.map(playlist => (
+              <button
+                className="explore-playlist-card"
+                key={`saavn-${playlist.id}`}
+                type="button"
+                onClick={() => handleFeaturedPlaylistClick(playlist)}
+                disabled={openingPlaylistId === playlist.id}
+                aria-label={`Play playlist ${playlist.title}`}
+              >
+                <span className="explore-entity-artwork">
+                  {playlist.image ? <><img src={playlist.image} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></> : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
+                  <span className="explore-play-overlay">
+                    {openingPlaylistId === playlist.id ? <span className="explore-mini-spinner" /> : <Play size={18} fill="currentColor" />}
+                  </span>
+                </span>
+                <strong>{playlist.title}</strong>
+                <span>{playlist.description || 'Featured on Saavn'}</span>
+              </button>
+            ))}
+            {actualSavedPlaylists.map(playlist => (
+              <button
+                className="explore-playlist-card"
+                key={`local-${playlist.id}`}
+                type="button"
+                onClick={() => navigate(`/playlist/${encodeURIComponent(playlist.id)}`)}
+                aria-label={`Open playlist ${playlist.name}`}
+              >
+                <span className="explore-entity-artwork">
+                  {playlist.coverUrl || playlist.tracks?.[0]?.thumbnail
+                    ? <><img src={playlist.coverUrl || playlist.tracks[0].thumbnail} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></>
+                    : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
+                  <span className="explore-play-overlay"><ArrowRight size={18} /></span>
+                </span>
+                <strong>{playlist.name}</strong>
+                <span>Your playlist</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <SectionMessage error={sectionErrors.playlists} emptyText="No featured or saved playlists are available right now." onRetry={reloadExplore} />
+        )}
+      </section>
+
+      <section className="explore-section">
+        <SectionHeading icon={<MoonStar size={19} />} title="Find a mood" subtitle="Choose a mood to load matching songs from the live catalog" />
+        <div className="explore-collection-grid">
+          {MOOD_COLLECTIONS.map(collection => {
+            const Icon = collection.icon;
+            const isSelected = selectedCollection?.id === collection.id;
             return (
               <button
-                key={genre.id}
-                onClick={() => setSelectedGenre(genre.id)}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: isActive ? 'var(--accent-solid)' : 'var(--bg-card)',
-                  color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
-                  border: `1px solid ${isActive ? 'var(--accent-solid)' : 'var(--border-subtle)'}`,
-                  fontSize: '0.775rem',
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  transition: 'all var(--transition-fast)'
-                }}
+                className={`explore-collection-card${isSelected ? ' selected' : ''}`}
+                key={collection.id}
+                type="button"
+                onClick={() => loadCollection(collection)}
+                aria-pressed={isSelected}
               >
-                {genre.name}
+                <span className="explore-collection-number">MOOD RADIO</span>
+                <span className="explore-collection-icon"><Icon size={19} /></span>
+                <strong>{collection.name}</strong>
+                <span className="explore-collection-description">{collection.description}</span>
+                {renderCollectionAction()}
               </button>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* Track Grid */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-            {selectedGenre === 'all' ? 'All Soundscapes' : `Filtered: ${selectedGenre.toUpperCase()}`}
-          </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {filteredTracks.length} tracks
-          </span>
-        </div>
-
-        <div
-          className="mobile-cards-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '16px'
-          }}
-        >
-          {filteredTracks.map(track => (
-            <MusicCard
-              key={track.id}
-              track={track}
-              onOpenAddToPlaylist={onOpenAddToPlaylist}
-            />
-          ))}
+      <section className="explore-section">
+        <SectionHeading icon={<Radio size={19} />} title="Browse by genre" subtitle="Pick a sound and explore real tracks from Saavn" />
+        <div className="explore-genre-grid">
+          {GENRE_COLLECTIONS.map(collection => {
+            const isSelected = selectedCollection?.id === collection.id;
+            return (
+              <button
+                className={`explore-genre-card${isSelected ? ' selected' : ''}`}
+                key={collection.id}
+                type="button"
+                onClick={() => loadCollection(collection)}
+                aria-pressed={isSelected}
+              >
+                <span>{collection.name}</span>
+                <ArrowRight size={16} />
+              </button>
+            );
+          })}
         </div>
       </section>
+
+      {selectedCollection && (
+        <div className="explore-selected-collection">
+          <TrackRail
+            title={selectedCollection.name}
+            subtitle={selectedCollection.description || `Songs from ${selectedCollection.name}`}
+            icon={<Sparkles size={19} />}
+            tracks={collectionTracks}
+            loading={collectionLoading}
+            error={collectionError}
+            emptyText={`No playable songs were found for ${selectedCollection.name}.`}
+            onRetry={retryCollection}
+            onOpenAddToPlaylist={onOpenAddToPlaylist}
+          />
+        </div>
+      )}
+
+      {!loading && allSongs.length === 0 && Object.values(sectionErrors).some(Boolean) && (
+        <div className="explore-page-empty" role="status">
+          <Music2 size={22} />
+          <p>Live discovery is having trouble connecting. Mood and genre searches may still work.</p>
+          <button type="button" onClick={reloadExplore}>Retry discovery</button>
+        </div>
+      )}
     </div>
   );
 }

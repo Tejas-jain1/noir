@@ -4,7 +4,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Play, Pause, Heart, MoreVertical, ListPlus, FolderPlus, User, Disc } from 'lucide-react';
 
-export default function MusicCard({ track, onOpenAddToPlaylist }) {
+export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null }) {
   const navigate = useNavigate();
   const { currentTrack, isPlaying, playTrack, togglePlay, addToQueue } = usePlayer();
   const { isLiked, toggleLike } = useLibrary();
@@ -20,7 +20,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist }) {
     if (isCurrent) {
       togglePlay();
     } else {
-      playTrack(track);
+      playTrack(track, Array.isArray(playQueue) ? playQueue : null);
     }
   };
 

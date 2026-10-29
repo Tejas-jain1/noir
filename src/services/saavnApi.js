@@ -62,7 +62,16 @@ export function decryptMediaUrl(encryptedUrl) {
 // Formats a raw JioSaavn song object into NOIR's standard track structure
 export function formatSaavnTrack(item) {
   if (!item) return null;
-  const moreInfo = item.more_info || {};
+  const moreInfo = item.more_info || (item.encrypted_media_url ? {
+    encrypted_media_url: item.encrypted_media_url,
+    album_id: item.album_id || item.albumid,
+    primary_artists: item.primary_artists,
+    release_date: item.release_date,
+    genre: item.genre,
+    mood: item.mood,
+    energy: item.energy,
+    tags: item.tags
+  } : {});
 
   // High quality artwork: replace 150x150 with 500x500
   let thumbnail = (item.image || '').replace('150x150', '500x500').replace('50x50', '500x500');
@@ -72,8 +81,12 @@ export function formatSaavnTrack(item) {
 
   // Extract artist name
   let artist = '';
-  if (moreInfo.artistMap?.primary_artists?.length > 0) {
+  if (Array.isArray(moreInfo.artistMap?.primary_artists) && moreInfo.artistMap.primary_artists.length > 0) {
     artist = moreInfo.artistMap.primary_artists.map(a => a.name).join(', ');
+  } else if (typeof moreInfo.primary_artists === 'string' && moreInfo.primary_artists.trim()) {
+    artist = moreInfo.primary_artists;
+  } else if (typeof item.primary_artists === 'string' && item.primary_artists.trim()) {
+    artist = item.primary_artists;
   } else if (item.singers) {
     artist = item.singers;
   } else if (item.subtitle) {
@@ -92,7 +105,7 @@ export function formatSaavnTrack(item) {
   const durationFormatted = `${minutes}:${remainingSec < 10 ? '0' : ''}${remainingSec}`;
 
   // Decrypt 320kbps CDN audio stream URL
-  const audioUrl = decryptMediaUrl(moreInfo.encrypted_media_url);
+  const audioUrl = decryptMediaUrl(moreInfo.encrypted_media_url || item.encrypted_media_url);
 
   // Clean title
   const title = decodeHtml(item.song || item.title || 'Unknown Title');
@@ -112,6 +125,8 @@ export function formatSaavnTrack(item) {
     energy: moreInfo.energy ?? item.energy ?? null,
     language: decodeHtml(item.language || moreInfo.language || ''),
     tags: Array.isArray(moreInfo.tags) ? moreInfo.tags.map(decodeHtml) : [],
+    albumId: moreInfo.album_id || item.album_id || item.albumid || '',
+    releaseDate: moreInfo.release_date || item.release_date || '',
     year: item.year || moreInfo.release_date || '',
     playCount: item.play_count || ''
   };
@@ -278,6 +293,35 @@ export const saavnApi = {
     return null;
   },
 
+  getAlbumTracks: async (trackIds = []) => {
+    const ids = [...new Set((Array.isArray(trackIds) ? trackIds : [])
+      .map(id => String(id || '').trim())
+      .filter(Boolean))];
+    if (ids.length === 0) return [];
+
+    const chunks = [];
+    for (let index = 0; index < ids.length; index += 15) chunks.push(ids.slice(index, index + 15));
+    const responses = await Promise.all(chunks.map(async chunk => {
+      try {
+        const params = `__call=song.getDetails&_format=json&pids=${encodeURIComponent(chunk.join(','))}`;
+        return await fetchSaavnQuery(params);
+      } catch (err) {
+        console.warn('Failed to fetch Saavn album tracks:', err);
+        return null;
+      }
+    }));
+
+    const tracksById = new Map();
+    responses.forEach(response => {
+      if (!response || typeof response !== 'object') return;
+      Object.entries(response).forEach(([id, item]) => {
+        const track = formatSaavnTrack(item);
+        if (track?.id && track.title && track.audioUrl) tracksById.set(String(id), track);
+      });
+    });
+    return ids.map(id => tracksById.get(id)).filter(Boolean);
+  },
+
   // Autocomplete / Live suggestions with typo & fuzzy matching
   getAutocomplete: async (query) => {
     if (!query || !query.trim()) return null;
@@ -317,6 +361,7 @@ export const saavnApi = {
           name: decodeHtml(item.title || item.name || ''),
           role: decodeHtml(item.description || item.extra || 'Artist'),
           image: (item.image || '').replace('50x50', '150x150'),
+          url: item.url || '',
           type: 'artist'
         })),
         albums: (data.albums?.data || []).map(item => ({
@@ -325,7 +370,16 @@ export const saavnApi = {
           artist: decodeHtml(item.music || item.description || ''),
           year: item.more_info?.year || '',
           image: (item.image || '').replace('50x50', '150x150'),
+          trackIds: String(item.more_info?.song_pids || '').split(',').map(id => id.trim()).filter(Boolean),
           type: 'album'
+        })),
+        playlists: (data.playlists?.data || []).map(item => ({
+          id: item.id,
+          title: decodeHtml(item.title || ''),
+          description: decodeHtml(item.description || item.subtitle || ''),
+          image: (item.image || '').replace('50x50', '500x500'),
+          url: item.url || '',
+          type: 'playlist'
         }))
       };
 
@@ -339,6 +393,27 @@ export const saavnApi = {
       return formatted;
     } catch (err) {
       console.warn('Failed to fetch autocomplete suggestions:', err);
+      return null;
+    }
+  },
+
+  getPlaylistDetails: async (playlistId) => {
+    if (!playlistId) return null;
+    try {
+      const params = `__call=playlist.getDetails&_format=json&listid=${encodeURIComponent(playlistId)}&api_version=4&ctx=web6dot0`;
+      const data = await fetchSaavnQuery(params);
+      if (!data || !Array.isArray(data.list)) return null;
+
+      return {
+        id: data.id || playlistId,
+        title: decodeHtml(data.title || data.name || 'Playlist'),
+        description: decodeHtml(data.header_desc || data.subtitle || ''),
+        image: (data.image || '').replace('150x150', '500x500'),
+        tracks: data.list.map(formatSaavnTrack).filter(track => track?.id && track.title && track.audioUrl),
+        source: 'saavn_cdn'
+      };
+    } catch (err) {
+      console.warn('Failed to fetch Saavn playlist details:', playlistId, err);
       return null;
     }
   }
