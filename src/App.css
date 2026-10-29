@@ -1377,100 +1377,121 @@
   }
 }
 
-/* Mobile Portrait Layout (< 768px portrait) */
-@media (max-width: 768px) and (orientation: portrait), (max-width: 600px) {
+/* Rotate a portrait phone viewport into an edge-to-edge landscape Ambient Mode. */
+@media (max-width: 768px) and (orientation: portrait) {
   .ambient-mode-overlay {
-    position: fixed !important;
-    inset: 0 !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100dvh !important;
-    height: 100vh !important;
-    transform: none !important;
+    inset: auto !important;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100vh !important;
+    width: 100dvh !important;
+    height: 100vw !important;
+    box-sizing: border-box !important;
+    padding: env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) env(safe-area-inset-top) !important;
+    transform: translate(-50%, -50%) rotate(90deg) !important;
+    transform-origin: center center !important;
     overflow: hidden !important;
+  }
+}
+
+/* Shared compact landscape composition for rotated phones and landscape devices. */
+@media (max-width: 768px) and (orientation: portrait), (max-width: 900px) and (orientation: landscape) {
+  .ambient-mode-overlay {
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    overscroll-behavior: none;
   }
 
   .ambient-mode-overlay header {
-    padding: 12px 16px !important;
+    flex: 0 0 auto !important;
+    padding: 6px 14px !important;
   }
 
   .ambient-cinema-stage {
-    flex-direction: column !important;
+    display: flex !important;
+    flex-direction: row !important;
     align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 10px !important;
-    padding: 0 16px !important;
-    flex: 1 !important;
+    justify-content: center !important;
+    flex: 1 1 auto !important;
     min-height: 0 !important;
     width: 100% !important;
+    max-width: none !important;
+    gap: clamp(10px, 2.5vw, 24px) !important;
+    padding: 0 clamp(12px, 3vw, 28px) !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
   }
 
   .ambient-artwork-column {
     display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    text-align: center !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    gap: 8px !important;
-    flex-shrink: 0 !important;
+    flex: 0 0 clamp(96px, 32vmin, 180px) !important;
+    align-items: flex-start !important;
+    width: clamp(96px, 32vmin, 180px) !important;
+    max-width: none !important;
+    gap: 7px !important;
+    text-align: left !important;
   }
 
   .ambient-cover-wrapper {
-    width: 110px !important;
-    height: 110px !important;
-    border-radius: 18px !important;
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 14px !important;
+    margin: 0 !important;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.7) !important;
-    margin: 0 auto !important;
   }
 
   .ambient-track-details {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 10px !important;
     width: 100% !important;
-    max-width: 280px !important;
+    max-width: none !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
   }
 
   .ambient-artwork-column h2 {
-    font-size: 1.15rem !important;
-    text-align: center !important;
+    font-size: clamp(0.85rem, 2.6vh, 1.05rem) !important;
+    text-align: left !important;
   }
 
   .ambient-artwork-column p {
-    font-size: 0.85rem !important;
-    text-align: center !important;
+    font-size: clamp(0.72rem, 2.1vh, 0.85rem) !important;
+    text-align: left !important;
   }
 
   .ambient-lyrics-column {
-    flex: 1 !important;
-    width: 100% !important;
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
     height: 100% !important;
     max-height: none !important;
-    text-align: center !important;
-    padding: 0 8px !important;
-    mask-image: linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%) !important;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%) !important;
+    padding: 0 6px !important;
+    text-align: left !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%) !important;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%) !important;
   }
 
   .ambient-lyrics-column .ambient-lyric-line {
-    text-align: center !important;
-    transform-origin: center center !important;
+    text-align: left !important;
+    transform-origin: left center !important;
   }
 
   .ambient-mode-overlay footer {
-    width: calc(100% - 24px) !important;
-    max-width: calc(100% - 24px) !important;
-    margin: 0 auto 12px !important;
-    padding: 10px 14px !important;
-    border-radius: 20px !important;
+    flex: 0 0 auto !important;
+    width: calc(100% - 20px) !important;
+    max-width: 780px !important;
+    margin: 0 auto 5px !important;
+    padding: 6px 12px !important;
+    gap: 8px !important;
+    box-sizing: border-box !important;
+    border-radius: 16px !important;
   }
 
   .ambient-volume-control {
@@ -1478,67 +1499,14 @@
   }
 }
 
-/* Mobile Landscape & Compact Horizontal Screens (< 900px landscape or height < 520px) */
-@media (orientation: landscape) and (max-height: 520px), (max-width: 900px) and (orientation: landscape) {
+/* Keep notches and home indicators clear when the phone is already landscape. */
+@media (max-width: 900px) and (orientation: landscape) {
   .ambient-mode-overlay {
-    position: fixed !important;
     inset: 0 !important;
-    top: 0 !important;
-    left: 0 !important;
     width: 100vw !important;
+    height: 100vh !important;
     height: 100dvh !important;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) !important;
     transform: none !important;
-  }
-
-  .ambient-mode-overlay header {
-    padding: 8px 20px !important;
-  }
-
-  .ambient-cinema-stage {
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 24px !important;
-    padding: 0 24px !important;
-    flex: 1 !important;
-    min-height: 0 !important;
-  }
-
-  .ambient-artwork-column {
-    max-width: 180px !important;
-    width: 26% !important;
-    gap: 8px !important;
-    flex-shrink: 0 !important;
-    align-items: flex-start !important;
-  }
-
-  .ambient-cover-wrapper {
-    width: 100% !important;
-    aspect-ratio: 1/1 !important;
-    border-radius: 14px !important;
-  }
-
-  .ambient-artwork-column h2 {
-    font-size: 1rem !important;
-  }
-
-  .ambient-artwork-column p {
-    font-size: 0.8rem !important;
-  }
-
-  .ambient-lyrics-column {
-    flex: 1 !important;
-    height: 100% !important;
-    max-height: calc(100vh - 120px) !important;
-  }
-
-  .ambient-mode-overlay footer {
-    margin: 0 auto 6px !important;
-    padding: 6px 16px !important;
-    max-width: 85% !important;
-    border-radius: 18px !important;
-  }
-
-  .ambient-volume-control {
-    display: none !important;
   }
 }
