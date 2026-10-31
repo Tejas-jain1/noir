@@ -1,7 +1,7 @@
 // JioSaavn CDN Audio & Metadata API Service
 import CryptoJS from 'crypto-js';
-import { searchMockCatalog } from './mockCatalog';
-import { buildTrackSearchQuery } from './playbackUtils';
+import { searchMockCatalog } from './mockCatalog.js';
+import { buildTrackSearchQuery } from './playbackUtils.js';
 
 const DES_KEY = '38346591';
 const JIOSAAVN_PROXY_PATH = '/api/saavn';
@@ -15,9 +15,17 @@ const SUGGESTIONS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // Decodes HTML entities returned by API (e.g. &amp;, &#39;, &quot;)
 export function decodeHtml(html) {
   if (!html) return '';
-  const txt = document.createElement('textarea');
-  txt.innerHTML = html;
-  return txt.value;
+  if (typeof document !== 'undefined') {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = html;
+    return txt.value;
+  }
+  return String(html)
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
 }
 
 // Parses duration to seconds
@@ -137,14 +145,16 @@ async function fetchSaavnQuery(paramsString, { forceRefresh = false } = {}) {
   const cacheOptions = forceRefresh ? { cache: 'no-store' } : undefined;
 
   // 1. Try proxied endpoint (Vite dev proxy or Vercel production rewrite)
-  try {
-    const res = await fetch(`${JIOSAAVN_PROXY_PATH}?${paramsString}`, cacheOptions);
-    if (res.ok) {
-      const data = await res.json();
-      return data;
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(`${JIOSAAVN_PROXY_PATH}?${paramsString}`, cacheOptions);
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch {
+      // Continue to fallback
     }
-  } catch {
-    // Continue to fallback
   }
 
   // 2. Try direct fetch (if CORS allowed)
