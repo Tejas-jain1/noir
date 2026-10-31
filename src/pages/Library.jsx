@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useNavigate } from 'react-router-dom';
 import { Library, Plus, Heart, Music2 } from 'lucide-react';
+import ImportFromSpotifyButton from '../components/ImportFromSpotifyButton';
 
-export default function LibraryPage({ onOpenCreatePlaylist }) {
+export default function LibraryPage({ onOpenCreatePlaylist, onOpenSpotifyImport }) {
   const { playlists, likedSongs } = useLibrary();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all'); // 'all' | 'playlists' | 'liked'
@@ -22,23 +23,26 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
           </p>
         </div>
 
-        <button
-          onClick={onOpenCreatePlaylist}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 16px',
-            borderRadius: 'var(--radius-full)',
-            backgroundColor: 'var(--accent-solid)',
-            color: 'var(--accent-text)',
-            fontSize: '0.825rem',
-            fontWeight: 600
-          }}
-        >
-          <Plus size={16} />
-          <span>New Playlist</span>
-        </button>
+        <div className="library-page-actions">
+          <ImportFromSpotifyButton onClick={onOpenSpotifyImport} />
+          <button
+            onClick={onOpenCreatePlaylist}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--accent-solid)',
+              color: 'var(--accent-text)',
+              fontSize: '0.825rem',
+              fontWeight: 600
+            }}
+          >
+            <Plus size={16} />
+            <span>New Playlist</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
