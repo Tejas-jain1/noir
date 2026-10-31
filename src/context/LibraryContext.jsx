@@ -92,8 +92,13 @@ export function LibraryProvider({ children }) {
 
       const localGuestHistory = storage.getRecentlyPlayed('guest');
       const guestHistory = sanitizeHistory(localGuestHistory.length ? localGuestHistory : offlineHistory);
+      const localGuestPlaylists = storage.getPlaylists('guest');
+      const guestPlaylists = Array.isArray(offlinePlaylists) && offlinePlaylists.length > 0
+        ? offlinePlaylists
+        : (Array.isArray(localGuestPlaylists) ? localGuestPlaylists : []);
+
       setLikedSongs(Array.isArray(offlineLikes) ? offlineLikes : []);
-      setPlaylists(Array.isArray(offlinePlaylists) ? offlinePlaylists : []);
+      setPlaylists(guestPlaylists);
       setRecentlyPlayed(guestHistory);
       setUserPreferences(storage.getUserPreferences('guest'));
       setLibraryOwnerId('guest');
@@ -359,6 +364,7 @@ export function LibraryProvider({ children }) {
         isSupabaseConfigured,
         likedSongs,
         playlists,
+        setPlaylists,
         recentlyPlayed,
         libraryOwnerId,
         settings,

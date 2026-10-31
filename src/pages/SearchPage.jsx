@@ -42,7 +42,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
   const [recentSearches, setRecentSearches] = useState(() => storage.getRecentSearches());
 
   const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
-  const { userPreferences, likedSongs, isLiked, toggleLike, setPlaylists, showToast, user } = useLibrary();
+  const { userPreferences, likedSongs, isLiked, toggleLike, importSpotifyPlaylist, setPlaylists, showToast, user } = useLibrary();
 
   const debounceSuggestTimerRef = useRef(null);
 
@@ -51,6 +51,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
       showToast?.('Detected Spotify playlist! Importing...', 'info', 3000);
       await importAndStreamSpotify(rawUrl, {
         playTrack,
+        importSpotifyPlaylist,
         setPlaylists,
         showToast,
         navigate,

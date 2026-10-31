@@ -18,7 +18,7 @@ export function isSpotifyPlaylistUrl(input) {
 
 /**
  * Extracts public Spotify playlist metadata & tracks via zero-API-key embed scraper.
- * Tries local /api/spotify-import first, then client-side proxy fallback.
+ * Tries local /api/spotify-import first in browser, then embed scraper fallback.
  */
 export async function fetchSpotifyPlaylist(urlOrId) {
   const input = String(urlOrId || '').trim();
@@ -31,27 +31,40 @@ export async function fetchSpotifyPlaylist(urlOrId) {
     throw new Error('Could not identify a valid Spotify playlist ID.');
   }
 
-  // 1. Primary: Server endpoint /api/spotify-import?url=...
-  try {
-    const res = await fetch(`/api/spotify-import?url=${encodeURIComponent(input)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.success && data.playlist && Array.isArray(data.results) && data.results.length > 0) {
-        return data;
+  // 1. Primary in browser: Server endpoint /api/spotify-import?url=...
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(`/api/spotify-import?url=${encodeURIComponent(input)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.playlist && Array.isArray(data.results) && data.results.length > 0) {
+          return data;
+        }
+        if (data && data.error) {
+          throw new Error(data.error);
+        }
       }
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
+    } catch (apiError) {
+      console.warn('[SpotifyImport] Local API request failed, trying client scraper fallback:', apiError);
     }
-  } catch (apiError) {
-    console.warn('[SpotifyImport] Local API request failed, trying client scraper fallback:', apiError);
   }
 
-  // 2. Fallback: Client-side CORS scraper for static hosting environments
+  // 2. Direct embed scraper (works in Node.js test environment, or via CORS proxy in browser)
   try {
     const embedUrl = `https://open.spotify.com/embed/playlist/${pid}`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(embedUrl)}`;
-    const res = await fetch(proxyUrl);
+    let res;
+    if (typeof window === 'undefined') {
+      res = await fetch(embedUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+      });
+    } else {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(embedUrl)}`;
+      res = await fetch(proxyUrl);
+    }
+
     if (!res.ok) throw new Error('Could not fetch Spotify embed page.');
 
     const html = await res.text();
@@ -113,7 +126,7 @@ export async function fetchSpotifyPlaylist(urlOrId) {
  * Handshake: Imports the Spotify playlist, sets the player queue, begins streaming Track #1,
  * saves to the user's library, and navigates to the playlist view.
  */
-export async function importAndStreamSpotify(urlOrId, { playTrack, setPlaylists, showToast, navigate, user } = {}) {
+export async function importAndStreamSpotify(urlOrId, { playTrack, importSpotifyPlaylist, setPlaylists, showToast, navigate, user } = {}) {
   const data = await fetchSpotifyPlaylist(urlOrId);
   if (!data || !data.success || !data.playlist || !data.results || data.results.length === 0) {
     throw new Error(data?.error || 'Failed to import. Make sure the playlist is public.');
@@ -127,6 +140,7 @@ export async function importAndStreamSpotify(urlOrId, { playTrack, setPlaylists,
     description: data.playlist.description || `Imported Spotify playlist (${data.results.length} songs)`,
     coverUrl: data.playlist.cover,
     thumbnail: data.playlist.cover,
+    cover: data.playlist.cover,
     createdAt: new Date().toISOString(),
     trackCount: data.results.length,
     totalTrackCount: data.results.length,
@@ -140,7 +154,9 @@ export async function importAndStreamSpotify(urlOrId, { playTrack, setPlaylists,
   };
 
   // 1. Save to library playlists
-  if (typeof setPlaylists === 'function') {
+  if (typeof importSpotifyPlaylist === 'function') {
+    await importSpotifyPlaylist(newPlaylist, data.results);
+  } else if (typeof setPlaylists === 'function') {
     setPlaylists(prev => {
       const filtered = Array.isArray(prev) ? prev.filter(p => p.id !== playlistId && p.spotifyPlaylistId !== data.playlist.id) : [];
       const updated = [newPlaylist, ...filtered];
@@ -152,6 +168,15 @@ export async function importAndStreamSpotify(urlOrId, { playTrack, setPlaylists,
       }
       return updated;
     });
+  } else {
+    const ownerId = user?.id || 'guest';
+    const existing = storage.getPlaylists(ownerId);
+    const updated = [newPlaylist, ...existing.filter(p => p.id !== playlistId && p.spotifyPlaylistId !== data.playlist.id)];
+    storage.savePlaylists(updated, ownerId);
+    if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
+    if (user?.id) {
+      try { supabaseService.savePlaylist(newPlaylist, user.id); } catch {}
+    }
   }
 
   // 2. Handshake with player: set queue, set queueIndex = 0, start playing Track #1
@@ -166,7 +191,7 @@ export async function importAndStreamSpotify(urlOrId, { playTrack, setPlaylists,
 
   // 4. Toast notification
   if (typeof showToast === 'function') {
-    showToast(`Imported "${data.playlist.title}" with ${data.results.length} songs! Streaming now...`, 'success', 4500);
+    showToast(`Saved "${data.playlist.title}" (${data.results.length} songs) to Library & streaming now!`, 'success', 4500);
   }
 
   return { playlist: newPlaylist, results: data.results };

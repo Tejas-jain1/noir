@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scrapeSpotifyPlaylist } from '../api/spotify-import.js';
-import { parseSpotifyPlaylistId, isSpotifyPlaylistUrl } from '../src/services/spotifyImport.js';
+import { parseSpotifyPlaylistId, isSpotifyPlaylistUrl, importAndStreamSpotify } from '../src/services/spotifyImport.js';
 
 test('isSpotifyPlaylistUrl correctly identifies Spotify playlist links', () => {
   assert.equal(isSpotifyPlaylistUrl('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M'), true);
@@ -33,4 +33,47 @@ test('scrapeSpotifyPlaylist extracts real track metadata from embed page', async
   assert.ok(firstTrack.artist);
   assert.equal(firstTrack.source, 'spotify_import');
   assert.equal(typeof firstTrack.duration, 'number');
+});
+
+test('importAndStreamSpotify saves playlist to library and initiates playback', async () => {
+  let savedPlaylist = null;
+  let playedTrack = null;
+  let playedQueue = null;
+  let navigatedTo = null;
+  let toastMessage = null;
+
+  const mockImportPlaylist = async (playlist, tracks) => {
+    savedPlaylist = { ...playlist, tracks };
+    return savedPlaylist;
+  };
+
+  const mockPlayTrack = (track, queue) => {
+    playedTrack = track;
+    playedQueue = queue;
+  };
+
+  const mockNavigate = (path) => {
+    navigatedTo = path;
+  };
+
+  const mockShowToast = (msg) => {
+    toastMessage = msg;
+  };
+
+  const result = await importAndStreamSpotify('37i9dQZF1DXcBWIGoYBM5M', {
+    playTrack: mockPlayTrack,
+    importSpotifyPlaylist: mockImportPlaylist,
+    showToast: mockShowToast,
+    navigate: mockNavigate
+  });
+
+  assert.ok(result);
+  assert.ok(result.playlist);
+  assert.ok(result.results.length > 0);
+  assert.equal(savedPlaylist?.id, result.playlist.id);
+  assert.equal(savedPlaylist?.tracks?.length, result.results.length);
+  assert.equal(playedTrack?.id, result.results[0].id);
+  assert.equal(playedQueue?.length, result.results.length);
+  assert.equal(navigatedTo, `/playlist/${result.playlist.id}`);
+  assert.ok(toastMessage);
 });

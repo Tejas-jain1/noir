@@ -143,25 +143,39 @@ export default function LibraryPage({ onOpenCreatePlaylist, onOpenSpotifyImport 
                 transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)'
               }}
             >
-              {pl.coverUrl ? (
-                <img className="library-playlist-artwork" src={pl.coverUrl} alt="" loading="lazy" />
-              ) : <div
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-medium)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-primary)'
-                }}
-              >
-                <Music2 size={22} />
-              </div>}
+              {(pl.coverUrl || pl.thumbnail || pl.cover) ? (
+                <img
+                  className="library-playlist-artwork"
+                  src={pl.coverUrl || pl.thumbnail || pl.cover}
+                  alt={pl.name}
+                  loading="lazy"
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: 'var(--radius-md)',
+                    objectFit: 'cover',
+                    boxShadow: 'var(--shadow-sm)'
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-medium)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-primary)'
+                  }}
+                >
+                  <Music2 size={24} />
+                </div>
+              )}
 
-              <div>
+              <div style={{ marginTop: '12px' }}>
                 <h3
                   style={{
                     fontSize: '1rem',
@@ -185,16 +199,26 @@ export default function LibraryPage({ onOpenCreatePlaylist, onOpenSpotifyImport 
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  {pl.sourceType === 'spotify' ? 'Imported from Spotify' : (pl.description || `${songCount} songs`)}
+                  {pl.sourceType === 'spotify' || pl.source === 'spotify_import' ? 'Imported from Spotify' : (pl.description || `${songCount} songs`)}
                 </p>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                   {songCount} {songCount === 1 ? 'song' : 'songs'}
                 </span>
-                {pl.sourceType === 'spotify' && pl.sourceUrl && (
-                  <a className="spotify-attribution-link library-spotify-attribution" href={pl.sourceUrl} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()}>
+                {(pl.sourceType === 'spotify' || pl.source === 'spotify_import') && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      marginTop: '6px',
+                      color: '#1DB954',
+                      fontSize: '0.72rem',
+                      fontWeight: 700
+                    }}
+                  >
                     <SpotifyMark size={14} />
-                    <span>Spotify</span>
-                  </a>
+                    <span>Spotify Playlist</span>
+                  </div>
                 )}
               </div>
             </div>

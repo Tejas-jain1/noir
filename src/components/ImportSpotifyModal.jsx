@@ -19,7 +19,7 @@ export default function ImportSpotifyModal({
 
   const navigate = useNavigate();
   const { playTrack } = usePlayer();
-  const { setPlaylists, showToast, user } = useLibrary();
+  const { importSpotifyPlaylist, setPlaylists, showToast, user } = useLibrary();
 
   useEffect(() => {
     if (isOpen) {
@@ -61,6 +61,7 @@ export default function ImportSpotifyModal({
       setStatusText('Setting up queue & 320kbps audio streams...');
       const result = await importAndStreamSpotify(targetUrl, {
         playTrack,
+        importSpotifyPlaylist,
         setPlaylists,
         showToast,
         navigate,
