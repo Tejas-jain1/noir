@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/spotify-import",
+      "destination": "/api/spotify-import.js"
+    },
+    {
       "source": "/api/saavn/(.*)",
       "destination": "https://www.jiosaavn.com/api.php?$1"
     },

@@ -12,6 +12,7 @@ import {
   Users
 } from 'lucide-react';
 import MusicCard from '../components/MusicCard';
+import ImportSpotifyButton, { SpotifyMark } from '../components/ImportSpotifyButton';
 import { useLibrary } from '../context/LibraryContext';
 import { usePlayer } from '../context/PlayerContext';
 import { normalizeTrackTitle } from '../services/playbackUtils';
@@ -174,7 +175,7 @@ function handleArtworkError(event) {
   if (fallback?.classList.contains('explore-artwork-fallback')) fallback.style.display = 'flex';
 }
 
-export default function Explore({ onOpenAddToPlaylist }) {
+export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
   const navigate = useNavigate();
   const { playTrack } = usePlayer();
   const { playlists: savedPlaylists = [], showToast } = useLibrary();
@@ -363,10 +364,13 @@ export default function Explore({ onOpenAddToPlaylist }) {
             <p>Find your next favorite in what’s moving, new, and worth another listen.</p>
           </div>
         </div>
-        <button className="explore-refresh-button" type="button" onClick={reloadExplore} disabled={loading}>
-          <Radio size={16} />
-          <span>{loading ? 'Refreshing' : 'Refresh'}</span>
-        </button>
+        <div className="explore-header-actions">
+          <ImportSpotifyButton onClick={() => onOpenSpotifyImport?.('')} compact />
+          <button className="explore-refresh-button" type="button" onClick={reloadExplore} disabled={loading}>
+            <Radio size={16} />
+            <span>{loading ? 'Refreshing' : 'Refresh'}</span>
+          </button>
+        </div>
       </header>
 
       <TrackRail
@@ -483,22 +487,32 @@ export default function Explore({ onOpenAddToPlaylist }) {
               </button>
             ))}
             {actualSavedPlaylists.map(playlist => (
-              <button
-                className="explore-playlist-card"
+              <div
+                className="explore-saved-playlist-item"
                 key={`local-${playlist.id}`}
-                type="button"
-                onClick={() => navigate(`/playlist/${encodeURIComponent(playlist.id)}`)}
-                aria-label={`Open playlist ${playlist.name}`}
               >
-                <span className="explore-entity-artwork">
-                  {playlist.coverUrl || playlist.tracks?.[0]?.thumbnail
-                    ? <><img src={playlist.coverUrl || playlist.tracks[0].thumbnail} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></>
-                    : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
-                  <span className="explore-play-overlay"><ArrowRight size={18} /></span>
-                </span>
-                <strong>{playlist.name}</strong>
-                <span>Your playlist</span>
-              </button>
+                <button
+                  className="explore-playlist-card"
+                  type="button"
+                  onClick={() => navigate(`/playlist/${encodeURIComponent(playlist.id)}`)}
+                  aria-label={`Open playlist ${playlist.name}`}
+                >
+                  <span className="explore-entity-artwork">
+                    {playlist.coverUrl || playlist.tracks?.[0]?.thumbnail
+                      ? <><img src={playlist.coverUrl || playlist.tracks[0].thumbnail} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></>
+                      : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
+                    <span className="explore-play-overlay"><ArrowRight size={18} /></span>
+                  </span>
+                  <strong>{playlist.name}</strong>
+                  <span>{playlist.sourceType === 'spotify' ? 'Imported from Spotify' : 'Your playlist'}</span>
+                </button>
+                {playlist.sourceType === 'spotify' && playlist.sourceUrl && (
+                  <a className="spotify-attribution-link" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
+                    <SpotifyMark size={14} />
+                    <span>Spotify</span>
+                  </a>
+                )}
+              </div>
             ))}
           </div>
         ) : (

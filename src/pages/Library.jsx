@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useLibrary } from '../context/LibraryContext';
 import { useNavigate } from 'react-router-dom';
 import { Library, Plus, Heart, Music2 } from 'lucide-react';
+import ImportSpotifyButton, { SpotifyMark } from '../components/ImportSpotifyButton';
 
-export default function LibraryPage({ onOpenCreatePlaylist }) {
+export default function LibraryPage({ onOpenCreatePlaylist, onOpenSpotifyImport }) {
   const { playlists, likedSongs } = useLibrary();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all'); // 'all' | 'playlists' | 'liked'
@@ -22,7 +23,9 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
           </p>
         </div>
 
-        <button
+        <div className="library-header-actions">
+          <ImportSpotifyButton onClick={() => onOpenSpotifyImport?.('')} compact />
+          <button
           onClick={onOpenCreatePlaylist}
           style={{
             display: 'flex',
@@ -38,7 +41,8 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
         >
           <Plus size={16} />
           <span>New Playlist</span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -139,7 +143,9 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                 transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)'
               }}
             >
-              <div
+              {pl.coverUrl ? (
+                <img className="library-playlist-artwork" src={pl.coverUrl} alt="" loading="lazy" />
+              ) : <div
                 style={{
                   width: '48px',
                   height: '48px',
@@ -153,7 +159,7 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                 }}
               >
                 <Music2 size={22} />
-              </div>
+              </div>}
 
               <div>
                 <h3
@@ -179,11 +185,17 @@ export default function LibraryPage({ onOpenCreatePlaylist }) {
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  {pl.description || `${songCount} songs`}
+                  {pl.sourceType === 'spotify' ? 'Imported from Spotify' : (pl.description || `${songCount} songs`)}
                 </p>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                   {songCount} {songCount === 1 ? 'song' : 'songs'}
                 </span>
+                {pl.sourceType === 'spotify' && pl.sourceUrl && (
+                  <a className="spotify-attribution-link library-spotify-attribution" href={pl.sourceUrl} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()}>
+                    <SpotifyMark size={14} />
+                    <span>Spotify</span>
+                  </a>
+                )}
               </div>
             </div>
           );

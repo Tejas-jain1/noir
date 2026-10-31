@@ -4,6 +4,7 @@ import { useLibrary } from '../context/LibraryContext';
 import { usePlayer } from '../context/PlayerContext';
 import { getTrackById } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
+import { SpotifyMark } from '../components/ImportSpotifyButton';
 import { Music2, Play, Shuffle, Edit2, Trash2, Check, X } from 'lucide-react';
 
 export default function PlaylistDetail({ onOpenAddToPlaylist }) {
@@ -44,7 +45,8 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
     tracks = playlist.trackIds.map(tid => getTrackById(tid)).filter(Boolean);
   }
 
-  const totalDuration = tracks.reduce((acc, t) => acc + (t.duration || 180), 0);
+  const playableTracks = tracks.filter(track => track.isPlayable !== false && !['unmatched', 'unavailable'].includes(track.matchStatus));
+  const totalDuration = tracks.reduce((acc, t) => acc + (t.duration || 0), 0);
   const totalMinutes = Math.floor(totalDuration / 60);
 
   const handleSaveEdit = (e) => {
@@ -65,14 +67,14 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
   };
 
   const handlePlayAll = () => {
-    if (tracks.length > 0) {
-      playTrack(tracks[0], tracks);
+    if (playableTracks.length > 0) {
+      playTrack(playableTracks[0], playableTracks);
     }
   };
 
   const handleShuffleAll = () => {
-    if (tracks.length > 0) {
-      const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+    if (playableTracks.length > 0) {
+      const shuffled = [...playableTracks].sort(() => Math.random() - 0.5);
       playTrack(shuffled[0], shuffled);
       toggleShuffle();
     }
@@ -111,12 +113,12 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
             flexShrink: 0
           }}
         >
-          <Music2 size={64} />
+          {playlist.coverUrl ? <img src={playlist.coverUrl} alt={`${playlist.name} cover`} style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} /> : <Music2 size={64} />}
         </div>
 
         <div className="playlist-header-content" style={{ flex: 1, minWidth: '240px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>
-            Playlist
+            {playlist.sourceType === 'spotify' ? 'Imported Spotify playlist' : 'Playlist'}
           </span>
 
           {isEditing ? (
@@ -198,10 +200,16 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
                   {playlist.description}
                 </p>
               )}
+              {playlist.sourceType === 'spotify' && playlist.sourceUrl && (
+                <a className="spotify-attribution-link playlist-spotify-attribution" href={playlist.sourceUrl} target="_blank" rel="noreferrer">
+                  <SpotifyMark size={16} />
+                  <span>Open playlist on Spotify</span>
+                </a>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Personal Collection</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{playlist.sourceType === 'spotify' ? (playlist.ownerName || 'Spotify collection') : 'Personal Collection'}</span>
                 <span>•</span>
-                <span>{tracks.length} {tracks.length === 1 ? 'song' : 'songs'}</span>
+                <span>{playlist.totalTrackCount || tracks.length} {playlist.totalTrackCount === 1 ? 'song' : 'songs'}</span>
                 {totalMinutes > 0 && (
                   <>
                     <span>•</span>
@@ -209,6 +217,11 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
                   </>
                 )}
               </div>
+              {playlist.sourceType === 'spotify' && (
+                <p className="spotify-import-results" style={{ marginTop: '8px' }}>
+                  {playlist.matchedTrackCount || 0} playable · {playlist.unmatchedTrackCount || 0} unmatched · {playlist.unavailableTrackCount || 0} unavailable
+                </p>
+              )}
             </>
           )}
         </div>
@@ -219,7 +232,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={handlePlayAll}
-            disabled={tracks.length === 0}
+            disabled={playableTracks.length === 0}
             style={{
               width: '48px',
               height: '48px',
@@ -230,8 +243,8 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: 'var(--shadow-sm)',
-              opacity: tracks.length === 0 ? 0.5 : 1,
-              cursor: tracks.length === 0 ? 'not-allowed' : 'pointer'
+              opacity: playableTracks.length === 0 ? 0.5 : 1,
+              cursor: playableTracks.length === 0 ? 'not-allowed' : 'pointer'
             }}
             title="Play All"
           >
@@ -240,7 +253,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
 
           <button
             onClick={handleShuffleAll}
-            disabled={tracks.length === 0}
+            disabled={playableTracks.length === 0}
             style={{
               padding: '10px 18px',
               borderRadius: 'var(--radius-full)',
@@ -252,7 +265,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
               gap: '6px',
               fontSize: '0.85rem',
               fontWeight: 600,
-              opacity: tracks.length === 0 ? 0.5 : 1
+              opacity: playableTracks.length === 0 ? 0.5 : 1
             }}
           >
             <Shuffle size={16} />
@@ -335,6 +348,10 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
             playlistId={playlist.id}
             onRemoveFromPlaylist={removeTrackFromPlaylist}
             onOpenAddToPlaylist={onOpenAddToPlaylist}
+            onTrackPlay={track => {
+              if (track.isPlayable === false || ['unmatched', 'unavailable'].includes(track.matchStatus)) return;
+              playTrack(track, playableTracks);
+            }}
           />
         )}
       </div>

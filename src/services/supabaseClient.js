@@ -4,11 +4,11 @@
  * Operates in dual-mode: when credentials are not configured, gracefully falls back to IndexedDB/localStorage.
  */
 import { createClient } from '@supabase/supabase-js';
-import { offlineStorage } from './offlineStorage';
-import { storage } from './storage';
+import { offlineStorage } from './offlineStorage.js';
+import { storage } from './storage.js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ucqaqzyhuukdeqcpzonp.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_w-nXagqf0mv8AHUed9K-9A_JA-5M1Np';
+const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://ucqaqzyhuukdeqcpzonp.supabase.co';
+const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'sb_publishable_w-nXagqf0mv8AHUed9K-9A_JA-5M1Np';
 
 const _configured = Boolean(
   supabaseUrl && 
@@ -108,16 +108,32 @@ export const supabaseService = {
           name: pl.name,
           description: pl.description || '',
           coverUrl: pl.cover_url || null,
+          ownerName: pl.owner_name || '',
+          sourceType: pl.source_type || 'noir',
+          sourceUrl: pl.source_url || '',
+          spotifyPlaylistId: pl.spotify_playlist_id || '',
+          totalTrackCount: Number(pl.total_track_count) || 0,
+          matchedTrackCount: Number(pl.matched_track_count) || 0,
+          unmatchedTrackCount: Number(pl.unmatched_track_count) || 0,
+          unavailableTrackCount: Number(pl.unavailable_track_count) || 0,
           createdAt: pl.created_at,
           tracks: (pl.playlist_tracks || [])
             .sort((a, b) => a.position - b.position)
             .map((t) => ({
               id: t.track_id,
+              catalogTrackId: t.catalog_track_id || '',
               title: t.title,
               artist: t.artist,
+              album: t.album || '',
               thumbnail: t.artwork,
               duration: t.duration,
-              durationFormatted: t.duration ? `${Math.floor(t.duration / 60)}:${String(t.duration % 60).padStart(2, '0')}` : '3:30'
+              durationMs: Number(t.duration_ms) || (Number(t.duration) || 0) * 1000,
+              durationFormatted: t.duration ? `${Math.floor(t.duration / 60)}:${String(t.duration % 60).padStart(2, '0')}` : '0:00',
+              spotifyTrackId: t.spotify_track_id || '',
+              spotifyUrl: t.spotify_url || '',
+              matchStatus: t.match_status || 'native',
+              isPlayable: !['unmatched', 'unavailable'].includes(t.match_status || 'native'),
+              source: pl.source_type === 'spotify' ? 'spotify_import' : ''
             }))
         }));
         storage.savePlaylists(mapped, userId);
@@ -136,6 +152,15 @@ export const supabaseService = {
       return;
     }
 
+    const spotifyCounts = playlist.sourceType === 'spotify' && Array.isArray(playlist.tracks)
+      ? playlist.tracks.reduce((result, track) => {
+        if (track.matchStatus === 'unmatched') result.unmatched += 1;
+        else if (track.matchStatus === 'unavailable') result.unavailable += 1;
+        else result.matched += 1;
+        return result;
+      }, { matched: 0, unmatched: 0, unavailable: 0 })
+      : null;
+
     try {
       await supabase.from('playlists').upsert({
         id: playlist.id,
@@ -143,6 +168,15 @@ export const supabaseService = {
         name: playlist.name,
         description: playlist.description || '',
         cover_url: playlist.coverUrl || null,
+        owner_name: playlist.ownerName || null,
+        source_type: playlist.sourceType || 'noir',
+        source_url: playlist.sourceUrl || null,
+        spotify_playlist_id: playlist.spotifyPlaylistId || null,
+        total_track_count: spotifyCounts ? playlist.tracks.length : Number(playlist.totalTrackCount) || playlist.tracks?.length || 0,
+        matched_track_count: spotifyCounts?.matched ?? (Number(playlist.matchedTrackCount) || 0),
+        unmatched_track_count: spotifyCounts?.unmatched ?? (Number(playlist.unmatchedTrackCount) || 0),
+        unavailable_track_count: spotifyCounts?.unavailable ?? (Number(playlist.unavailableTrackCount) || 0),
+        is_public: Boolean(playlist.isPublic),
         created_at: playlist.createdAt || new Date().toISOString()
       });
 
@@ -152,11 +186,17 @@ export const supabaseService = {
           const rows = playlist.tracks.map((t, idx) => ({
             playlist_id: playlist.id,
             track_id: t.id,
+            catalog_track_id: t.catalogTrackId || null,
             position: idx,
             title: t.title || '',
             artist: t.artist || '',
+            album: t.album || '',
             artwork: t.thumbnail || '',
-            duration: t.duration || 0
+            duration: t.duration || 0,
+            duration_ms: t.durationMs || (t.duration || 0) * 1000,
+            spotify_track_id: t.spotifyTrackId || null,
+            spotify_url: t.spotifyUrl || null,
+            match_status: t.matchStatus || 'native'
           }));
           await supabase.from('playlist_tracks').insert(rows);
         }
@@ -164,6 +204,70 @@ export const supabaseService = {
     } catch (err) {
       console.warn('[Supabase] Failed to save cloud playlist:', err);
     }
+  },
+
+  async importSpotifyPlaylist(playlist, tracks, userId) {
+    if (!supabase || !userId) throw new Error('Sign in to NOIR and connect Supabase before importing playlists.');
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || userData?.user?.id !== userId) throw new Error('Your NOIR session changed. Sign in again and retry the import.');
+    if (!Array.isArray(tracks)) throw new Error('Spotify returned an invalid playlist item list.');
+
+    const counts = tracks.reduce((result, track) => {
+      if (track.matchStatus === 'matched') result.matched += 1;
+      else if (track.matchStatus === 'unavailable') result.unavailable += 1;
+      else result.unmatched += 1;
+      return result;
+    }, { matched: 0, unmatched: 0, unavailable: 0 });
+    const payload = {
+      id: `pl-${crypto.randomUUID()}`,
+      name: playlist.name,
+      description: playlist.description || '',
+      cover_url: playlist.coverUrl || '',
+      owner_name: playlist.ownerName || '',
+      source_url: playlist.sourceUrl || '',
+      spotify_playlist_id: playlist.spotifyPlaylistId,
+      total_track_count: tracks.length,
+      matched_track_count: counts.matched,
+      unmatched_track_count: counts.unmatched,
+      unavailable_track_count: counts.unavailable
+    };
+    const trackPayload = tracks.map(track => ({
+      track_id: track.id,
+      catalog_track_id: track.catalogTrackId,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      artwork: track.thumbnail,
+      duration: track.duration,
+      duration_ms: track.durationMs,
+      spotify_track_id: track.spotifyTrackId,
+      spotify_url: track.spotifyUrl,
+      match_status: track.matchStatus
+    }));
+
+    const { data, error } = await supabase.rpc('import_spotify_playlist', {
+      p_playlist: payload,
+      p_tracks: trackPayload
+    });
+    if (error) throw new Error(error.message || 'NOIR could not save the imported playlist. Check the Supabase migration and try again.');
+    if (typeof data !== 'string' || !data) throw new Error('NOIR did not receive a saved playlist ID from Supabase.');
+
+    return {
+      id: data,
+      name: playlist.name,
+      description: playlist.description || '',
+      coverUrl: playlist.coverUrl || '',
+      ownerName: playlist.ownerName || '',
+      sourceType: 'spotify',
+      sourceUrl: playlist.sourceUrl || '',
+      spotifyPlaylistId: playlist.spotifyPlaylistId,
+      totalTrackCount: tracks.length,
+      matchedTrackCount: counts.matched,
+      unmatchedTrackCount: counts.unmatched,
+      unavailableTrackCount: counts.unavailable,
+      createdAt: playlist.createdAt || new Date().toISOString(),
+      tracks
+    };
   },
 
   async deletePlaylist(playlistId, userId) {

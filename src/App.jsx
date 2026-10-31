@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import { PlayerProvider } from './context/PlayerContext';
@@ -15,6 +15,8 @@ import CreatePlaylistModal from './components/CreatePlaylistModal';
 import AddToPlaylistModal from './components/AddToPlaylistModal';
 import ToastContainer from './components/ToastContainer';
 import InterestPickerModal from './components/InterestPickerModal';
+import ImportSpotifyModal from './components/ImportSpotifyModal';
+import { spotifyImport } from './services/spotifyImport';
 
 import Home from './pages/Home';
 import SearchPage from './pages/SearchPage';
@@ -31,15 +33,50 @@ import { X } from 'lucide-react';
 import './App.css';
 
 function MainLayout() {
+  const navigate = useNavigate();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSpotifyImportOpen, setIsSpotifyImportOpen] = useState(() => spotifyImport.hasOAuthCallback());
+  const [spotifyImportSession, setSpotifyImportSession] = useState(0);
+  const [spotifyImportPrefill, setSpotifyImportPrefill] = useState('');
+  const [reopenSpotifyImportAfterAuth, setReopenSpotifyImportAfterAuth] = useState(false);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
 
-  const { isInterestPickerOpen, setIsInterestPickerOpen } = useLibrary();
+  const {
+    isInterestPickerOpen,
+    setIsInterestPickerOpen,
+    user,
+    libraryOwnerId,
+    isSupabaseConfigured,
+    importSpotifyPlaylist,
+    showToast
+  } = useLibrary();
+
+  const handleOpenSpotifyImport = (url = '') => {
+    setSpotifyImportPrefill(url);
+    setSpotifyImportSession(session => session + 1);
+    setIsSpotifyImportOpen(true);
+  };
+
+  const handleRequireSignInForImport = (url = '') => {
+    setSpotifyImportPrefill(url);
+    setSpotifyImportSession(session => session + 1);
+    setReopenSpotifyImportAfterAuth(true);
+    setIsSpotifyImportOpen(false);
+    setIsAuthOpen(true);
+  };
+
+  const handleCloseAuth = () => {
+    setIsAuthOpen(false);
+    if (reopenSpotifyImportAfterAuth) {
+      setReopenSpotifyImportAfterAuth(false);
+      setIsSpotifyImportOpen(true);
+    }
+  };
 
   const handleOpenAddToPlaylist = (track) => {
     setAddToPlaylistTrack(track);
@@ -98,9 +135,9 @@ function MainLayout() {
         <main className="content-scrollable">
           <Routes>
             <Route path="/" element={<Home onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
-            <Route path="/search" element={<SearchPage onOpenSettings={() => setIsSettingsOpen(true)} onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
-            <Route path="/explore" element={<Explore onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
-            <Route path="/library" element={<LibraryPage onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)} />} />
+            <Route path="/search" element={<SearchPage onOpenSettings={() => setIsSettingsOpen(true)} onOpenAddToPlaylist={handleOpenAddToPlaylist} onOpenSpotifyImport={handleOpenSpotifyImport} />} />
+            <Route path="/explore" element={<Explore onOpenAddToPlaylist={handleOpenAddToPlaylist} onOpenSpotifyImport={handleOpenSpotifyImport} />} />
+            <Route path="/library" element={<LibraryPage onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)} onOpenSpotifyImport={handleOpenSpotifyImport} />} />
             <Route path="/liked" element={<LikedSongs onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
             <Route path="/recent" element={<RecentlyPlayed onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
             <Route path="/playlist/:id" element={<PlaylistDetail onOpenAddToPlaylist={handleOpenAddToPlaylist} />} />
@@ -157,7 +194,24 @@ function MainLayout() {
 
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={handleCloseAuth}
+      />
+
+      <ImportSpotifyModal
+        key={spotifyImportSession}
+        isOpen={isSpotifyImportOpen}
+        initialUrl={spotifyImportPrefill}
+        user={user}
+        libraryReady={Boolean(user?.id && libraryOwnerId === user.id)}
+        isSupabaseConfigured={isSupabaseConfigured}
+        importSpotifyPlaylist={importSpotifyPlaylist}
+        showToast={showToast}
+        onClose={() => setIsSpotifyImportOpen(false)}
+        onRequireSignIn={handleRequireSignInForImport}
+        onImported={(playlistId) => {
+          setIsSpotifyImportOpen(false);
+          navigate(`/playlist/${encodeURIComponent(playlistId)}`);
+        }}
       />
 
       <InterestPickerModal

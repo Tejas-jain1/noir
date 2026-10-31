@@ -1,9 +1,26 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import spotifyImportHandler from './api/spotify-import.js'
+
+function spotifyImportPlugin() {
+  return {
+    name: 'spotify-import-plugin',
+    configureServer(server) {
+      server.middlewares.use('/api/spotify-import', (req, res) => {
+        spotifyImportHandler(req, res)
+      })
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/spotify-import', (req, res) => {
+        spotifyImportHandler(req, res)
+      })
+    }
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), spotifyImportPlugin()],
   server: {
     proxy: {
       '/api/saavn': {

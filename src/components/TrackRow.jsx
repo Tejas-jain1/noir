@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Play, Pause, Heart, MoreHorizontal, Trash2, ListPlus, FolderPlus } from 'lucide-react';
+import { SpotifyMark } from './ImportSpotifyButton';
 
 export default function TrackRow({ 
   track, 
@@ -19,14 +20,17 @@ export default function TrackRow({
 
   const isCurrent = currentTrack?.id === track.id;
   const isThisPlaying = isCurrent && isPlaying;
+  const isPlayable = track.isPlayable !== false && !['unmatched', 'unavailable'].includes(track.matchStatus);
   const liked = isLiked(track.id);
   const startTrack = (selectedTrack) => {
+    if (!isPlayable) return;
     if (onTrackPlay) onTrackPlay(selectedTrack);
     else playTrack(selectedTrack);
   };
 
   const handlePlayToggle = (e) => {
     e.stopPropagation();
+    if (!isPlayable) return;
     if (isCurrent) {
       togglePlay();
     } else {
@@ -37,12 +41,14 @@ export default function TrackRow({
   return (
     <div
       className="track-row-grid"
+      aria-disabled={!isPlayable}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
         setShowMenu(false);
       }}
       onClick={() => {
+        if (!isPlayable) return;
         if (!isCurrent) startTrack(track);
         else togglePlay();
       }}
@@ -50,12 +56,13 @@ export default function TrackRow({
         backgroundColor: isCurrent ? 'var(--bg-surface-hover)' : isHovered ? 'var(--bg-surface)' : 'transparent',
         border: '1px solid',
         borderColor: isCurrent ? 'var(--border-medium)' : 'transparent',
-        cursor: 'pointer'
+        cursor: isPlayable ? 'pointer' : 'default',
+        opacity: isPlayable ? 1 : 0.72
       }}
     >
       {/* 1. Index or Play icon or Visualizer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {isHovered ? (
+        {isHovered && isPlayable ? (
           <button
             onClick={handlePlayToggle}
             style={{
@@ -112,6 +119,19 @@ export default function TrackRow({
           >
             {track.title}
           </div>
+          {track.source === 'spotify_import' && track.spotifyUrl && (
+            <a
+              className="spotify-attribution-link"
+              href={track.spotifyUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={event => event.stopPropagation()}
+              aria-label={`View ${track.title} on Spotify`}
+            >
+              <SpotifyMark size={14} />
+              <span>View on Spotify</span>
+            </a>
+          )}
           <div
             style={{
               fontSize: '0.75rem',
@@ -124,6 +144,11 @@ export default function TrackRow({
           >
             {track.artist}
           </div>
+          {!isPlayable && (
+            <span className={`spotify-import-track-status ${track.matchStatus === 'unavailable' ? 'unavailable' : 'unmatched'}`}>
+              {track.matchStatus === 'unavailable' ? 'Unavailable on Spotify' : 'Not found in NOIR catalog'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -197,7 +222,7 @@ export default function TrackRow({
               gap: '2px'
             }}
           >
-            <button
+            {isPlayable && <button
               onClick={() => {
                 addToQueue(track);
                 setShowMenu(false);
@@ -215,9 +240,9 @@ export default function TrackRow({
             >
               <ListPlus size={15} />
               <span>Add to Queue</span>
-            </button>
+            </button>}
 
-            {onOpenAddToPlaylist && (
+            {isPlayable && onOpenAddToPlaylist && (
               <button
                 onClick={() => {
                   onOpenAddToPlaylist(track);

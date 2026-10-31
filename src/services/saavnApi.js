@@ -266,21 +266,40 @@ export const saavnApi = {
     if (track.audioUrl) return track.audioUrl;
 
     try {
-      const searchQuery = buildTrackSearchQuery(track);
-      if (!searchQuery) return null;
-      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchQuery)}&n=5`;
-      const data = await fetchSaavnQuery(params);
-
-      if (data && data.results && data.results.length > 0) {
-        const matched = data.results.find(s => s.more_info?.encrypted_media_url) || data.results[0];
-        const audioUrl = decryptMediaUrl(matched.more_info?.encrypted_media_url);
-        if (audioUrl) {
-          track.audioUrl = audioUrl;
-          return audioUrl;
+      if (track.source === 'spotify_import' && track.matchStatus === 'matched' && (track.catalogTrackId || (track.id && !track.id.startsWith('sp_')))) {
+        const catalogTrack = await saavnApi.getSongDetails(track.catalogTrackId || track.id);
+        if (catalogTrack?.audioUrl) {
+          track.audioUrl = catalogTrack.audioUrl;
+          return catalogTrack.audioUrl;
         }
+      }
+
+      const searchQuery = buildTrackSearchQuery(track);
+      if (searchQuery) {
+        const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchQuery)}&n=5`;
+        const data = await fetchSaavnQuery(params);
+
+        if (data && data.results && data.results.length > 0) {
+          const matched = data.results.find(s => s.more_info?.encrypted_media_url) || data.results[0];
+          const audioUrl = decryptMediaUrl(matched.more_info?.encrypted_media_url);
+          if (audioUrl) {
+            track.audioUrl = audioUrl;
+            return audioUrl;
+          }
+        }
+      }
+
+      // Fallback to audioPreviewUrl if available
+      if (track.audioPreviewUrl) {
+        track.audioUrl = track.audioPreviewUrl;
+        return track.audioPreviewUrl;
       }
     } catch (err) {
       console.warn('Failed to resolve Saavn audio stream for track:', track.title, err);
+      if (track.audioPreviewUrl) {
+        track.audioUrl = track.audioPreviewUrl;
+        return track.audioPreviewUrl;
+      }
     }
 
     return null;

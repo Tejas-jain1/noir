@@ -12,6 +12,23 @@ const sanitizeHistory = (tracks) => (Array.isArray(tracks) ? tracks : []).filter
   track.title !== 'Blinding Lights' && track.title !== 'Get Lucky'
 );
 
+const refreshSpotifyPlaylistCounts = (playlist) => {
+  if (playlist?.sourceType !== 'spotify' || !Array.isArray(playlist.tracks)) return playlist;
+  const counts = playlist.tracks.reduce((result, track) => {
+    if (track.matchStatus === 'unmatched') result.unmatched += 1;
+    else if (track.matchStatus === 'unavailable') result.unavailable += 1;
+    else result.matched += 1;
+    return result;
+  }, { matched: 0, unmatched: 0, unavailable: 0 });
+  return {
+    ...playlist,
+    totalTrackCount: playlist.tracks.length,
+    matchedTrackCount: counts.matched,
+    unmatchedTrackCount: counts.unmatched,
+    unavailableTrackCount: counts.unavailable
+  };
+};
+
 export function LibraryProvider({ children }) {
   const [user, setUser] = useState(null);
   const [likedSongs, setLikedSongs] = useState(() => storage.getLikedSongs());
@@ -164,11 +181,48 @@ export function LibraryProvider({ children }) {
     return newPlaylist;
   }, [playlists.length, user, showToast]);
 
+  const importSpotifyPlaylist = useCallback(async (playlist, tracks) => {
+    const playlistId = playlist.id || ('sp-' + (playlist.spotifyPlaylistId || Date.now()));
+    const savedPlaylist = {
+      id: playlistId,
+      spotifyPlaylistId: playlist.spotifyPlaylistId || playlist.id,
+      name: playlist.name || 'Imported Spotify Playlist',
+      description: playlist.description || `Imported from Spotify (${tracks?.length || 0} tracks)`,
+      coverUrl: playlist.coverUrl || playlist.cover || '',
+      thumbnail: playlist.coverUrl || playlist.cover || '',
+      createdAt: new Date().toISOString(),
+      trackCount: tracks?.length || 0,
+      totalTrackCount: tracks?.length || 0,
+      matchedTrackCount: tracks?.length || 0,
+      unmatchedTrackCount: 0,
+      unavailableTrackCount: 0,
+      tracks: tracks || [],
+      source: 'spotify_import',
+      sourceType: 'spotify',
+      sourceUrl: playlist.sourceUrl || `https://open.spotify.com/playlist/${playlist.spotifyPlaylistId || ''}`
+    };
+
+    setPlaylists(prev => {
+      const updated = [savedPlaylist, ...prev.filter(item => (
+        item.id !== savedPlaylist.id && item.spotifyPlaylistId !== savedPlaylist.spotifyPlaylistId
+      ))];
+      const ownerId = user?.id || 'guest';
+      storage.savePlaylists(updated, ownerId);
+      if (ownerId === 'guest') offlineStorage.setPlaylists(updated);
+      if (user?.id) {
+        try { supabaseService.savePlaylist(savedPlaylist, user.id); } catch {}
+      }
+      return updated;
+    });
+
+    return savedPlaylist;
+  }, [user]);
+
   const updatePlaylist = useCallback((id, updates) => {
     setPlaylists(prev => {
       const updated = prev.map(pl => {
         if (pl.id === id) {
-          const mod = { ...pl, ...updates };
+          const mod = refreshSpotifyPlaylistCounts({ ...pl, ...updates });
           if (user) supabaseService.savePlaylist(mod, user.id);
           return mod;
         }
@@ -206,10 +260,10 @@ export function LibraryProvider({ children }) {
             return pl;
           }
           showToast(`Added "${track.title}" to "${pl.name}"`, 'success');
-          const mod = {
+          const mod = refreshSpotifyPlaylistCounts({
             ...pl,
             tracks: [...currentTracks, track]
-          };
+          });
           if (user) supabaseService.savePlaylist(mod, user.id);
           return mod;
         }
@@ -226,10 +280,10 @@ export function LibraryProvider({ children }) {
     setPlaylists(prev => {
       const updated = prev.map(pl => {
         if (pl.id === playlistId) {
-          const mod = {
+          const mod = refreshSpotifyPlaylistCounts({
             ...pl,
             tracks: (pl.tracks || []).filter(t => t.id !== trackId)
-          };
+          });
           if (user) supabaseService.savePlaylist(mod, user.id);
           return mod;
         }
@@ -319,6 +373,7 @@ export function LibraryProvider({ children }) {
         isLiked,
         toggleLike,
         createPlaylist,
+        importSpotifyPlaylist,
         updatePlaylist,
         deletePlaylist,
         addTrackToPlaylist,
