@@ -138,14 +138,13 @@ export function LibraryProvider({ children }) {
   }, [user, showToast]);
 
   // Playlist Management
-  const createPlaylist = useCallback((name, description = '', tracks = []) => {
+  const createPlaylist = useCallback((name, description = '') => {
     const newPlaylist = {
       id: 'pl-' + Date.now(),
       name: name.trim() || 'My Playlist #' + (playlists.length + 1),
       description: description.trim(),
       createdAt: new Date().toISOString(),
-      tracks: Array.isArray(tracks) ? tracks : [],
-      coverUrl: tracks?.[0]?.thumbnail || ''
+      tracks: []
     };
 
     setPlaylists(prev => {

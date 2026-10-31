@@ -12,7 +12,6 @@ import {
   Users
 } from 'lucide-react';
 import MusicCard from '../components/MusicCard';
-import ImportFromSpotifyButton from '../components/ImportFromSpotifyButton';
 import { useLibrary } from '../context/LibraryContext';
 import { usePlayer } from '../context/PlayerContext';
 import { normalizeTrackTitle } from '../services/playbackUtils';
@@ -175,7 +174,7 @@ function handleArtworkError(event) {
   if (fallback?.classList.contains('explore-artwork-fallback')) fallback.style.display = 'flex';
 }
 
-export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
+export default function Explore({ onOpenAddToPlaylist }) {
   const navigate = useNavigate();
   const { playTrack } = usePlayer();
   const { playlists: savedPlaylists = [], showToast } = useLibrary();
@@ -364,13 +363,10 @@ export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
             <p>Find your next favorite in what’s moving, new, and worth another listen.</p>
           </div>
         </div>
-        <div className="explore-page-actions">
-          <ImportFromSpotifyButton onClick={onOpenSpotifyImport} />
-          <button className="explore-refresh-button" type="button" onClick={reloadExplore} disabled={loading}>
-            <Radio size={16} />
-            <span>{loading ? 'Refreshing' : 'Refresh'}</span>
-          </button>
-        </div>
+        <button className="explore-refresh-button" type="button" onClick={reloadExplore} disabled={loading}>
+          <Radio size={16} />
+          <span>{loading ? 'Refreshing' : 'Refresh'}</span>
+        </button>
       </header>
 
       <TrackRail
