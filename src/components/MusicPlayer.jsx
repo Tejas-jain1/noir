@@ -21,7 +21,7 @@ import {
   PlusCircle,
   Sparkles,
   Radio,
-  Mic2,
+  Music2,
   MoreHorizontal,
   Loader2
 } from 'lucide-react';
@@ -49,7 +49,6 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     autoplayEnabled,
     toggleAutoplay,
     addToQueue,
-    isMobilePlayerOpen,
     setIsMobilePlayerOpen
   } = usePlayer();
 
@@ -62,6 +61,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
 
   const menuRef = useRef(null);
   const menuButtonRef = useRef(null);
+  const mobileMenuButtonRef = useRef(null);
 
   // Sync scrubValue with currentTime when not user-scrubbing
   useEffect(() => {
@@ -70,21 +70,31 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     }
   }, [currentTime, isScrubbing]);
 
-  // Click outside to close floating 3-dots popover menu
+  // Click outside / escape to close floating 3-dots popover menu
   useEffect(() => {
     if (!isMenuOpen) return;
     const handleClickOutside = (e) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target) &&
-        menuButtonRef.current &&
-        !menuButtonRef.current.contains(e.target)
-      ) {
+      const isInsideMenu = menuRef.current && menuRef.current.contains(e.target);
+      const isDesktopButton = menuButtonRef.current && menuButtonRef.current.contains(e.target);
+      const isMobileButton = mobileMenuButtonRef.current && mobileMenuButtonRef.current.contains(e.target);
+
+      if (!isInsideMenu && !isDesktopButton && !isMobileButton) {
         setIsMenuOpen(false);
       }
     };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsMenuOpen(false);
+      }
+    };
+
     document.addEventListener('pointerdown', handleClickOutside);
-    return () => document.removeEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isMenuOpen]);
 
   if (!currentTrack) return null;
@@ -328,14 +338,21 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
 
           {/* Mobile 3-Dots More Options Button */}
           <button
+            ref={mobileMenuButtonRef}
             onClick={() => setIsMenuOpen((prev) => !prev)}
+            className="player-more-btn-mobile"
             style={{
               color: isMenuOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
               padding: '8px',
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer'
             }}
             title="More Options"
+            aria-label="More Options"
+            aria-expanded={isMenuOpen}
           >
             <MoreHorizontal size={18} />
           </button>
@@ -584,8 +601,10 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
               bottom: 'calc(100% + 10px)',
               right: '16px',
               width: '230px',
+              maxWidth: 'calc(100vw - 32px)',
               backgroundColor: 'var(--bg-card)',
               backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid var(--border-medium)',
               borderRadius: '16px',
               padding: '6px',
