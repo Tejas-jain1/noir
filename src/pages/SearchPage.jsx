@@ -8,7 +8,6 @@ import { createSingleTrackQueue } from '../services/playbackUtils';
 import { parseSpotifyPlaylistId } from '../services/spotifyPlaylistUtils';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
-import { SpotifyMark } from '../components/ImportSpotifyButton';
 import { importAndStreamSpotify } from '../services/spotifyImport';
 import { 
   Search, 
@@ -378,40 +377,9 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
         </div>
       </div>
 
-      {/* 1. Spotify Quick-Import Banner */}
-      <div
-        className="spotify-quick-import-card"
-        id="search-spotify-import-banner"
-        onClick={() => onOpenSpotifyImport?.('')}
-        role="button"
-        tabIndex={0}
-      >
-        <div className="spotify-banner-left">
-          <div className="spotify-icon-badge">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="#000">
-              <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.563.387-.857.207-2.35-1.435-5.308-1.76-8.793-.963-.335.077-.67-.133-.746-.468-.077-.334.132-.67.467-.746 3.808-.87 7.076-.496 9.722 1.115.294.18.386.562.207.855zm1.225-2.724c-.226.367-.706.482-1.072.257-2.687-1.652-6.785-2.131-9.965-1.166-.413.127-.849-.106-.974-.517-.125-.413.108-.849.52-.974 3.632-1.102 8.147-.568 11.234 1.328.366.226.48.707.257 1.072zm.105-2.835C14.692 8.95 9.375 8.775 6.297 9.71c-.493.15-1.016-.13-1.165-.624-.15-.493.13-1.016.624-1.165 3.532-1.073 9.404-.866 13.115 1.338.445.264.59.838.327 1.282-.264.443-.838.59-1.282.324z"/>
-            </svg>
-          </div>
-          <div className="spotify-banner-info">
-            <div className="spotify-banner-title">Import Spotify Playlist</div>
-            <div className="spotify-banner-sub">Paste any public Spotify link to import & stream all tracks in 320kbps</div>
-          </div>
-        </div>
-        <button
-          className="btn-import-spotify-cta"
-          id="btn-trigger-spotify-import"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenSpotifyImport?.('');
-          }}
-        >
-          Import
-        </button>
-      </div>
-
-      {/* 2. Recents Section: Rendered when search query is empty (Exactly matching user's Spotify screenshot) */}
+      {/* Recents Section: Rendered when search query is empty (matching Spotify layout) */}
       {!query.trim() && (
-        <section style={{ marginTop: '12px' }}>
+        <section style={{ marginTop: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
               Recents
