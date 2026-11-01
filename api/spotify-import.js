@@ -1,3 +1,5 @@
+const NOIR_TRACK_ARTWORK_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100%25' height='100%25' fill='%2318181b'/%3E%3Ccircle cx='50' cy='50' r='38' stroke='%2327272a' stroke-width='4' fill='none'/%3E%3Ccircle cx='50' cy='50' r='14' fill='%2327272a'/%3E%3Cpath d='M47 38v16l12-8z' fill='%2371717a'/%3E%3C/svg%3E";
+
 export async function scrapeSpotifyPlaylist(inputStr) {
   if (!inputStr || typeof inputStr !== 'string') {
     throw new Error('Please provide a valid Spotify playlist URL or ID.');
@@ -60,7 +62,7 @@ export async function scrapeSpotifyPlaylist(inputStr) {
       title: t.title || 'Untitled Track',
       artist: t.subtitle || t.artist || 'Unknown Artist',
       album: entity.name || 'Spotify Playlist',
-      thumbnail: cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80',
+      thumbnail: cover || NOIR_TRACK_ARTWORK_FALLBACK,
       cover: cover,
       duration: durSec,
       durationFormatted: durationFormatted,

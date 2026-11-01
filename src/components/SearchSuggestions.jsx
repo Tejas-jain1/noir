@@ -11,6 +11,7 @@ import {
   ArrowUpRight, 
   Loader2
 } from 'lucide-react';
+import { NOIR_TRACK_ARTWORK_FALLBACK, NOIR_ARTIST_AVATAR_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 
 export default function SearchSuggestions({
   query,
@@ -220,12 +221,10 @@ export default function SearchSuggestions({
                   className="dropdown-hover-item"
                 >
                   <img
-                    src={song.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80'}
+                    src={song.image || NOIR_TRACK_ARTWORK_FALLBACK}
                     alt={song.title}
                     style={{ width: '42px', height: '42px', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 }}
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop&q=80';
-                    }}
+                    onError={handleArtworkError}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -280,12 +279,10 @@ export default function SearchSuggestions({
                   className="dropdown-hover-item"
                 >
                   <img
-                    src={artist.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80'}
+                    src={artist.image || NOIR_ARTIST_AVATAR_FALLBACK}
                     alt={artist.name}
                     style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80';
-                    }}
+                    onError={(e) => handleArtworkError(e, NOIR_ARTIST_AVATAR_FALLBACK)}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

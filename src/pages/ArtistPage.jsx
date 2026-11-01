@@ -7,6 +7,7 @@ import { POPULAR_ARTISTS, MOCK_TRACKS } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
 import MusicCard from '../components/MusicCard';
 import { Play, Shuffle, CheckCircle, Users, Disc, ChevronLeft, Heart } from 'lucide-react';
+import { NOIR_ARTIST_AVATAR_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 
 export default function ArtistPage({ onOpenAddToPlaylist }) {
   const { name } = useParams();
@@ -25,7 +26,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
   ) || {
     id: `artist-${decodedName.toLowerCase().replace(/\s+/g, '-')}`,
     name: decodedName,
-    image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80',
+    image: NOIR_ARTIST_AVATAR_FALLBACK,
     monthlyListeners: '2.4M monthly listeners',
     genre: 'Contemporary / Alternative'
   };
@@ -130,9 +131,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
             src={artistMeta.image}
             alt={artistMeta.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={(e) => {
-              e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
-            }}
+            onError={(e) => handleArtworkError(e, NOIR_ARTIST_AVATAR_FALLBACK)}
           />
         </div>
 

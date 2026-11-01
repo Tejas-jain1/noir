@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { formatTime } from '../services/youtubeApi';
+import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 import {
   Play,
   Pause,
@@ -456,16 +457,14 @@ export default function AmbientMode({ isOpen, onClose, onOpenAddToPlaylist }) {
             }}
           >
             <img
-              src={currentTrack.thumbnail}
+              src={currentTrack.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
               alt={currentTrack.title}
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover'
               }}
-              onError={(e) => {
-                e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
-              }}
+              onError={handleArtworkError}
             />
           </div>
 

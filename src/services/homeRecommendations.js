@@ -6,6 +6,7 @@ import {
   rankRecommendationCandidates 
 } from './recommendationEngine.js';
 import { normalizeTrackTitle } from './playbackUtils.js';
+import { NOIR_ARTIST_AVATAR_FALLBACK } from './artworkUtils.js';
 
 const CACHE_PREFIX = 'noir_home_feed_';
 const SESSION_SEED_KEY = 'noir_home_session_seed';
@@ -353,7 +354,7 @@ export function buildPopularArtistsFeed({
         name,
         monthlyListeners: 'Favorite Artist',
         genre: 'User Preferred',
-        image: trackWithImage?.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80'
+        image: trackWithImage?.thumbnail || NOIR_ARTIST_AVATAR_FALLBACK
       });
     }
   }

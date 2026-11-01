@@ -2,6 +2,7 @@ import { parseSpotifyPlaylistId } from './spotifyPlaylistUtils.js';
 import { storage } from './storage.js';
 import { offlineStorage } from './offlineStorage.js';
 import { supabaseService } from './supabaseClient.js';
+import { NOIR_TRACK_ARTWORK_FALLBACK } from './artworkUtils.js';
 
 export { parseSpotifyPlaylistId };
 
@@ -94,7 +95,7 @@ export async function fetchSpotifyPlaylist(urlOrId) {
         title: t.title || 'Untitled Track',
         artist: t.subtitle || t.artist || 'Unknown Artist',
         album: entity.name || 'Spotify Playlist',
-        thumbnail: cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80',
+        thumbnail: cover || NOIR_TRACK_ARTWORK_FALLBACK,
         cover: cover,
         duration: durSec,
         durationFormatted: durationFormatted,

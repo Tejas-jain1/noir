@@ -8,6 +8,7 @@ import {
   clearHomeFeedCache 
 } from '../services/homeRecommendations';
 import MusicCard from '../components/MusicCard';
+import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 import { 
   Play, 
   Pause, 
@@ -369,16 +370,14 @@ export default function Home({ onOpenAddToPlaylist }) {
           {/* Hero Artwork */}
           <div className="hero-spotlight-img" style={{ height: '100%', minHeight: '260px', maxHeight: '340px', position: 'relative', overflow: 'hidden' }}>
             <img
-              src={heroTrack.thumbnail}
+              src={heroTrack.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
               alt={heroTrack.title}
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover'
               }}
-              onError={(e) => {
-                e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
-              }}
+              onError={handleArtworkError}
             />
             <div
               style={{

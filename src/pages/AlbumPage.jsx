@@ -6,6 +6,7 @@ import { youtubeApi } from '../services/youtubeApi';
 import { MOCK_TRACKS } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
 import { Play, Shuffle, Disc, ChevronLeft, Calendar, Music } from 'lucide-react';
+import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 
 export default function AlbumPage({ onOpenAddToPlaylist }) {
   const { id } = useParams();
@@ -23,7 +24,7 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
 
   const albumTitle = catalogMatch?.album || decodedId;
   const albumArtist = catalogMatch?.artist || 'Featured Artist';
-  const albumArtwork = catalogMatch?.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
+  const albumArtwork = catalogMatch?.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK;
 
   useEffect(() => {
     let isMounted = true;
@@ -120,9 +121,7 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
             src={albumArtwork}
             alt={albumTitle}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={(e) => {
-              e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
-            }}
+            onError={handleArtworkError}
           />
         </div>
 

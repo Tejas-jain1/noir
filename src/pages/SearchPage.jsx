@@ -9,6 +9,7 @@ import { parseSpotifyPlaylistId } from '../services/spotifyPlaylistUtils';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
 import { importAndStreamSpotify } from '../services/spotifyImport';
+import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 import { 
   Search, 
   Loader2, 
@@ -30,6 +31,9 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInfo, setSearchInfo] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Recent searched/played tracks (Spotify style)
   const [recentTracks, setRecentTracks] = useState(() => storage.getRecentSearchTracks());
@@ -81,17 +85,16 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
     }
   }, [recentTracks.length]);
 
-  // Rank / personalize search results according to user's saved interests & liked songs
-  const personalizeTracks = (tracks) => {
+  // Rank search results prioritizing query match with gentle personalization tie-breakers
+  const personalizeTracks = (tracks, activeQuery = query) => {
     if (!tracks || tracks.length === 0) return tracks;
+
+    const q = (activeQuery || '').trim().toLowerCase();
+    const qTokens = q.split(/\s+/).filter(Boolean);
 
     const prefArtists = (userPreferences?.artists || []).map(a => a.toLowerCase());
     const prefGenres = (userPreferences?.genres || []).map(g => g.toLowerCase().replace(/[^a-z0-9]/g, ''));
     const likedArtistNames = (likedSongs || []).map(t => (t.artist || '').toLowerCase());
-
-    if (prefArtists.length === 0 && prefGenres.length === 0 && likedArtistNames.length === 0) {
-      return tracks;
-    }
 
     return [...tracks].sort((a, b) => {
       let scoreA = 0;
@@ -101,19 +104,53 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
       const artistB = (b.artist || '').toLowerCase();
       const titleA = (a.title || '').toLowerCase();
       const titleB = (b.title || '').toLowerCase();
+      const albumA = (a.album || '').toLowerCase();
+      const albumB = (b.album || '').toLowerCase();
 
-      // Preferred artist boost (+15)
-      if (prefArtists.some(pa => artistA.includes(pa) || pa.includes(artistA))) scoreA += 15;
-      if (prefArtists.some(pb => artistB.includes(pb) || pb.includes(artistB))) scoreB += 15;
+      if (q) {
+        // 1. Exact title match gets highest relevance (+100)
+        if (titleA === q) scoreA += 100;
+        else if (titleA.startsWith(q)) scoreA += 70;
+        else if (titleA.includes(q)) scoreA += 40;
 
-      // Liked artist boost (+10)
-      if (likedArtistNames.some(la => artistA.includes(la))) scoreA += 10;
-      if (likedArtistNames.some(lb => artistB.includes(lb))) scoreB += 10;
+        if (titleB === q) scoreB += 100;
+        else if (titleB.startsWith(q)) scoreB += 70;
+        else if (titleB.includes(q)) scoreB += 40;
 
-      // Genre match boost (+8)
+        // 2. Exact or primary artist match (+85)
+        const primaryArtistA = artistA.split(',')[0].trim();
+        const primaryArtistB = artistB.split(',')[0].trim();
+        if (artistA === q || primaryArtistA === q) scoreA += 85;
+        else if (artistA.startsWith(q)) scoreA += 60;
+        else if (artistA.includes(q)) scoreA += 45;
+
+        if (artistB === q || primaryArtistB === q) scoreB += 85;
+        else if (artistB.startsWith(q)) scoreB += 60;
+        else if (artistB.includes(q)) scoreB += 45;
+
+        // 3. Album match (+15)
+        if (albumA.includes(q)) scoreA += 15;
+        if (albumB.includes(q)) scoreB += 15;
+
+        // 4. Token matches
+        if (qTokens.length > 1) {
+          const matchedA = qTokens.filter(t => titleA.includes(t) || artistA.includes(t)).length;
+          const matchedB = qTokens.filter(t => titleB.includes(t) || artistB.includes(t)).length;
+          scoreA += (matchedA / qTokens.length) * 25;
+          scoreB += (matchedB / qTokens.length) * 25;
+        }
+      }
+
+      // Small personalization tie-breakers (capped so query relevance always leads)
+      if (prefArtists.some(pa => artistA.includes(pa))) scoreA += 8;
+      if (prefArtists.some(pb => artistB.includes(pb))) scoreB += 8;
+
+      if (likedArtistNames.some(la => artistA.includes(la))) scoreA += 5;
+      if (likedArtistNames.some(lb => artistB.includes(lb))) scoreB += 5;
+
       prefGenres.forEach(genre => {
-        if (titleA.includes(genre) || (a.album && a.album.toLowerCase().includes(genre))) scoreA += 8;
-        if (titleB.includes(genre) || (b.album && b.album.toLowerCase().includes(genre))) scoreB += 8;
+        if (titleA.includes(genre) || albumA.includes(genre)) scoreA += 3;
+        if (titleB.includes(genre) || albumB.includes(genre)) scoreB += 3;
       });
 
       return scoreB - scoreA;
@@ -125,25 +162,56 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
     if (!query.trim()) {
       setResults([]);
       setLoading(false);
+      setHasMore(false);
+      setPage(1);
       return;
     }
 
     setLoading(true);
+    setPage(1);
     const handler = setTimeout(async () => {
       try {
-        const data = await saavnApi.search(query.trim());
-        const sorted = personalizeTracks(data.results || []);
+        const data = await saavnApi.search(query.trim(), { page: 1 });
+        const sorted = personalizeTracks(data.results || [], query.trim());
         setResults(sorted);
         setSearchInfo(data);
+        setHasMore(Boolean(data.hasMore));
       } catch (err) {
         console.error('Search error:', err);
       } finally {
         setLoading(false);
       }
-    }, 300);
+    }, 280);
 
     return () => clearTimeout(handler);
   }, [query, userPreferences, likedSongs]);
+
+  // Load more paginated results
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore || !query.trim()) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const data = await saavnApi.search(query.trim(), { page: nextPage });
+      if (data && Array.isArray(data.results) && data.results.length > 0) {
+        const sortedNew = personalizeTracks(data.results, query.trim());
+        setResults(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const uniqueNew = sortedNew.filter(t => !existingIds.has(t.id));
+          return [...prev, ...uniqueNew];
+        });
+        setPage(nextPage);
+        setHasMore(Boolean(data.hasMore));
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.warn('Failed to load more results:', err);
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Live autocomplete suggestions for typo tolerance
   useEffect(() => {
@@ -430,8 +498,9 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
                     {/* Left: Thumbnail & Song Metadata */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
                       <img
-                        src={track.thumbnail}
+                        src={track.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
                         alt={track.title}
+                        onError={handleArtworkError}
                         style={{
                           width: '48px',
                           height: '48px',
@@ -525,95 +594,155 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
       {/* 3. Active Search Results: Shown only when user has typed a query */}
       {query.trim() && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Top Result Card if available */}
-          {topResult && (
-            <div className="search-top-result-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
-              <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>Top Result</h3>
-                <div
-                  className="search-top-result-card"
-                  onClick={() => {
-                    const updated = storage.addRecentSearchTrack(topResult);
-                    setRecentTracks(updated);
-                    if (currentTrack?.id === topResult.id) togglePlay();
-                    else playTrack(topResult, createSingleTrackQueue(topResult), { searchQuery: query });
-                  }}
-                  style={{
-                    backgroundColor: 'var(--bg-card)',
-                    borderRadius: 'var(--radius-xl)',
-                    padding: '20px',
-                    border: '1px solid var(--border-medium)',
-                    boxShadow: 'var(--shadow-sm)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '14px',
-                    cursor: 'pointer',
-                    position: 'relative'
-                  }}
-                >
-                  <img
-                    src={topResult.thumbnail}
-                    alt={topResult.title}
-                    style={{
-                      width: '84px',
-                      height: '84px',
-                      borderRadius: 'var(--radius-md)',
-                      objectFit: 'cover'
-                    }}
-                  />
-
+          {/* Empty state: clear and unambiguous when search returns no tracks */}
+          {!loading && results.length === 0 ? (
+            <div
+              style={{
+                padding: '64px 20px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <Music size={44} strokeWidth={1.5} style={{ opacity: 0.4, marginBottom: '4px' }} />
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                No results found for &ldquo;{query}&rdquo;
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.88rem', maxWidth: '420px', lineHeight: 1.5 }}>
+                Please check your spelling, try searching for the artist or album name, or browse popular tracks.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Top Result Card if available */}
+              {topResult && (
+                <div className="search-top-result-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
                   <div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 4px', lineHeight: 1.2 }}>
-                      {topResult.title}
-                    </h2>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                      {topResult.artist} • <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)' }}>Song</span>
-                    </span>
-                  </div>
-
-                  <div style={{ position: 'absolute', bottom: '20px', right: '20px' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>Top Result</h3>
+                    <div
+                      className="search-top-result-card"
+                      onClick={() => {
                         const updated = storage.addRecentSearchTrack(topResult);
                         setRecentTracks(updated);
                         if (currentTrack?.id === topResult.id) togglePlay();
                         else playTrack(topResult, createSingleTrackQueue(topResult), { searchQuery: query });
                       }}
                       style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent-solid)',
-                        color: 'var(--accent-text)',
+                        backgroundColor: 'var(--bg-card)',
+                        borderRadius: 'var(--radius-xl)',
+                        padding: '20px',
+                        border: '1px solid var(--border-medium)',
+                        boxShadow: 'var(--shadow-sm)',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: 'var(--shadow-md)'
+                        flexDirection: 'column',
+                        gap: '14px',
+                        cursor: 'pointer',
+                        position: 'relative'
                       }}
                     >
-                      <Play size={20} fill="currentColor" style={{ marginLeft: isTopPlaying ? 0 : '2px' }} />
-                    </button>
+                      <img
+                        src={topResult.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+                        alt={topResult.title}
+                        onError={handleArtworkError}
+                        style={{
+                          width: '84px',
+                          height: '84px',
+                          borderRadius: 'var(--radius-md)',
+                          objectFit: 'cover'
+                        }}
+                      />
+
+                      <div>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 4px', lineHeight: 1.2 }}>
+                          {topResult.title}
+                        </h2>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                          {topResult.artist} • <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', padding: '2px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-subtle)' }}>Song</span>
+                        </span>
+                      </div>
+
+                      <div style={{ position: 'absolute', bottom: '20px', right: '20px' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const updated = storage.addRecentSearchTrack(topResult);
+                            setRecentTracks(updated);
+                            if (currentTrack?.id === topResult.id) togglePlay();
+                            else playTrack(topResult, createSingleTrackQueue(topResult), { searchQuery: query });
+                          }}
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--accent-solid)',
+                            color: 'var(--accent-text)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: 'var(--shadow-md)'
+                          }}
+                        >
+                          <Play size={20} fill="currentColor" style={{ marginLeft: isTopPlaying ? 0 : '2px' }} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              )}
+
+              {/* Songs List */}
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>
+                  Songs
+                </h3>
+
+                <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '10px', border: '1px solid var(--border-subtle)' }}>
+                  <TrackList
+                    tracks={results}
+                    onOpenAddToPlaylist={onOpenAddToPlaylist}
+                    onTrackPlay={(track) => playTrack(track, createSingleTrackQueue(track), { searchQuery: query })}
+                  />
+
+                  {/* Pagination: Load More Button */}
+                  {hasMore && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 8px' }}>
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        style={{
+                          padding: '10px 24px',
+                          borderRadius: 'var(--radius-full)',
+                          backgroundColor: 'var(--bg-surface)',
+                          border: '1px solid var(--border-medium)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.88rem',
+                          fontWeight: 600,
+                          cursor: loadingMore ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'background var(--transition-fast)'
+                        }}
+                      >
+                        {loadingMore ? (
+                          <>
+                            <Loader2 size={16} className="brand-logo-spin" />
+                            <span>Loading more...</span>
+                          </>
+                        ) : (
+                          <span>Load more songs</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
-
-          {/* Songs List */}
-          <div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '12px' }}>
-              Songs
-            </h3>
-
-            <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: '10px', border: '1px solid var(--border-subtle)' }}>
-              <TrackList
-                tracks={results}
-                onOpenAddToPlaylist={onOpenAddToPlaylist}
-                onTrackPlay={(track) => playTrack(track, createSingleTrackQueue(track), { searchQuery: query })}
-              />
-            </div>
-          </div>
         </div>
       )}
     </div>

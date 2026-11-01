@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Play, Pause, Heart, MoreVertical, ListPlus, FolderPlus, User, Disc } from 'lucide-react';
+import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
 
 export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null }) {
   const navigate = useNavigate();
@@ -59,7 +60,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null
         }}
       >
         <img
-          src={track.thumbnail}
+          src={track.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
           alt={track.title}
           loading="lazy"
           style={{
@@ -69,10 +70,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null
             transition: 'transform 0.4s ease',
             transform: isHovered ? 'scale(1.05)' : 'scale(1)'
           }}
-          onError={(e) => {
-            // Fallback image if thumbnail fails
-            e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80';
-          }}
+          onError={handleArtworkError}
         />
 
         {/* Audio Visualizer Badge if currently active */}
