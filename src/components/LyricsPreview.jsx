@@ -1,7 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { Music2, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useRef, useEffect, memo } from 'react';
+import { Music2, Loader2, Sparkles } from 'lucide-react';
 
-export default function LyricsPreview({
+function LyricsPreviewComponent({
   lyricsData,
   lyricsLoading = false,
   activeLyricIndex = -1,
@@ -12,16 +12,65 @@ export default function LyricsPreview({
 }) {
   const lyricsContainerRef = useRef(null);
   const activeLineRef = useRef(null);
+  const isUserInteractingRef = useRef(false);
+  const interactionTimeoutRef = useRef(null);
 
-  // Smoothly scroll active line to center of lyrics container
+  // Pause auto-scroll briefly when the user manually scrolls or touches the lyrics
+  const handleUserInteraction = () => {
+    isUserInteractingRef.current = true;
+    if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+    interactionTimeoutRef.current = setTimeout(() => {
+      isUserInteractingRef.current = false;
+    }, 2800);
+  };
+
   useEffect(() => {
-    if (activeLineRef.current && lyricsContainerRef.current) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
+    return () => {
+      if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+    };
+  }, []);
+
+  // Reset scroll to top when new lyrics data loads for a track
+  useEffect(() => {
+    isUserInteractingRef.current = false;
+    if (lyricsContainerRef.current) {
+      lyricsContainerRef.current.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [lyricsData]);
+
+  // Smoothly scroll active line to center of lyrics container ONLY.
+  // NEVER calls scrollIntoView() which causes the parent page/modal to jump.
+  useEffect(() => {
+    const container = lyricsContainerRef.current;
+    const activeLine = activeLineRef.current;
+    if (!container || !activeLine || isUserInteractingRef.current) return;
+
+    try {
+      const containerRect = container.getBoundingClientRect();
+      const lineRect = activeLine.getBoundingClientRect();
+
+      // Measure position of active line relative to container's visible bounds
+      const lineCenterInContainer = (lineRect.top - containerRect.top) + (lineRect.height / 2);
+      const containerCenter = container.clientHeight / 2;
+      const delta = lineCenterInContainer - containerCenter;
+
+      // Only scroll the internal lyrics container
+      container.scrollTo({
+        top: container.scrollTop + delta,
+        behavior: 'smooth'
       });
+    } catch {
+      // Safe fallback for environments without DOM rects
+      if (typeof container.scrollTop === 'number' && typeof activeLine.offsetTop === 'number') {
+        container.scrollTop = activeLine.offsetTop - (container.clientHeight / 2);
+      }
     }
   }, [activeLyricIndex]);
+
+  const handleLineClick = (time) => {
+    isUserInteractingRef.current = false;
+    seekTo(time);
+  };
 
   const hasSynced = Array.isArray(lyricsData?.syncedLyrics) && lyricsData.syncedLyrics.length > 0;
   const hasPlain = !hasSynced && Boolean(lyricsData?.plainLyrics);
@@ -143,6 +192,9 @@ export default function LyricsPreview({
         <div
           ref={lyricsContainerRef}
           className="spotify-lyrics-scroll"
+          onWheel={handleUserInteraction}
+          onTouchStart={handleUserInteraction}
+          onPointerDown={handleUserInteraction}
           style={{
             maxHeight: '320px',
             overflowY: 'auto',
@@ -150,9 +202,10 @@ export default function LyricsPreview({
             display: 'flex',
             flexDirection: 'column',
             gap: '16px',
-            padding: '12px 4px 28px',
+            padding: '14px 4px 32px',
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)'
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
+            position: 'relative'
           }}
         >
           {lyricsData.syncedLyrics.map((line, idx) => {
@@ -161,9 +214,9 @@ export default function LyricsPreview({
 
             return (
               <p
-                key={`${line.time}-${idx}`}
+                key={`lyric-${idx}-${line.time}`}
                 ref={isActive ? activeLineRef : null}
-                onClick={() => seekTo(line.time)}
+                onClick={() => handleLineClick(line.time)}
                 className={`spotify-lyric-line ${isActive ? 'active' : ''}`}
                 style={{
                   margin: 0,
@@ -191,6 +244,9 @@ export default function LyricsPreview({
         <div
           ref={lyricsContainerRef}
           className="spotify-lyrics-scroll"
+          onWheel={handleUserInteraction}
+          onTouchStart={handleUserInteraction}
+          onPointerDown={handleUserInteraction}
           style={{
             maxHeight: '300px',
             overflowY: 'auto',
@@ -202,7 +258,8 @@ export default function LyricsPreview({
             color: 'var(--text-secondary)',
             fontWeight: 600,
             WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)'
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
+            position: 'relative'
           }}
         >
           {lyricsData.plainLyrics}
@@ -249,3 +306,5 @@ export default function LyricsPreview({
     </div>
   );
 }
+
+export default memo(LyricsPreviewComponent);

@@ -97,13 +97,27 @@ export default function AmbientMode({ isOpen, onClose, onOpenAddToPlaylist }) {
     }
   }, [currentTime, isScrubbing]);
 
-  // Smoothly scroll active lyric to vertical center
+  // Smoothly scroll active lyric to vertical center of lyrics container only
   useEffect(() => {
-    if (activeLineRef.current && lyricsContainerRef.current) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
+    const container = lyricsContainerRef.current;
+    const activeLine = activeLineRef.current;
+    if (!container || !activeLine) return;
+
+    try {
+      const containerRect = container.getBoundingClientRect();
+      const lineRect = activeLine.getBoundingClientRect();
+      const lineCenterInContainer = (lineRect.top - containerRect.top) + (lineRect.height / 2);
+      const containerCenter = container.clientHeight / 2;
+      const delta = lineCenterInContainer - containerCenter;
+
+      container.scrollTo({
+        top: container.scrollTop + delta,
+        behavior: 'smooth'
       });
+    } catch {
+      if (typeof container.scrollTop === 'number' && typeof activeLine.offsetTop === 'number') {
+        container.scrollTop = activeLine.offsetTop - (container.clientHeight / 2);
+      }
     }
   }, [activeLyricIndex]);
 
