@@ -49,9 +49,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     toggleAutoplay,
     addToQueue,
     isMobilePlayerOpen,
-    setIsMobilePlayerOpen,
-    showLyrics,
-    setShowLyrics
+    setIsMobilePlayerOpen
   } = usePlayer();
 
   const { isLiked, toggleLike } = useLibrary();
@@ -549,33 +547,6 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
             />
           </div>
 
-          {/* [🎵 Lyrics] Pill Button */}
-          <button
-            onClick={() => {
-              setShowLyrics(true);
-              setIsMobilePlayerOpen(true);
-            }}
-            className="player-lyrics-pill"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              backgroundColor: 'var(--bg-surface)',
-              border: '1px solid var(--border-medium)',
-              color: 'var(--text-primary)',
-              fontSize: '0.8rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-            }}
-            title="Synchronized Lyrics & Full Player"
-          >
-            <Mic2 size={14} style={{ color: 'var(--accent-solid)' }} />
-            <span>Lyrics</span>
-          </button>
-
           {/* [···] 3-Dots More Options Button */}
           <button
             ref={menuButtonRef}
@@ -627,17 +598,16 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
               gap: '2px'
             }}
           >
-            {/* 1. Lyrics & Full Player */}
+            {/* 1. Now Playing View */}
             <button
               onClick={() => {
-                setShowLyrics(true);
                 setIsMobilePlayerOpen(true);
                 setIsMenuOpen(false);
               }}
               className="popover-item"
             >
-              <Mic2 size={16} style={{ color: 'var(--accent-solid)' }} />
-              <span>Lyrics & Full Player</span>
+              <Music2 size={16} style={{ color: 'var(--accent-solid)' }} />
+              <span>Now Playing View</span>
             </button>
 
             {/* 2. Ambient Mode */}
