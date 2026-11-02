@@ -137,3 +137,30 @@ test('fetchLyricsForTrack caches results to prevent duplicate network calls', as
 
   assert.deepEqual(res1, res2, 'Second call should return cached result');
 });
+
+test('LyricsPreview component structure verifies 3D perspective, centering and blurred artwork', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const componentPath = path.resolve('src/components/LyricsPreview.jsx');
+  const content = fs.readFileSync(componentPath, 'utf-8');
+
+  // 1. Center-aligned layout
+  assert.ok(content.includes("textAlign: 'center'"), 'Lyrics text must be center-aligned');
+  assert.ok(content.includes("alignItems: 'center'"), 'Lyrics container must center items vertically');
+
+  // 2. 3D perspective and transforms
+  assert.ok(content.includes("perspective: '800px'"), 'Stage must declare 3D perspective');
+  assert.ok(content.includes("transformStyle: 'preserve-3d'"), 'Stage must preserve 3D context');
+  assert.ok(content.includes('rotateX('), 'Lines must rotate around X-axis for cylindrical curvature');
+  assert.ok(content.includes('translateZ('), 'Lines must have 3D Z-depth translation');
+
+  // 3. Blurred album artwork background
+  assert.ok(content.includes('lyrics-ambient-backdrop'), 'Must render ambient blurred backdrop');
+  assert.ok(content.includes('blur(52px)'), 'Backdrop must use heavy blur');
+  assert.ok(content.includes('lyrics-vignette-overlay'), 'Must include radial vignette overlay');
+
+  // 4. Smooth easing transitions without window scroll
+  assert.ok(content.includes('cubic-bezier(0.16, 1, 0.3, 1)'), 'Must use smooth easing transition');
+  assert.ok(!content.includes('.scrollIntoView('), 'Must not call scrollIntoView to prevent page jump');
+  assert.ok(content.includes("behavior: 'smooth'"), 'Must scroll internally with smooth behavior');
+});

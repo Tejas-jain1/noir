@@ -1,5 +1,49 @@
 import React, { useRef, useEffect, memo } from 'react';
 import { Music2, Loader2, Sparkles } from 'lucide-react';
+import { usePlayer } from '../context/PlayerContext';
+
+/**
+ * Calculates 3D curved perspective styling based on distance from the active line.
+ * Creates an Apple Music & Spotify-inspired cylindrical curved lyrics viewport.
+ */
+function get3DLineStyle(distance, isActive) {
+  if (isActive) {
+    return {
+      transform: 'perspective(800px) rotateX(0deg) translateZ(26px) scale(1.12)',
+      opacity: 1,
+      filter: 'blur(0px)',
+      color: '#ffffff',
+      fontSize: 'clamp(1.22rem, 3.6vw, 1.55rem)',
+      fontWeight: 850,
+      textShadow: '0 0 28px rgba(255, 255, 255, 0.42), 0 2px 10px rgba(0, 0, 0, 0.65)',
+      zIndex: 10
+    };
+  }
+
+  const absDist = Math.abs(distance);
+
+  // Curved perspective: lines above tilt backwards, lines below tilt backwards
+  const rotX = distance < 0 ? Math.max(-26, distance * 6.5) : Math.min(26, distance * 6.5);
+  // Recede into 3D Z-plane
+  const transZ = Math.max(-85, -absDist * 18);
+  // Scale down gradually
+  const scale = Math.max(0.76, 1 - absDist * 0.055);
+  // Opacity falloff
+  const opacity = absDist === 1 ? 0.62 : absDist === 2 ? 0.38 : absDist === 3 ? 0.22 : 0.12;
+  // Gradual subtle blur
+  const blurAmount = absDist === 1 ? 'blur(0.6px)' : absDist === 2 ? 'blur(1.6px)' : `blur(${Math.min(3.5, absDist * 0.9)}px)`;
+
+  return {
+    transform: `perspective(800px) rotateX(${rotX}deg) translateZ(${transZ}px) scale(${scale})`,
+    opacity,
+    filter: blurAmount,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 'clamp(1.02rem, 2.8vw, 1.25rem)',
+    fontWeight: 600,
+    textShadow: 'none',
+    zIndex: Math.max(1, 10 - absDist)
+  };
+}
 
 function LyricsPreviewComponent({
   lyricsData,
@@ -7,9 +51,13 @@ function LyricsPreviewComponent({
   activeLyricIndex = -1,
   seekTo = () => {},
   onOpenAmbient = null,
+  currentTrack: propTrack = null,
   className = '',
   style = {}
 }) {
+  const { currentTrack: contextTrack } = usePlayer();
+  const currentTrack = propTrack || contextTrack;
+
   const lyricsContainerRef = useRef(null);
   const activeLineRef = useRef(null);
   const isUserInteractingRef = useRef(false);
@@ -62,7 +110,7 @@ function LyricsPreviewComponent({
     } catch {
       // Safe fallback for environments without DOM rects
       if (typeof container.scrollTop === 'number' && typeof activeLine.offsetTop === 'number') {
-        container.scrollTop = activeLine.offsetTop - (container.clientHeight / 2);
+        container.scrollTop = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.clientHeight / 2);
       }
     }
   }, [activeLyricIndex]);
@@ -77,14 +125,14 @@ function LyricsPreviewComponent({
 
   return (
     <div
-      className={`spotify-lyrics-card ${className}`.trim()}
+      className={`spotify-lyrics-card cinematic-3d-lyrics-container ${className}`.trim()}
       style={{
         width: '100%',
-        borderRadius: '22px',
-        background: 'linear-gradient(180deg, #18181b 0%, #101012 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        boxShadow: '0 14px 36px rgba(0, 0, 0, 0.45)',
-        padding: '22px 20px',
+        borderRadius: '24px',
+        backgroundColor: '#0c0c0e',
+        border: '1px solid rgba(255, 255, 255, 0.09)',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04)',
+        padding: '20px 18px',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -94,15 +142,49 @@ function LyricsPreviewComponent({
         ...style
       }}
     >
-      {/* 1. Header: "Lyrics preview" */}
+      {/* 1. Dark Heavily Blurred Album Artwork Ambient Background */}
+      {currentTrack?.thumbnail && (
+        <div
+          className="lyrics-ambient-backdrop"
+          style={{
+            position: 'absolute',
+            inset: '-25px',
+            backgroundImage: `url(${currentTrack.thumbnail})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            filter: 'blur(52px) brightness(0.22) saturate(130%)',
+            opacity: 0.88,
+            transform: 'scale(1.15)',
+            pointerEvents: 'none',
+            zIndex: 0,
+            transition: 'background-image 0.6s ease-in-out'
+          }}
+        />
+      )}
+
+      {/* 2. Radial Vignette & Charcoal Overlay */}
+      <div
+        className="lyrics-vignette-overlay"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'radial-gradient(ellipse at center, rgba(16, 16, 20, 0.38) 0%, rgba(8, 8, 10, 0.94) 100%)',
+          pointerEvents: 'none',
+          zIndex: 1
+        }}
+      />
+
+      {/* 3. Header: "Lyrics preview", Badges & Ambient Action */}
       <div
         className="spotify-lyrics-header"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '14px',
-          userSelect: 'none'
+          marginBottom: '10px',
+          userSelect: 'none',
+          position: 'relative',
+          zIndex: 3
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -112,14 +194,14 @@ function LyricsPreviewComponent({
               fontSize: '0.95rem',
               fontWeight: 800,
               letterSpacing: '-0.01em',
-              color: 'var(--text-primary)',
+              color: '#ffffff',
               margin: 0
             }}
           >
             Lyrics preview
           </h3>
 
-          {hasSynced && (
+          {hasSynced ? (
             <span
               style={{
                 display: 'inline-flex',
@@ -128,9 +210,10 @@ function LyricsPreviewComponent({
                 fontSize: '0.68rem',
                 fontWeight: 700,
                 color: 'var(--accent-solid)',
-                backgroundColor: 'var(--accent-subtle)',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 padding: '2px 8px',
-                borderRadius: 'var(--radius-full)'
+                borderRadius: 'var(--radius-full)',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
               }}
             >
               <span
@@ -143,7 +226,23 @@ function LyricsPreviewComponent({
               />
               Synced
             </span>
-          )}
+          ) : hasPlain ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '0.68rem',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-full)'
+              }}
+            >
+              Plain text
+            </span>
+          ) : null}
         </div>
 
         {onOpenAmbient && (
@@ -155,7 +254,7 @@ function LyricsPreviewComponent({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '5px',
-              background: 'transparent',
+              background: 'rgba(255, 255, 255, 0.06)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: 'var(--radius-full)',
               color: 'var(--text-secondary)',
@@ -163,7 +262,7 @@ function LyricsPreviewComponent({
               fontWeight: 600,
               padding: '4px 10px',
               cursor: 'pointer',
-              transition: 'all var(--transition-fast)'
+              transition: 'all 0.2s ease'
             }}
           >
             <Sparkles size={12} style={{ color: 'var(--accent-solid)' }} />
@@ -172,7 +271,7 @@ function LyricsPreviewComponent({
         )}
       </div>
 
-      {/* 2. Body: Synchronized lines / Plain lyrics / Loading / Unavailable */}
+      {/* 4. Body: 3D Curved Perspective Stage / Plain lyrics / Loading / Unavailable */}
       {lyricsLoading ? (
         <div
           style={{
@@ -180,9 +279,11 @@ function LyricsPreviewComponent({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            minHeight: '180px',
+            minHeight: '220px',
             gap: '12px',
-            color: 'var(--text-muted)'
+            color: 'var(--text-muted)',
+            position: 'relative',
+            zIndex: 2
           }}
         >
           <Loader2 size={24} className="brand-logo-spin" style={{ color: 'var(--accent-solid)' }} />
@@ -191,47 +292,61 @@ function LyricsPreviewComponent({
       ) : hasSynced ? (
         <div
           ref={lyricsContainerRef}
-          className="spotify-lyrics-scroll"
+          className="spotify-lyrics-scroll cinematic-3d-stage"
           onWheel={handleUserInteraction}
           onTouchStart={handleUserInteraction}
           onPointerDown={handleUserInteraction}
           style={{
-            maxHeight: '320px',
+            height: '350px',
+            maxHeight: '380px',
             overflowY: 'auto',
             scrollBehavior: 'smooth',
+            perspective: '800px',
+            perspectiveOrigin: '50% 50%',
+            WebkitPerspective: '800px',
+            WebkitPerspectiveOrigin: '50% 50%',
+            transformStyle: 'preserve-3d',
+            WebkitTransformStyle: 'preserve-3d',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
-            padding: '14px 4px 32px',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            position: 'relative'
+            alignItems: 'center',
+            gap: '18px',
+            paddingTop: '155px',
+            paddingBottom: '155px',
+            paddingLeft: '14px',
+            paddingRight: '14px',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%)',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%)',
+            position: 'relative',
+            zIndex: 2,
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
           }}
         >
           {lyricsData.syncedLyrics.map((line, idx) => {
             const isActive = idx === activeLyricIndex;
-            const isPast = activeLyricIndex !== -1 && idx < activeLyricIndex;
+            const distance = activeLyricIndex === -1 ? 0 : idx - activeLyricIndex;
+            const line3DStyle = get3DLineStyle(distance, isActive);
 
             return (
               <p
                 key={`lyric-${idx}-${line.time}`}
                 ref={isActive ? activeLineRef : null}
                 onClick={() => handleLineClick(line.time)}
-                className={`spotify-lyric-line ${isActive ? 'active' : ''}`}
+                className={`spotify-lyric-line cinematic-3d-line ${isActive ? 'active' : ''}`}
                 style={{
                   margin: 0,
-                  fontSize: isActive ? 'clamp(1.15rem, 3.2vw, 1.35rem)' : 'clamp(1.02rem, 2.8vw, 1.18rem)',
-                  fontWeight: isActive ? 800 : 700,
                   lineHeight: 1.45,
-                  color: isActive ? '#ffffff' : isPast ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.55)',
-                  opacity: isActive ? 1 : isPast ? 0.45 : 0.65,
+                  textAlign: 'center',
                   cursor: 'pointer',
-                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-                  transform: isActive ? 'scale(1.02)' : 'scale(1)',
-                  transformOrigin: 'left center',
-                  textShadow: isActive ? '0 0 18px rgba(255, 255, 255, 0.25)' : 'none',
-                  textAlign: 'left',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  transition: 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.38s ease, filter 0.38s ease, color 0.38s ease',
+                  willChange: 'transform, opacity, filter',
+                  transformOrigin: 'center center',
+                  maxWidth: '92%',
+                  wordBreak: 'break-word',
+                  boxSizing: 'border-box',
+                  ...line3DStyle
                 }}
                 title={`Seek to ${line.text}`}
               >
@@ -248,18 +363,19 @@ function LyricsPreviewComponent({
           onTouchStart={handleUserInteraction}
           onPointerDown={handleUserInteraction}
           style={{
-            maxHeight: '300px',
+            maxHeight: '320px',
             overflowY: 'auto',
-            padding: '12px 4px 20px',
-            textAlign: 'left',
+            padding: '20px 14px 28px',
+            textAlign: 'center',
             whiteSpace: 'pre-line',
-            fontSize: '1.05rem',
-            lineHeight: 1.8,
-            color: 'var(--text-secondary)',
+            fontSize: '1.08rem',
+            lineHeight: 2.1,
+            color: 'rgba(255, 255, 255, 0.82)',
             fontWeight: 600,
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            position: 'relative'
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
+            position: 'relative',
+            zIndex: 2
           }}
         >
           {lyricsData.plainLyrics}
@@ -273,19 +389,21 @@ function LyricsPreviewComponent({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '36px 16px',
+            padding: '40px 16px',
             textAlign: 'center',
             gap: '8px',
-            color: 'var(--text-muted)'
+            color: 'var(--text-muted)',
+            position: 'relative',
+            zIndex: 2
           }}
         >
-          <Music2 size={30} strokeWidth={1.5} style={{ opacity: 0.6, marginBottom: '4px' }} />
+          <Music2 size={32} strokeWidth={1.5} style={{ opacity: 0.6, marginBottom: '4px' }} />
           <h4
             style={{
               margin: 0,
               fontSize: '1rem',
               fontWeight: 700,
-              color: 'var(--text-primary)'
+              color: '#ffffff'
             }}
           >
             Lyrics unavailable
@@ -293,10 +411,10 @@ function LyricsPreviewComponent({
           <p
             style={{
               margin: 0,
-              fontSize: '0.8rem',
+              fontSize: '0.82rem',
               color: 'var(--text-muted)',
               maxWidth: '260px',
-              lineHeight: 1.4
+              lineHeight: 1.45
             }}
           >
             We couldn't find lyrics for this song.

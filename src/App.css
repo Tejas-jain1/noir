@@ -1698,3 +1698,29 @@
 .spotify-lyric-line:hover {
   opacity: 0.9 !important;
 }
+
+/* 3D Cinematic Perspective Lyrics Stage */
+.cinematic-3d-stage {
+  perspective: 800px;
+  -webkit-perspective: 800px;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cinematic-3d-line {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+.cinematic-3d-line:hover {
+  opacity: 0.95 !important;
+  filter: blur(0px) !important;
+}
+
+.cinematic-3d-line.active:hover {
+  opacity: 1 !important;
+}
