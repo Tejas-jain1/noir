@@ -119,7 +119,7 @@ export function PlayerProvider({ children }) {
     let isMounted = true;
     setLyricsLoading(true);
 
-    fetchLyricsForTrack(currentTrack.title, currentTrack.artist, currentTrack.duration)
+    fetchLyricsForTrack(currentTrack)
       .then((res) => {
         if (isMounted) {
           setLyricsData(res.success ? res.lyrics : null);
@@ -134,7 +134,7 @@ export function PlayerProvider({ children }) {
       });
 
     return () => { isMounted = false; };
-  }, [currentTrack?.id, currentTrack?.title, currentTrack?.artist, currentTrack?.duration]);
+  }, [currentTrack?.id, currentTrack?.title, currentTrack?.artist, currentTrack?.duration, currentTrack?.album]);
 
   // Calculate active synchronized lyric line via binary search
   const activeLyricIndex = lyricsData?.syncedLyrics

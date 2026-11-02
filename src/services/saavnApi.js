@@ -119,6 +119,9 @@ export function formatSaavnTrack(item) {
 
   return {
     id: getDeterministicTrackId(item),
+    saavnId: item.id || moreInfo.id || '',
+    hasLyrics: moreInfo.has_lyrics === 'true' || item.has_lyrics === 'true',
+    lyricsId: moreInfo.lyrics_id || item.lyrics_id || item.id || '',
     title,
     artist: decodeHtml(artist),
     album: decodeHtml(album),
@@ -546,6 +549,34 @@ export const saavnApi = {
       };
     } catch (err) {
       console.warn('Failed to fetch Saavn playlist details:', playlistId, err);
+      return null;
+    }
+  },
+
+  // Fetch official lyrics from JioSaavn catalog
+  getLyrics: async (lyricsId) => {
+    if (!lyricsId) return null;
+    try {
+      const cleanId = String(lyricsId).replace(/^saavn-track-/, '');
+      const params = `__call=lyrics.getLyrics&lyrics_id=${encodeURIComponent(cleanId)}&ctx=web6dot0&_format=json`;
+      const data = await fetchSaavnQuery(params);
+      if (data && data.lyrics && data.status !== 'failure') {
+        const plainLyrics = decodeHtml(data.lyrics)
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/&amp;/g, '&')
+          .replace(/&#39;/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+        return {
+          plainLyrics,
+          copyright: data.lyrics_copyright || 'Lyrics powered by JioSaavn',
+          snippet: data.snippet || ''
+        };
+      }
+      return null;
+    } catch (err) {
+      console.warn('Failed to fetch JioSaavn lyrics:', lyricsId, err);
       return null;
     }
   }

@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findCurrentLyricIndex, parseLrc } from '../src/services/lyricsService.js';
+import { 
+  findCurrentLyricIndex, 
+  parseLrc, 
+  cleanTrackMetadata, 
+  fetchLyricsForTrack 
+} from '../src/services/lyricsService.js';
+import { saavnApi } from '../src/services/saavnApi.js';
 
 test('parseLrc correctly parses timestamps and lyric text into sorted array', () => {
   const lrc = `
@@ -57,4 +63,77 @@ test('findCurrentLyricIndex identifies exact and intermediate timestamps smoothl
   assert.equal(findCurrentLyricIndex(synced, 9.8), 3);
   // Past the final line timestamp
   assert.equal(findCurrentLyricIndex(synced, 60.0), 3);
+});
+
+test('cleanTrackMetadata cleans noise, soundtrack brackets, and decomposes composite artists', () => {
+  const meta1 = cleanTrackMetadata(
+    'Kesariya (From "Brahmastra") [Official Music Video]',
+    'Pritam, Arijit Singh, Amitabh Bhattacharya'
+  );
+  assert.equal(meta1.trackName, 'Kesariya');
+  assert.ok(meta1.artistCandidates.includes('Pritam'));
+  assert.ok(meta1.artistCandidates.includes('Arijit Singh'));
+  assert.ok(meta1.artistCandidates.includes('Amitabh Bhattacharya'));
+
+  const meta2 = cleanTrackMetadata(
+    'Tum Hi Ho (Lyrical Video)',
+    'Arijit Singh, Mithoon'
+  );
+  assert.equal(meta2.trackName, 'Tum Hi Ho');
+  assert.equal(meta2.primaryArtist, 'Arijit Singh');
+  assert.ok(meta2.artistCandidates.includes('Mithoon'));
+
+  const meta3 = cleanTrackMetadata(
+    'Starboy feat. Daft Punk',
+    'The Weeknd feat. Daft Punk'
+  );
+  assert.equal(meta3.trackName, 'Starboy');
+  assert.equal(meta3.primaryArtist, 'The Weeknd');
+});
+
+test('fetchLyricsForTrack fallback to JioSaavn when LRCLIB has no entry', async () => {
+  const originalGetLyrics = saavnApi.getLyrics;
+  // Mock saavnApi.getLyrics
+  saavnApi.getLyrics = async (id) => {
+    if (id === 'test-saavn-id') {
+      return {
+        plainLyrics: 'Line 1 from JioSaavn\nLine 2 from JioSaavn',
+        copyright: 'Lyrics powered by JioSaavn'
+      };
+    }
+    return null;
+  };
+
+  try {
+    const track = {
+      id: 'test-saavn-id',
+      saavnId: 'test-saavn-id',
+      title: 'Unique Indian Track 2026',
+      artist: 'Unknown Indie Singer',
+      duration: 210
+    };
+
+    const res = await fetchLyricsForTrack(track);
+    assert.ok(res.success, 'Should return success from JioSaavn fallback');
+    assert.equal(res.lyrics.source, 'jiosaavn');
+    assert.equal(res.lyrics.plainLyrics, 'Line 1 from JioSaavn\nLine 2 from JioSaavn');
+    assert.equal(res.lyrics.syncedLyrics, null);
+  } finally {
+    saavnApi.getLyrics = originalGetLyrics;
+  }
+});
+
+test('fetchLyricsForTrack caches results to prevent duplicate network calls', async () => {
+  const track = {
+    title: 'Cache Verification Song',
+    artist: 'Cache Artist',
+    duration: 180
+  };
+
+  // First call
+  const res1 = await fetchLyricsForTrack(track);
+  // Second call
+  const res2 = await fetchLyricsForTrack(track);
+
+  assert.deepEqual(res1, res2, 'Second call should return cached result');
 });

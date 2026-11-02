@@ -299,7 +299,7 @@ function LyricsPreviewComponent({
               lineHeight: 1.4
             }}
           >
-            We couldn't find synchronized lyrics for this song.
+            We couldn't find lyrics for this song.
           </p>
         </div>
       )}
