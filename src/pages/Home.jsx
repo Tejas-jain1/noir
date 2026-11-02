@@ -8,7 +8,11 @@ import {
   clearHomeFeedCache 
 } from '../services/homeRecommendations';
 import MusicCard from '../components/MusicCard';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { 
+  getTrackFallbackArtwork, 
+  getArtistFallbackAvatar, 
+  handleArtworkError 
+} from '../services/artworkUtils';
 import { 
   Play, 
   Pause, 
@@ -370,14 +374,14 @@ export default function Home({ onOpenAddToPlaylist }) {
           {/* Hero Artwork */}
           <div className="hero-spotlight-img" style={{ height: '100%', minHeight: '260px', maxHeight: '340px', position: 'relative', overflow: 'hidden' }}>
             <img
-              src={heroTrack.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+              src={heroTrack.thumbnail || getTrackFallbackArtwork(heroTrack.title, heroTrack.artist)}
               alt={heroTrack.title}
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover'
               }}
-              onError={handleArtworkError}
+              onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(heroTrack.title, heroTrack.artist))}
             />
             <div
               style={{
@@ -593,12 +597,9 @@ export default function Home({ onOpenAddToPlaylist }) {
                 >
                   <div style={{ position: 'relative', width: '84px', height: '84px', marginBottom: '10px' }}>
                     <img
-                      src={artist.image}
+                      src={artist.image || getArtistFallbackAvatar(artist.name)}
                       alt={artist.name}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                      }}
+                      onError={(e) => handleArtworkError(e, getArtistFallbackAvatar(artist.name))}
                       style={{
                         width: '84px',
                         height: '84px',

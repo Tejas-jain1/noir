@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Play, Pause, Heart, MoreVertical, ListPlus, FolderPlus, User, Disc } from 'lucide-react';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { NOIR_TRACK_ARTWORK_FALLBACK, getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 
 export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null }) {
   const navigate = useNavigate();
@@ -60,7 +60,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null
         }}
       >
         <img
-          src={track.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+          src={track.thumbnail || getTrackFallbackArtwork(track.title, track.artist)}
           alt={track.title}
           loading="lazy"
           style={{
@@ -70,7 +70,7 @@ export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null
             transition: 'transform 0.4s ease',
             transform: isHovered ? 'scale(1.05)' : 'scale(1)'
           }}
-          onError={handleArtworkError}
+          onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(track.title, track.artist))}
         />
 
         {/* Audio Visualizer Badge if currently active */}
@@ -270,8 +270,8 @@ export default function MusicCard({ track, onOpenAddToPlaylist, playQueue = null
 
                 <button
                   onClick={() => {
-                    const albumId = track.album ? track.album.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'featured';
-                    navigate(`/album/${albumId}`);
+                    const albumTarget = track.albumId || track.album || 'featured';
+                    navigate(`/album/${encodeURIComponent(albumTarget)}`);
                     setShowMenu(false);
                   }}
                   style={{

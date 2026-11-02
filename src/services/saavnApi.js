@@ -2,7 +2,16 @@
 import CryptoJS from 'crypto-js';
 import { searchMockCatalog } from './mockCatalog.js';
 import { buildTrackSearchQuery } from './playbackUtils.js';
-import { getDeterministicTrackId, getHighResArtworkUrl } from './artworkUtils.js';
+import { 
+  getDeterministicTrackId, 
+  getHighResArtworkUrl, 
+  extractOfficialArtwork, 
+  getArtworkCacheKey, 
+  ArtworkCache,
+  extractOriginalFilmOrAlbum,
+  isCompilationAlbum,
+  cleanCanonicalTrackTitle
+} from './artworkUtils.js';
 
 const DES_KEY = '38346591';
 const JIOSAAVN_PROXY_PATH = '/api/saavn';
@@ -23,15 +32,17 @@ export function decodeHtml(html) {
   }
   return String(html)
     .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&hellip;/g, '...');
 }
 
-// Parses duration to seconds
-export function formatTime(seconds) {
-  if (isNaN(seconds) || seconds === null) return '0:00';
+// Formats duration seconds into mm:ss
+export function formatDuration(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
   const totalSeconds = Math.floor(seconds);
   const hrs = Math.floor(totalSeconds / 3600);
   const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -42,6 +53,8 @@ export function formatTime(seconds) {
   }
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
+
+export const formatTime = formatDuration;
 
 // Decrypts JioSaavn encrypted media stream URL into high-quality direct CDN URL (320kbps)
 export function decryptMediaUrl(encryptedUrl) {
@@ -82,9 +95,13 @@ export function formatSaavnTrack(item) {
     tags: item.tags
   } : {});
 
-  // Extract real original artwork from song metadata; upgrade to 500x500 CDN quality
-  const rawArtwork = item.image || moreInfo.image || item.album_image || '';
-  const thumbnail = getHighResArtworkUrl(rawArtwork) || '';
+  // Extract real original artwork from song and album metadata; upgrade to 500x500 CDN quality
+  const thumbnail = extractOfficialArtwork(item);
+
+  // Cache artwork mapping by identity
+  if (thumbnail) {
+    ArtworkCache.set(getArtworkCacheKey(item), thumbnail);
+  }
 
   // Extract artist name
   let artist = '';
@@ -117,6 +134,27 @@ export function formatSaavnTrack(item) {
   // Clean title
   const title = decodeHtml(item.song || item.title || 'Unknown Title');
 
+  // Check if original film soundtrack artwork is available or cached for compilation repackages
+  let finalAlbum = decodeHtml(album);
+  let finalThumbnail = thumbnail;
+  let finalAlbumId = moreInfo.album_id || item.album_id || item.albumid || '';
+
+  const originalFilm = extractOriginalFilmOrAlbum(title);
+  if (originalFilm && isCompilationAlbum(album, title)) {
+    const filmKey = `canonical_art__${originalFilm.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const cachedFilm = ArtworkCache.get(filmKey);
+    if (cachedFilm) {
+      if (typeof cachedFilm === 'string') {
+        finalThumbnail = cachedFilm;
+        finalAlbum = originalFilm;
+      } else if (cachedFilm?.thumbnail || cachedFilm?.url) {
+        finalThumbnail = cachedFilm.thumbnail || cachedFilm.url;
+        finalAlbum = cachedFilm.album || originalFilm;
+        if (cachedFilm.albumId) finalAlbumId = cachedFilm.albumId;
+      }
+    }
+  }
+
   return {
     id: getDeterministicTrackId(item),
     saavnId: item.id || moreInfo.id || '',
@@ -124,8 +162,9 @@ export function formatSaavnTrack(item) {
     lyricsId: moreInfo.lyrics_id || item.lyrics_id || item.id || '',
     title,
     artist: decodeHtml(artist),
-    album: decodeHtml(album),
-    thumbnail,
+    album: finalAlbum,
+    thumbnail: finalThumbnail,
+    canonicalAlbum: originalFilm || null,
     duration: durationSec,
     durationFormatted,
     audioUrl, // Direct 320kbps CDN stream from aac.saavncdn.com
@@ -135,7 +174,7 @@ export function formatSaavnTrack(item) {
     energy: moreInfo.energy ?? item.energy ?? null,
     language: decodeHtml(item.language || moreInfo.language || ''),
     tags: Array.isArray(moreInfo.tags) ? moreInfo.tags.map(decodeHtml) : [],
-    albumId: moreInfo.album_id || item.album_id || item.albumid || '',
+    albumId: finalAlbumId,
     releaseDate: moreInfo.release_date || item.release_date || '',
     year: item.year || moreInfo.release_date || '',
     playCount: item.play_count || ''
@@ -155,16 +194,14 @@ async function fetchSaavnQuery(paramsString, { forceRefresh = false } = {}) {
         return data;
       }
     } catch {
-      // Continue to fallback
+      // Continue to next fallback
     }
   }
 
-  // 2. Try direct fetch (if CORS allowed)
+  // 2. Direct browser or Node.js fetch (works directly if CORS permitted or in Node)
   try {
-    const res = await fetch(`${JIOSAAVN_DIRECT_URL}?${paramsString}`, {
-      headers: { 'Accept': 'application/json' },
-      ...cacheOptions
-    });
+    const directUrl = `${JIOSAAVN_DIRECT_URL}?${paramsString}`;
+    const res = await fetch(directUrl, cacheOptions);
     if (res.ok) {
       const data = await res.json();
       return data;
@@ -280,15 +317,23 @@ export const saavnApi = {
 
       if (formattedTracks.length > 0) {
         // Deduplicate tracks by stable ID and normalized title+artist signature
+        // Sort so tracks from original studio albums/soundtracks rank above compilation repackages
         const seenIds = new Set();
         const seenSignatures = new Set();
         const deduped = [];
 
-        for (const track of formattedTracks) {
+        const sortedTracks = [...formattedTracks].sort((a, b) => {
+          const aComp = isCompilationAlbum(a.album, a.title);
+          const bComp = isCompilationAlbum(b.album, b.title);
+          if (aComp !== bComp) return aComp ? 1 : -1;
+          return 0;
+        });
+
+        for (const track of sortedTracks) {
           if (!track.id || seenIds.has(track.id)) continue;
 
           // Normalize title and primary artist
-          const normTitle = (track.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const normTitle = cleanCanonicalTrackTitle(track.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
           const normArtist = (track.artist || '').split(',')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
           const sig = `${normTitle}__${normArtist}`;
 
@@ -297,6 +342,25 @@ export const saavnApi = {
           seenIds.add(track.id);
           seenSignatures.add(sig);
           deduped.push(track);
+        }
+
+        // Pre-resolve canonical artwork for the top tracks if they are from compilations
+        if (requestedPage === 1 && deduped.length > 0) {
+          const topBatch = deduped.slice(0, 8);
+          await Promise.all(topBatch.map(async (track) => {
+            if (isCompilationAlbum(track.album, track.title) || extractOriginalFilmOrAlbum(track.title)) {
+              try {
+                const canonical = await saavnApi.resolveCanonicalArtwork(track);
+                if (canonical?.thumbnail) {
+                  track.thumbnail = canonical.thumbnail;
+                  if (canonical.album) track.album = canonical.album;
+                  if (canonical.albumId) track.albumId = canonical.albumId;
+                }
+              } catch {
+                // Ignore resolution error
+              }
+            }
+          }));
         }
 
         const hasMore = totalCount > requestedPage * pageSize || (primaryData?.results?.length || 0) >= 40;
@@ -339,48 +403,57 @@ export const saavnApi = {
         if (chartData && Array.isArray(chartData.list) && chartData.list.length > 0) {
           const tracks = chartData.list
             .map(formatSaavnTrack)
-            .filter(t => Boolean(t && t.audioUrl));
+            .filter(track => track?.id && track.title && track.audioUrl);
 
           if (tracks.length > 0) {
-            return tracks;
+            return {
+              results: tracks,
+              total: tracks.length,
+              page: 1,
+              hasMore: true,
+              source: 'saavn_cdn',
+              hasKey: true
+            };
           }
         }
       }
 
-      // Search another real catalog page on refresh rather than repeating the same chart.
-      const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=trending%20top%20hits&n=25&p=${requestedPage}`;
-      const data = await fetchSaavnQuery(params, { forceRefresh });
-
-      if (data && data.results && data.results.length > 0) {
-        const tracks = data.results
-          .map(formatSaavnTrack)
-          .filter(t => Boolean(t && t.audioUrl));
-
-        if (tracks.length > 0) {
-          return tracks;
-        }
+      // Secondary trend: query top Hindi songs
+      const trendingQuery = requestedPage === 2 ? 'latest bollywood hits' : 'top hindi songs';
+      const searchRes = await saavnApi.search(trendingQuery, { forceRefresh, page: requestedPage });
+      if (searchRes && searchRes.results?.length > 0) {
+        return searchRes;
       }
     } catch (err) {
-      console.warn('Failed to fetch trending from Saavn:', err);
+      console.warn('Failed to fetch trending from Saavn, using mock catalog:', err);
     }
 
-    return [];
+    return {
+      results: searchMockCatalog(''),
+      total: 10,
+      page: 1,
+      hasMore: false,
+      source: 'curated',
+      hasKey: true
+    };
   },
 
-  // Resolve direct 320kbps CDN audio stream for any track (e.g. from mock catalog or playlist)
+  // Dynamically resolves audio stream URL if missing on the track
   resolveAudioUrl: async (track) => {
     if (!track) return null;
     if (track.audioUrl) return track.audioUrl;
 
     try {
-      if (track.source === 'spotify_import' && track.matchStatus === 'matched' && (track.catalogTrackId || (track.id && !track.id.startsWith('sp_')))) {
-        const catalogTrack = await saavnApi.getSongDetails(track.catalogTrackId || track.id);
-        if (catalogTrack?.audioUrl) {
-          track.audioUrl = catalogTrack.audioUrl;
-          return catalogTrack.audioUrl;
+      // 1. Direct song details fetch if saavnId exists
+      if (track.saavnId && !String(track.saavnId).startsWith('saavn-0.')) {
+        const details = await saavnApi.getSongDetails(track.saavnId);
+        if (details?.audioUrl) {
+          track.audioUrl = details.audioUrl;
+          return details.audioUrl;
         }
       }
 
+      // 2. Query search by title and artist
       const searchQuery = buildTrackSearchQuery(track);
       if (searchQuery) {
         const params = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchQuery)}&n=5`;
@@ -412,14 +485,28 @@ export const saavnApi = {
     return null;
   },
 
-  // Get full song details by song ID (pid) with decrypted 320kbps audioUrl
+  // Get full song details by song ID (pid) with decrypted 320kbps audioUrl and canonical artwork
   getSongDetails: async (songId) => {
     if (!songId) return null;
     try {
       const params = `__call=song.getDetails&_format=json&pids=${encodeURIComponent(songId)}`;
       const data = await fetchSaavnQuery(params);
-      if (data && data[songId]) {
-        return formatSaavnTrack(data[songId]);
+      const raw = data?.[songId] || data?.songs?.[0];
+      if (raw) {
+        const track = formatSaavnTrack(raw);
+        if (track && (isCompilationAlbum(track.album, track.title) || extractOriginalFilmOrAlbum(track.title))) {
+          try {
+            const canonical = await saavnApi.resolveCanonicalArtwork(track);
+            if (canonical?.thumbnail) {
+              track.thumbnail = canonical.thumbnail;
+              if (canonical.album) track.album = canonical.album;
+              if (canonical.albumId) track.albumId = canonical.albumId;
+            }
+          } catch {
+            // Ignore error
+          }
+        }
+        return track;
       }
     } catch (err) {
       console.warn('Failed to fetch song details for:', songId, err);
@@ -439,8 +526,7 @@ export const saavnApi = {
       try {
         const params = `__call=song.getDetails&_format=json&pids=${encodeURIComponent(chunk.join(','))}`;
         return await fetchSaavnQuery(params);
-      } catch (err) {
-        console.warn('Failed to fetch Saavn album tracks:', err);
+      } catch {
         return null;
       }
     }));
@@ -479,23 +565,36 @@ export const saavnApi = {
           id: item.id,
           title: decodeHtml(item.title || ''),
           subtitle: decodeHtml(item.description || item.subtitle || item.extra || ''),
-          image: getHighResArtworkUrl(item.image) || (item.image || '').replace('50x50', '500x500'),
+          image: getHighResArtworkUrl(item.image) || '',
           type: item.type || 'song',
           url: item.url || ''
         })),
-        songs: (data.songs?.data || []).map(item => ({
-          id: item.id,
-          title: decodeHtml(item.title || ''),
-          artist: decodeHtml(item.more_info?.primary_artists || item.description || item.subtitle || 'Artist'),
-          album: decodeHtml(item.album || ''),
-          image: getHighResArtworkUrl(item.image) || (item.image || '').replace('50x50', '500x500'),
-          type: 'song'
-        })),
+        songs: (data.songs?.data || []).map(item => {
+          const songTitle = decodeHtml(item.title || '');
+          const songAlbum = decodeHtml(item.album || '');
+          let songImage = getHighResArtworkUrl(item.image) || '';
+          const originalFilm = extractOriginalFilmOrAlbum(songTitle);
+          if (originalFilm && isCompilationAlbum(songAlbum, songTitle)) {
+            const filmKey = `canonical_art__${originalFilm.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+            const cached = ArtworkCache.get(filmKey);
+            if (cached) {
+              songImage = typeof cached === 'string' ? cached : (cached.thumbnail || cached.url || songImage);
+            }
+          }
+          return {
+            id: item.id,
+            title: songTitle,
+            artist: decodeHtml(item.more_info?.primary_artists || item.description || item.subtitle || 'Artist'),
+            album: (originalFilm && isCompilationAlbum(songAlbum, songTitle)) ? originalFilm : songAlbum,
+            image: songImage,
+            type: 'song'
+          };
+        }),
         artists: (data.artists?.data || []).map(item => ({
           id: item.id,
           name: decodeHtml(item.title || item.name || ''),
           role: decodeHtml(item.description || item.extra || 'Artist'),
-          image: getHighResArtworkUrl(item.image) || (item.image || '').replace('50x50', '500x500'),
+          image: getHighResArtworkUrl(item.image) || '',
           url: item.url || '',
           type: 'artist'
         })),
@@ -504,7 +603,7 @@ export const saavnApi = {
           title: decodeHtml(item.title || ''),
           artist: decodeHtml(item.music || item.description || ''),
           year: item.more_info?.year || '',
-          image: (item.image || '').replace('50x50', '150x150'),
+          image: getHighResArtworkUrl(item.image) || '',
           trackIds: String(item.more_info?.song_pids || '').split(',').map(id => id.trim()).filter(Boolean),
           type: 'album'
         })),
@@ -512,7 +611,7 @@ export const saavnApi = {
           id: item.id,
           title: decodeHtml(item.title || ''),
           description: decodeHtml(item.description || item.subtitle || ''),
-          image: (item.image || '').replace('50x50', '500x500'),
+          image: getHighResArtworkUrl(item.image) || '',
           url: item.url || '',
           type: 'playlist'
         }))
@@ -532,6 +631,223 @@ export const saavnApi = {
     }
   },
 
+  // Get full album details by ID or album title with authentic 500x500 cover and playable tracks
+  getAlbumDetails: async (albumIdOrQuery, { forceRefresh = false } = {}) => {
+    if (!albumIdOrQuery) return null;
+    const cleanQuery = decodeHtml(String(albumIdOrQuery).trim());
+
+    // 1. If numeric or direct JioSaavn album ID
+    const isDirectId = /^\d+$/.test(cleanQuery) || cleanQuery.endsWith('_');
+    if (isDirectId) {
+      try {
+        const params = `__call=content.getAlbumDetails&_format=json&albumid=${encodeURIComponent(cleanQuery)}`;
+        const data = await fetchSaavnQuery(params, { forceRefresh });
+        if (data && (Array.isArray(data.songs) || Array.isArray(data.list))) {
+          const rawSongs = data.songs || data.list || [];
+          const tracks = rawSongs.map(formatSaavnTrack).filter(t => Boolean(t && t.audioUrl));
+          const highResCover = getHighResArtworkUrl(data.image) || tracks[0]?.thumbnail || '';
+          return {
+            id: data.albumid || cleanQuery,
+            title: decodeHtml(data.title || data.name || cleanQuery),
+            artist: decodeHtml(data.primary_artists || data.artist || (tracks[0]?.artist) || 'Various Artists'),
+            image: highResCover,
+            year: data.year || data.release_date || (tracks[0]?.year) || '',
+            tracks,
+            source: 'saavn_cdn'
+          };
+        }
+      } catch (err) {
+        console.warn('Failed direct album id fetch:', cleanQuery, err);
+      }
+    }
+
+    // 2. Search album by title
+    try {
+      const searchTitle = cleanQuery.replace(/[-_]+/g, ' ');
+      const searchParams = `__call=search.getAlbumResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchTitle)}&n=5`;
+      const searchData = await fetchSaavnQuery(searchParams, { forceRefresh });
+
+      const firstAlbum = searchData?.results?.[0];
+      if (firstAlbum && firstAlbum.id) {
+        const detailParams = `__call=content.getAlbumDetails&_format=json&albumid=${encodeURIComponent(firstAlbum.id)}`;
+        const detailData = await fetchSaavnQuery(detailParams, { forceRefresh });
+        if (detailData && (Array.isArray(detailData.songs) || Array.isArray(detailData.list))) {
+          const rawSongs = detailData.songs || detailData.list || [];
+          const tracks = rawSongs.map(formatSaavnTrack).filter(t => Boolean(t && t.audioUrl));
+          const highResCover = getHighResArtworkUrl(detailData.image || firstAlbum.image) || tracks[0]?.thumbnail || '';
+          return {
+            id: detailData.albumid || firstAlbum.id,
+            title: decodeHtml(detailData.title || detailData.name || firstAlbum.title || cleanQuery),
+            artist: decodeHtml(detailData.primary_artists || firstAlbum.more_info?.music || (tracks[0]?.artist) || 'Various Artists'),
+            image: highResCover,
+            year: detailData.year || firstAlbum.more_info?.year || (tracks[0]?.year) || '',
+            tracks,
+            source: 'saavn_cdn'
+          };
+        }
+      }
+
+      // 3. Fallback: search tracks matching album query
+      const songParams = `__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(searchTitle + ' album')}&n=30`;
+      const songData = await fetchSaavnQuery(songParams, { forceRefresh });
+      if (songData && Array.isArray(songData.results) && songData.results.length > 0) {
+        const tracks = songData.results.map(formatSaavnTrack).filter(t => Boolean(t && t.audioUrl));
+        const matchingTracks = tracks.filter(t => 
+          t.album && t.album.toLowerCase().includes(searchTitle.toLowerCase())
+        );
+        const finalTracks = matchingTracks.length > 0 ? matchingTracks : tracks.slice(0, 10);
+        const albumCover = finalTracks[0]?.thumbnail || '';
+        return {
+          id: `saavn-album-${cleanQuery.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          title: cleanQuery,
+          artist: finalTracks[0]?.artist || 'Various Artists',
+          image: albumCover,
+          year: finalTracks[0]?.year || '',
+          tracks: finalTracks,
+          source: 'saavn_cdn'
+        };
+      }
+    } catch (err) {
+      console.warn('Failed album search fetch:', cleanQuery, err);
+    }
+
+    return null;
+  },
+
+  // Resolves official original album artwork and metadata for tracks that belong to compilation albums
+  resolveCanonicalArtwork: async (track) => {
+    if (!track) return null;
+    const title = track.title || track.song || '';
+    const albumName = track.album || track.more_info?.album || '';
+    const originalFilm = extractOriginalFilmOrAlbum(title);
+    const isComp = isCompilationAlbum(albumName, title);
+
+    if (!originalFilm && !isComp) {
+      return {
+        thumbnail: track.thumbnail || extractOfficialArtwork(track),
+        album: albumName,
+        albumId: track.albumId || ''
+      };
+    }
+
+    const targetKey = originalFilm || cleanCanonicalTrackTitle(title) || title;
+    const cacheKey = `canonical_art__${targetKey.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const cached = ArtworkCache.get(cacheKey);
+    if (cached) {
+      const thumb = typeof cached === 'string' ? cached : (cached.thumbnail || cached.url || cached.image);
+      const alb = typeof cached === 'string' ? (originalFilm || albumName) : (cached.album || originalFilm || albumName);
+      const albId = typeof cached === 'object' && cached?.albumId ? cached.albumId : (track.albumId || '');
+      return { thumbnail: thumb, album: alb, albumId: albId };
+    }
+
+    try {
+      // 1. If an original film was specified in title (e.g. Shivaay for Darkhaast)
+      if (originalFilm) {
+        const albumDetails = await saavnApi.getAlbumDetails(originalFilm);
+        if (albumDetails && albumDetails.image) {
+          const res = {
+            thumbnail: albumDetails.image,
+            album: albumDetails.title || originalFilm,
+            albumId: albumDetails.id || ''
+          };
+          ArtworkCache.set(cacheKey, res);
+          return res;
+        }
+      }
+
+      // 2. Search album details for the clean song title (e.g. "Apna Bana Le" finds album "Bhediya")
+      const cleanTitle = cleanCanonicalTrackTitle(title);
+      if (cleanTitle) {
+        const albumDetails = await saavnApi.getAlbumDetails(cleanTitle);
+        if (albumDetails && albumDetails.image && !isCompilationAlbum(albumDetails.title)) {
+          const res = {
+            thumbnail: albumDetails.image,
+            album: albumDetails.title,
+            albumId: albumDetails.id || ''
+          };
+          ArtworkCache.set(cacheKey, res);
+          return res;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to resolve canonical artwork:', err);
+    }
+
+    return {
+      thumbnail: track.thumbnail || extractOfficialArtwork(track),
+      album: albumName,
+      albumId: track.albumId || ''
+    };
+  },
+
+  // Get full verified artist details by name or ID with official portrait and verified top tracks
+  getArtistDetails: async (artistNameOrId, { forceRefresh = false } = {}) => {
+    if (!artistNameOrId) return null;
+    const cleanName = decodeHtml(String(artistNameOrId).trim());
+
+    try {
+      // 1. Search artist to get verified artist ID and official portrait
+      const searchParams = `__call=search.getArtistResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&q=${encodeURIComponent(cleanName)}&n=5`;
+      const searchData = await fetchSaavnQuery(searchParams, { forceRefresh });
+
+      const artistMatch = searchData?.results?.find(a => 
+        a.name && a.name.toLowerCase() === cleanName.toLowerCase()
+      ) || searchData?.results?.[0];
+
+      const artistId = artistMatch?.id;
+      let artistPortrait = getHighResArtworkUrl(artistMatch?.image) || '';
+
+      // 2. Fetch full artist page details
+      if (artistId) {
+        const detailParams = `__call=artist.getArtistPageDetails&_format=json&artistId=${encodeURIComponent(artistId)}&n=25`;
+        const detailData = await fetchSaavnQuery(detailParams, { forceRefresh });
+
+        if (detailData) {
+          const detailPortrait = getHighResArtworkUrl(detailData.image);
+          if (detailPortrait) artistPortrait = detailPortrait;
+
+          const rawSongs = detailData.topSongs?.songs || detailData.topSongs || [];
+          const tracks = Array.isArray(rawSongs)
+            ? rawSongs.map(formatSaavnTrack).filter(t => Boolean(t && t.audioUrl))
+            : [];
+
+          const followerCount = detailData.follower_count 
+            ? `${(Number(detailData.follower_count) / 1000000).toFixed(1)}M monthly listeners`
+            : 'Verified Artist';
+
+          return {
+            id: artistId,
+            name: decodeHtml(detailData.name || artistMatch.name || cleanName),
+            image: artistPortrait,
+            monthlyListeners: followerCount,
+            genre: decodeHtml(detailData.dominantType || detailData.dominantLanguage || 'Artist'),
+            bio: decodeHtml(detailData.bio || ''),
+            tracks,
+            source: 'saavn_cdn'
+          };
+        }
+      }
+
+      // 3. Fallback: search top songs for the artist
+      const songRes = await saavnApi.search(`${cleanName} songs`, { forceRefresh, page: 1 });
+      const tracks = Array.isArray(songRes?.results) ? songRes.results : [];
+      return {
+        id: `artist-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        name: cleanName,
+        image: artistPortrait,
+        monthlyListeners: 'Verified Artist',
+        genre: tracks[0]?.genre || 'Contemporary',
+        bio: '',
+        tracks,
+        source: 'saavn_cdn'
+      };
+    } catch (err) {
+      console.warn('Failed to fetch artist details for:', cleanName, err);
+    }
+
+    return null;
+  },
+
   getPlaylistDetails: async (playlistId) => {
     if (!playlistId) return null;
     try {
@@ -543,7 +859,7 @@ export const saavnApi = {
         id: data.id || playlistId,
         title: decodeHtml(data.title || data.name || 'Playlist'),
         description: decodeHtml(data.header_desc || data.subtitle || ''),
-        image: (data.image || '').replace('150x150', '500x500'),
+        image: getHighResArtworkUrl(data.image) || (data.image || '').replace('150x150', '500x500'),
         tracks: data.list.map(formatSaavnTrack).filter(track => track?.id && track.title && track.audioUrl),
         source: 'saavn_cdn'
       };

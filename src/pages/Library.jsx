@@ -3,6 +3,7 @@ import { useLibrary } from '../context/LibraryContext';
 import { useNavigate } from 'react-router-dom';
 import { Library, Plus, Heart, Music2 } from 'lucide-react';
 import ImportSpotifyButton, { SpotifyMark } from '../components/ImportSpotifyButton';
+import { getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 
 export default function LibraryPage({ onOpenCreatePlaylist, onOpenSpotifyImport }) {
   const { playlists, likedSongs } = useLibrary();
@@ -149,6 +150,7 @@ export default function LibraryPage({ onOpenCreatePlaylist, onOpenSpotifyImport 
                   src={pl.coverUrl || pl.thumbnail || pl.cover}
                   alt={pl.name}
                   loading="lazy"
+                  onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(pl.name, 'Playlist'))}
                   style={{
                     width: '64px',
                     height: '64px',

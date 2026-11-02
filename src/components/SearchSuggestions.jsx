@@ -11,7 +11,13 @@ import {
   ArrowUpRight, 
   Loader2
 } from 'lucide-react';
-import { NOIR_TRACK_ARTWORK_FALLBACK, NOIR_ARTIST_AVATAR_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { 
+  NOIR_TRACK_ARTWORK_FALLBACK, 
+  NOIR_ARTIST_AVATAR_FALLBACK, 
+  getTrackFallbackArtwork, 
+  getArtistFallbackAvatar, 
+  handleArtworkError 
+} from '../services/artworkUtils';
 
 export default function SearchSuggestions({
   query,
@@ -221,10 +227,10 @@ export default function SearchSuggestions({
                   className="dropdown-hover-item"
                 >
                   <img
-                    src={song.image || NOIR_TRACK_ARTWORK_FALLBACK}
+                    src={song.image || getTrackFallbackArtwork(song.title, song.artist)}
                     alt={song.title}
                     style={{ width: '42px', height: '42px', borderRadius: 'var(--radius-sm)', objectFit: 'cover', flexShrink: 0 }}
-                    onError={handleArtworkError}
+                    onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(song.title, song.artist))}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -279,10 +285,10 @@ export default function SearchSuggestions({
                   className="dropdown-hover-item"
                 >
                   <img
-                    src={artist.image || NOIR_ARTIST_AVATAR_FALLBACK}
+                    src={artist.image || getArtistFallbackAvatar(artist.name)}
                     alt={artist.name}
                     style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                    onError={(e) => handleArtworkError(e, NOIR_ARTIST_AVATAR_FALLBACK)}
+                    onError={(e) => handleArtworkError(e, getArtistFallbackAvatar(artist.name))}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

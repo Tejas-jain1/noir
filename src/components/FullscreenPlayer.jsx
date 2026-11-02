@@ -4,7 +4,7 @@ import { useLibrary } from '../context/LibraryContext';
 import { formatTime } from '../services/youtubeApi';
 import LyricsPreview from './LyricsPreview';
 import AmbientMode from './AmbientMode';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 import {
   ChevronDown,
   Play,
@@ -195,9 +195,9 @@ export default function FullscreenPlayer() {
             }}
           >
             <img
-              src={currentTrack.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+              src={currentTrack.thumbnail || getTrackFallbackArtwork(currentTrack.title, currentTrack.artist)}
               alt={currentTrack.title}
-              onError={handleArtworkError}
+              onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(currentTrack.title, currentTrack.artist))}
               style={{
                 width: '100%',
                 height: '100%',

@@ -11,6 +11,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { fetchLyricsForTrack, findCurrentLyricIndex } from '../services/lyricsService';
 import { supabaseService } from '../services/supabaseClient';
 import { saavnApi } from '../services/saavnApi';
+import { isCompilationAlbum, extractOriginalFilmOrAlbum } from '../services/artworkUtils';
 import {
   buildAutoplaySearchTiers,
   createRecommendationContext,
@@ -211,6 +212,41 @@ export function PlayerProvider({ children }) {
     // Use the account active when playback started so an auth switch cannot
     // attribute this track to a different user's listening history.
     if (activeUserId) supabaseService.recordHistory(track, activeUserId);
+
+    // Automatically resolve canonical album artwork if track belongs to a compilation
+    if (isCompilationAlbum(track.album, track.title) || extractOriginalFilmOrAlbum(track.title)) {
+      saavnApi.resolveCanonicalArtwork(track).then((resolved) => {
+        if (resolved && resolved.thumbnail && resolved.thumbnail !== track.thumbnail) {
+          track.thumbnail = resolved.thumbnail;
+          if (resolved.album) track.album = resolved.album;
+          if (resolved.albumId) track.albumId = resolved.albumId;
+
+          setCurrentTrack(prev => {
+            if (!prev || (prev.id !== track.id && prev.saavnId !== track.saavnId)) return prev;
+            return {
+              ...prev,
+              thumbnail: resolved.thumbnail,
+              album: resolved.album || prev.album,
+              albumId: resolved.albumId || prev.albumId
+            };
+          });
+
+          setQueue(prevQueue => prevQueue.map(item => {
+            if (item.id === track.id || item.saavnId === track.saavnId) {
+              return {
+                ...item,
+                thumbnail: resolved.thumbnail,
+                album: resolved.album || item.album,
+                albumId: resolved.albumId || item.albumId
+              };
+            }
+            return item;
+          }));
+
+          addToRecent(track);
+        }
+      }).catch(() => {});
+    }
 
     // Queue updates
     if (newQueue && Array.isArray(newQueue)) {

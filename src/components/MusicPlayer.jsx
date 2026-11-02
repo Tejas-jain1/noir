@@ -3,7 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { formatTime } from '../services/youtubeApi';
 import AmbientMode from './AmbientMode';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 import {
   Play,
   Pause,
@@ -179,10 +179,10 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
             title="Click to expand player"
           >
             <img
-              src={currentTrack.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+              src={currentTrack.thumbnail || getTrackFallbackArtwork(currentTrack.title, currentTrack.artist)}
               alt={currentTrack.title}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={handleArtworkError}
+              onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(currentTrack.title, currentTrack.artist))}
             />
 
             {isBuffering && (

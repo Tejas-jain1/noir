@@ -2,64 +2,94 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
-import { youtubeApi } from '../services/youtubeApi';
-import { POPULAR_ARTISTS, MOCK_TRACKS } from '../services/mockCatalog';
+import { saavnApi } from '../services/saavnApi';
+import { FEATURED_ARTISTS_POOL } from '../services/homeRecommendations';
+import { MOCK_TRACKS } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
-import MusicCard from '../components/MusicCard';
-import { Play, Shuffle, CheckCircle, Users, Disc, ChevronLeft, Heart } from 'lucide-react';
-import { NOIR_ARTIST_AVATAR_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { Play, Shuffle, CheckCircle, Users, ChevronLeft } from 'lucide-react';
+import { getArtistFallbackAvatar, handleArtworkError } from '../services/artworkUtils';
 
 export default function ArtistPage({ onOpenAddToPlaylist }) {
   const { name } = useParams();
   const navigate = useNavigate();
   const { playTrack, toggleShuffle } = usePlayer();
-  const { isLiked, showToast } = useLibrary();
+  const { showToast } = useLibrary();
 
-  const decodedName = decodeURIComponent(name || '');
+  const decodedName = decodeURIComponent(name || '').trim();
   const [isFollowing, setIsFollowing] = useState(false);
   const [artistTracks, setArtistTracks] = useState([]);
+  const [artistMeta, setArtistMeta] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Match known artist details from mock or fallback
-  const artistMeta = POPULAR_ARTISTS.find(
-    (a) => a.name.toLowerCase() === decodedName.toLowerCase()
-  ) || {
-    id: `artist-${decodedName.toLowerCase().replace(/\s+/g, '-')}`,
-    name: decodedName,
-    image: NOIR_ARTIST_AVATAR_FALLBACK,
-    monthlyListeners: '2.4M monthly listeners',
-    genre: 'Contemporary / Alternative'
-  };
 
   useEffect(() => {
     let isMounted = true;
-    async function loadArtistTracks() {
+    async function loadArtistData() {
       setLoading(true);
       try {
-        const res = await youtubeApi.search(`${decodedName} audio songs`);
-        if (isMounted) {
-          if (res.results && res.results.length > 0) {
-            setArtistTracks(res.results);
+        // First check featured pool for verified details
+        const poolMatch = FEATURED_ARTISTS_POOL.find(
+          a => a.name.toLowerCase() === decodedName.toLowerCase()
+        );
+
+        const details = await saavnApi.getArtistDetails(decodedName);
+        if (isMounted && details) {
+          setArtistMeta({
+            id: details.id,
+            name: details.name,
+            image: details.image || poolMatch?.image || getArtistFallbackAvatar(details.name),
+            monthlyListeners: details.monthlyListeners || poolMatch?.monthlyListeners || 'Verified Artist',
+            genre: details.genre || poolMatch?.genre || 'Contemporary',
+            bio: details.bio || ''
+          });
+
+          if (Array.isArray(details.tracks) && details.tracks.length > 0) {
+            setArtistTracks(details.tracks);
           } else {
-            // Filter catalog tracks
-            const catalogMatches = MOCK_TRACKS.filter(t => 
-              t.artist.toLowerCase().includes(decodedName.toLowerCase())
-            );
-            setArtistTracks(catalogMatches.length > 0 ? catalogMatches : MOCK_TRACKS.slice(0, 8));
+            // Search songs as fallback
+            const songRes = await saavnApi.search(`${decodedName} songs`);
+            if (isMounted) setArtistTracks(songRes?.results || []);
           }
+          return;
         }
-      } catch {
+
+        // Mock fallback if API fails
+        const catalogMatches = MOCK_TRACKS.filter(t => 
+          t.artist.toLowerCase().includes(decodedName.toLowerCase())
+        );
+
         if (isMounted) {
-          setArtistTracks(MOCK_TRACKS.slice(0, 8));
+          setArtistMeta({
+            id: `artist-${decodedName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+            name: decodedName,
+            image: poolMatch?.image || getArtistFallbackAvatar(decodedName),
+            monthlyListeners: poolMatch?.monthlyListeners || 'Verified Artist',
+            genre: poolMatch?.genre || 'Contemporary'
+          });
+          setArtistTracks(catalogMatches);
+        }
+      } catch (err) {
+        console.warn('Failed to load artist details:', decodedName, err);
+        if (isMounted) {
+          setArtistMeta({
+            id: `artist-${decodedName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+            name: decodedName,
+            image: getArtistFallbackAvatar(decodedName),
+            monthlyListeners: 'Verified Artist',
+            genre: 'Contemporary'
+          });
+          setArtistTracks([]);
         }
       } finally {
         if (isMounted) setLoading(false);
       }
     }
 
-    loadArtistTracks();
+    loadArtistData();
     return () => { isMounted = false; };
   }, [decodedName]);
+
+  const artistName = artistMeta?.name || decodedName;
+  const artistPortrait = artistMeta?.image || getArtistFallbackAvatar(artistName);
 
   const handlePlayAll = () => {
     if (artistTracks.length > 0) {
@@ -77,7 +107,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
 
   const handleFollowToggle = () => {
     setIsFollowing(!isFollowing);
-    showToast(isFollowing ? `Unfollowed ${decodedName}` : `Following ${decodedName}`, 'info');
+    showToast(isFollowing ? `Unfollowed ${artistName}` : `Following ${artistName}`, 'info');
   };
 
   return (
@@ -93,7 +123,10 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
             fontSize: '0.85rem',
             color: 'var(--text-secondary)',
             padding: '4px 8px',
-            borderRadius: 'var(--radius-sm)'
+            borderRadius: 'var(--radius-sm)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer'
           }}
         >
           <ChevronLeft size={16} />
@@ -124,14 +157,15 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
             overflow: 'hidden',
             flexShrink: 0,
             boxShadow: 'var(--shadow-md)',
-            border: '2px solid var(--border-medium)'
+            border: '2px solid var(--border-medium)',
+            backgroundColor: 'var(--bg-surface)'
           }}
         >
           <img
-            src={artistMeta.image}
-            alt={artistMeta.name}
+            src={artistPortrait}
+            alt={artistName}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={(e) => handleArtworkError(e, NOIR_ARTIST_AVATAR_FALLBACK)}
+            onError={(e) => handleArtworkError(e, getArtistFallbackAvatar(artistName))}
           />
         </div>
 
@@ -144,14 +178,14 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
           </div>
 
           <h1 style={{ fontSize: 'clamp(1.75rem, 4vw, 3rem)', fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
-            {artistMeta.name}
+            {artistName}
           </h1>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
             <Users size={14} />
-            <span>{artistMeta.monthlyListeners}</span>
+            <span>{artistMeta?.monthlyListeners || 'Verified Artist'}</span>
             <span>•</span>
-            <span>{artistMeta.genre || 'Soundscape Artist'}</span>
+            <span>{artistMeta?.genre || 'Contemporary'}</span>
           </div>
         </div>
       </section>
@@ -170,7 +204,9 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: 'var(--shadow-sm)'
+            boxShadow: 'var(--shadow-sm)',
+            border: 'none',
+            cursor: artistTracks.length === 0 ? 'not-allowed' : 'pointer'
           }}
           title="Play All"
         >
@@ -190,7 +226,8 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
             alignItems: 'center',
             gap: '8px',
             fontSize: '0.85rem',
-            fontWeight: 600
+            fontWeight: 600,
+            cursor: artistTracks.length === 0 ? 'not-allowed' : 'pointer'
           }}
         >
           <Shuffle size={16} />
@@ -206,7 +243,8 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
             border: `1px solid ${isFollowing ? 'var(--border-strong)' : 'var(--border-medium)'}`,
             color: isFollowing ? 'var(--text-primary)' : 'var(--text-secondary)',
             fontSize: '0.85rem',
-            fontWeight: 600
+            fontWeight: 600,
+            cursor: 'pointer'
           }}
         >
           {isFollowing ? 'Following' : 'Follow'}
@@ -223,7 +261,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
           <TrackList
             tracks={artistTracks}
             onOpenAddToPlaylist={onOpenAddToPlaylist}
-            emptyMessage={`No tracks found for ${artistMeta.name}.`}
+            emptyMessage={loading ? 'Loading artist catalog...' : `No tracks found for ${artistName}.`}
           />
         </div>
       </section>
@@ -235,7 +273,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
         </h2>
 
         <div className="artists-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '14px' }}>
-          {POPULAR_ARTISTS.filter(a => a.name.toLowerCase() !== decodedName.toLowerCase()).slice(0, 5).map((a) => (
+          {FEATURED_ARTISTS_POOL.filter(a => a.name.toLowerCase() !== decodedName.toLowerCase()).slice(0, 6).map((a) => (
             <div
               key={a.id}
               className="artist-card"
@@ -255,6 +293,7 @@ export default function ArtistPage({ onOpenAddToPlaylist }) {
               <img
                 src={a.image}
                 alt={a.name}
+                onError={(e) => handleArtworkError(e, getArtistFallbackAvatar(a.name))}
                 style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', marginBottom: '10px' }}
               />
               <h4 style={{ fontSize: '0.85rem', fontWeight: 700, margin: '0 0 2px' }}>{a.name}</h4>

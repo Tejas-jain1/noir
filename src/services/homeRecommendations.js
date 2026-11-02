@@ -6,7 +6,7 @@ import {
   rankRecommendationCandidates 
 } from './recommendationEngine.js';
 import { normalizeTrackTitle } from './playbackUtils.js';
-import { NOIR_ARTIST_AVATAR_FALLBACK } from './artworkUtils.js';
+import { getArtistFallbackAvatar } from './artworkUtils.js';
 
 const CACHE_PREFIX = 'noir_home_feed_';
 const SESSION_SEED_KEY = 'noir_home_session_seed';
@@ -24,17 +24,17 @@ export const FEATURED_ARTISTS_POOL = [
   { id: 'art-diljit', name: 'Diljit Dosanjh', monthlyListeners: '31.4M', genre: 'Punjabi / Pop', image: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_005_20231025073054_150x150.jpg' },
   { id: 'art-ap-dhillon', name: 'AP Dhillon', monthlyListeners: '22.8M', genre: 'Punjabi / Hip-Hop', image: 'https://c.saavncdn.com/artists/AP_Dhillon_004_20251023102150_150x150.jpg' },
   { id: 'art-taylor-swift', name: 'Taylor Swift', monthlyListeners: '98.5M', genre: 'Pop / Country', image: 'https://c.saavncdn.com/artists/Taylor_Swift_003_20200226074119_150x150.jpg' },
-  { id: 'art-the-weeknd', name: 'The Weeknd', monthlyListeners: '112.4M', genre: 'R&B / Synthwave', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80' },
+  { id: 'art-the-weeknd', name: 'The Weeknd', monthlyListeners: '112.4M', genre: 'R&B / Synthwave', image: 'https://c.saavncdn.com/artists/The_Weeknd_002_20241003071400_150x150.jpg' },
   { id: 'art-sidhu', name: 'Sidhu Moose Wala', monthlyListeners: '26.9M', genre: 'Punjabi / Hip-Hop', image: 'https://c.saavncdn.com/artists/Sidhu_Moose_Wala_004_20250617183705_150x150.jpg' },
   { id: 'art-shreya', name: 'Shreya Ghoshal', monthlyListeners: '38.2M', genre: 'Bollywood / Classical', image: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_007_20241101074144_150x150.jpg' },
   { id: 'art-pritam', name: 'Pritam', monthlyListeners: '44.1M', genre: 'Bollywood / Composer', image: 'https://c.saavncdn.com/artists/Pritam_Chakraborty-20170711073326_150x150.jpg' },
   { id: 'art-billie', name: 'Billie Eilish', monthlyListeners: '104.9M', genre: 'Alt-Pop / Indie', image: 'https://c.saavncdn.com/artists/Billie_Eilish_20190211151539_150x150.jpg' },
-  { id: 'art-dua-lipa', name: 'Dua Lipa', monthlyListeners: '88.1M', genre: 'Dance-Pop', image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&auto=format&fit=crop&q=80' },
-  { id: 'art-anuv-jain', name: 'Anuv Jain', monthlyListeners: '18.6M', genre: 'Indie / Acoustic', image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80' },
+  { id: 'art-dua-lipa', name: 'Dua Lipa', monthlyListeners: '88.1M', genre: 'Dance-Pop', image: 'https://c.saavncdn.com/artists/Dua_Lipa_004_20231120090922_150x150.jpg' },
+  { id: 'art-anuv-jain', name: 'Anuv Jain', monthlyListeners: '18.6M', genre: 'Indie / Acoustic', image: 'https://c.saavncdn.com/artists/Anuv_Jain_001_20231206073013_150x150.jpg' },
   { id: 'art-atif-aslam', name: 'Atif Aslam', monthlyListeners: '35.2M', genre: 'Sufi / Romantic', image: 'https://c.saavncdn.com/artists/Atif_Aslam_500x500.jpg' },
   { id: 'art-karan-aujla', name: 'Karan Aujla', monthlyListeners: '21.5M', genre: 'Punjabi / Rap', image: 'https://c.saavncdn.com/artists/Karan_Aujla_002_20230818073541_150x150.jpg' },
   { id: 'art-badshah', name: 'Badshah', monthlyListeners: '29.4M', genre: 'Commercial / Hip-Hop', image: 'https://c.saavncdn.com/artists/Badshah_005_20230609074026_150x150.jpg' },
-  { id: 'art-coldplay', name: 'Coldplay', monthlyListeners: '84.3M', genre: 'Alt-Rock / Pop', image: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=400&auto=format&fit=crop&q=80' }
+  { id: 'art-coldplay', name: 'Coldplay', monthlyListeners: '84.3M', genre: 'Alt-Rock / Pop', image: 'https://c.saavncdn.com/artists/Coldplay_002_20241003070447_150x150.jpg' }
 ];
 
 // Curated guest vibe search discovery pools rotated across sessions
@@ -68,8 +68,9 @@ export const deduplicateTracks = (tracks = [], excludeTracks = []) => {
   const seenIds = new Set((excludeTracks || []).map(t => t?.id).filter(Boolean));
   const seenTitles = new Set((excludeTracks || []).map(t => normalizeTrackTitle(t?.title)).filter(Boolean));
   const unique = [];
+  const trackList = Array.isArray(tracks) ? tracks : (Array.isArray(tracks?.results) ? tracks.results : []);
 
-  for (const track of tracks || []) {
+  for (const track of trackList) {
     if (!track || !track.id || !track.title || !track.audioUrl) continue;
     const titleNorm = normalizeTrackTitle(track.title);
     if (seenIds.has(track.id) || seenTitles.has(titleNorm)) continue;
@@ -78,6 +79,30 @@ export const deduplicateTracks = (tracks = [], excludeTracks = []) => {
     unique.push(track);
   }
   return unique;
+};
+
+// Helper: Diversify feed tracks to prevent identical album covers from dominating a single row
+// while preserving 100% genuine official album artwork for all tracks
+export const diversifyFeedByArtwork = (tracks = [], { maxPerAlbum = 2 } = {}) => {
+  if (!Array.isArray(tracks) || tracks.length <= 1) return tracks;
+
+  const albumCounts = new Map();
+  const selected = [];
+  const deferred = [];
+
+  for (const track of tracks) {
+    if (!track) continue;
+    const albumKey = String(track.album || track.thumbnail || track.id).toLowerCase().trim();
+    const count = albumCounts.get(albumKey) || 0;
+    if (count < maxPerAlbum) {
+      albumCounts.set(albumKey, count + 1);
+      selected.push(track);
+    } else {
+      deferred.push(track);
+    }
+  }
+
+  return [...selected, ...deferred];
 };
 
 // Session seed & rotation index management
@@ -129,19 +154,29 @@ export function rotateHomeSession() {
 // Scoped cache reader/writer
 function readCache(userId, sessionSeed) {
   const key = `${CACHE_PREFIX}${userId || 'guest'}_${sessionSeed}`;
+  const isStaleArtwork = (feed) => {
+    if (!feed) return false;
+    const tracks = [
+      ...(feed.trendingTracks || []),
+      ...(feed.newReleases || []),
+      ...(feed.recommendedTracks || [])
+    ];
+    return tracks.some(t => typeof t?.thumbnail === 'string' && t.thumbnail.includes('unsplash.com'));
+  };
+
   try {
     if (typeof window !== 'undefined' && window.sessionStorage) {
       const raw = sessionStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Date.now() - parsed.timestamp < CACHE_TTL_MS) {
+        if (Date.now() - parsed.timestamp < CACHE_TTL_MS && !isStaleArtwork(parsed.data)) {
           return parsed.data;
         }
       }
     }
   } catch {}
   const mem = memoryCache.get(key);
-  if (mem && Date.now() - mem.timestamp < CACHE_TTL_MS) {
+  if (mem && Date.now() - mem.timestamp < CACHE_TTL_MS && !isStaleArtwork(mem.data)) {
     return mem.data;
   }
   return null;
@@ -181,11 +216,13 @@ async function fetchTrendingSongs(rotationIndex, forceRefresh) {
     // Alternate between chart top 50, page 2, and trending queries based on rotationIndex
     const mode = rotationIndex % 3;
     if (mode === 0) {
-      const tracks = await saavnApi.getTrending({ forceRefresh, page: 1 });
-      if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      const res = await saavnApi.getTrending({ forceRefresh, page: 1 });
+      const tracks = Array.isArray(res?.results) ? res.results : (Array.isArray(res) ? res : []);
+      if (tracks.length > 0) return tracks;
     } else if (mode === 1) {
-      const tracks = await saavnApi.getTrending({ forceRefresh, page: 2 });
-      if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      const res = await saavnApi.getTrending({ forceRefresh, page: 2 });
+      const tracks = Array.isArray(res?.results) ? res.results : (Array.isArray(res) ? res : []);
+      if (tracks.length > 0) return tracks;
     }
     
     // Mode 2: Search trending hits
@@ -195,7 +232,8 @@ async function fetchTrendingSongs(rotationIndex, forceRefresh) {
       return res.results;
     }
     // Fallback to official chart
-    return await saavnApi.getTrending({ forceRefresh, page: 1 });
+    const fallback = await saavnApi.getTrending({ forceRefresh, page: 1 });
+    return Array.isArray(fallback?.results) ? fallback.results : (Array.isArray(fallback) ? fallback : []);
   } catch (err) {
     console.warn('Failed to fetch trending songs:', err);
     return [];
@@ -210,9 +248,10 @@ async function fetchNewReleases(rotationIndex, forceRefresh, excludeTracks = [])
     const res = await saavnApi.search(query, { forceRefresh, page: 1 });
     const candidates = Array.isArray(res?.results) ? res.results : [];
 
-    // Sort by newest release year first, then deduplicate
+    // Sort by newest release year first, then deduplicate and diversify so same album does not dominate
     const sorted = [...candidates].sort((a, b) => parseYear(b) - parseYear(a));
-    return deduplicateTracks(sorted, excludeTracks).slice(0, 15);
+    const deduped = deduplicateTracks(sorted, excludeTracks);
+    return diversifyFeedByArtwork(deduped, { maxPerAlbum: 2 }).slice(0, 15);
   } catch (err) {
     console.warn('Failed to fetch new releases:', err);
     return [];
@@ -309,11 +348,11 @@ async function fetchPersonalizedRecommendations({
     const unique = deduplicateTracks(rankedTracks, excludeTracks);
 
     if (unique.length > 0) {
-      return unique.slice(0, 15);
+      return diversifyFeedByArtwork(unique, { maxPerAlbum: 2 }).slice(0, 15);
     }
 
-    // Safe fallback if ranking produced empty list: return deduplicated candidate pool
-    return deduplicateTracks(candidateTracks, excludeTracks).slice(0, 15);
+    // Safe fallback if ranking produced empty list: return deduplicated and diversified candidate pool
+    return diversifyFeedByArtwork(deduplicateTracks(candidateTracks, excludeTracks), { maxPerAlbum: 2 }).slice(0, 15);
   } catch (err) {
     console.warn('Failed to fetch personalized recommendations:', err);
     return [];
@@ -345,16 +384,13 @@ export function buildPopularArtistsFeed({
     if (known) {
       addArtist(known);
     } else {
-      // Create personalized artist entry with matched image if available
-      const trackWithImage = [...likedSongs, ...recentlyPlayed].find(
-        t => t.artist?.toLowerCase().includes(name.toLowerCase())
-      );
+      // Create personalized artist entry with verified artist avatar (never a song movie poster)
       addArtist({
         id: `art-custom-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
         name,
         monthlyListeners: 'Favorite Artist',
         genre: 'User Preferred',
-        image: trackWithImage?.thumbnail || NOIR_ARTIST_AVATAR_FALLBACK
+        image: getArtistFallbackAvatar(name)
       });
     }
   }

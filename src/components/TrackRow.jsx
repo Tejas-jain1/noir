@@ -3,7 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Play, Pause, Heart, MoreHorizontal, Trash2, ListPlus, FolderPlus } from 'lucide-react';
 import { SpotifyMark } from './ImportSpotifyButton';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 
 export default function TrackRow({ 
   track, 
@@ -91,7 +91,7 @@ export default function TrackRow({
       {/* 2. Title & Artist & Thumbnail */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', minWidth: 0 }}>
         <img
-          src={track.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+          src={track.thumbnail || getTrackFallbackArtwork(track.title, track.artist)}
           alt={track.title}
           style={{
             width: '40px',
@@ -101,7 +101,7 @@ export default function TrackRow({
             flexShrink: 0,
             backgroundColor: 'var(--bg-surface)'
           }}
-          onError={handleArtworkError}
+          onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(track.title, track.artist))}
         />
 
         <div style={{ overflow: 'hidden', minWidth: 0 }}>

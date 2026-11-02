@@ -6,6 +6,7 @@ import { getTrackById } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
 import { SpotifyMark } from '../components/ImportSpotifyButton';
 import { Music2, Play, Shuffle, Edit2, Trash2, Check, X } from 'lucide-react';
+import { getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 
 export default function PlaylistDetail({ onOpenAddToPlaylist }) {
   const { id } = useParams();
@@ -113,7 +114,7 @@ export default function PlaylistDetail({ onOpenAddToPlaylist }) {
             flexShrink: 0
           }}
         >
-          {playlist.coverUrl ? <img src={playlist.coverUrl} alt={`${playlist.name} cover`} style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} /> : <Music2 size={64} />}
+          {(playlist.coverUrl || playlist.tracks?.[0]?.thumbnail) ? <img src={playlist.coverUrl || playlist.tracks[0].thumbnail} alt={`${playlist.name} cover`} style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(playlist.name, 'Playlist'))} /> : <Music2 size={64} />}
         </div>
 
         <div className="playlist-header-content" style={{ flex: 1, minWidth: '240px' }}>

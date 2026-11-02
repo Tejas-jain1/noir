@@ -9,7 +9,7 @@ import { parseSpotifyPlaylistId } from '../services/spotifyPlaylistUtils';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
 import { importAndStreamSpotify } from '../services/spotifyImport';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { NOIR_TRACK_ARTWORK_FALLBACK, getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 import { 
   Search, 
   Loader2, 
@@ -498,9 +498,9 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
                     {/* Left: Thumbnail & Song Metadata */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
                       <img
-                        src={track.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+                        src={track.thumbnail || getTrackFallbackArtwork(track.title, track.artist)}
                         alt={track.title}
-                        onError={handleArtworkError}
+                        onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(track.title, track.artist))}
                         style={{
                           width: '48px',
                           height: '48px',
@@ -645,9 +645,9 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
                       }}
                     >
                       <img
-                        src={topResult.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK}
+                        src={topResult.thumbnail || getTrackFallbackArtwork(topResult.title, topResult.artist)}
                         alt={topResult.title}
-                        onError={handleArtworkError}
+                        onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(topResult.title, topResult.artist))}
                         style={{
                           width: '84px',
                           height: '84px',

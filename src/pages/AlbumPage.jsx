@@ -1,57 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
-import { useLibrary } from '../context/LibraryContext';
-import { youtubeApi } from '../services/youtubeApi';
+import { saavnApi } from '../services/saavnApi';
 import { MOCK_TRACKS } from '../services/mockCatalog';
 import TrackList from '../components/TrackList';
-import { Play, Shuffle, Disc, ChevronLeft, Calendar, Music } from 'lucide-react';
-import { NOIR_TRACK_ARTWORK_FALLBACK, handleArtworkError } from '../services/artworkUtils';
+import { Play, Shuffle, ChevronLeft, Disc } from 'lucide-react';
+import { getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 
 export default function AlbumPage({ onOpenAddToPlaylist }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { playTrack, toggleShuffle } = usePlayer();
 
-  const decodedId = decodeURIComponent(id || '');
+  const decodedId = decodeURIComponent(id || '').trim();
+  const [albumMeta, setAlbumMeta] = useState(null);
   const [albumTracks, setAlbumTracks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Find track from catalog to extract album metadata or default
-  const catalogMatch = MOCK_TRACKS.find(
-    (t) => (t.album && t.album.toLowerCase() === decodedId.toLowerCase()) || t.id === decodedId
-  ) || MOCK_TRACKS[0];
-
-  const albumTitle = catalogMatch?.album || decodedId;
-  const albumArtist = catalogMatch?.artist || 'Featured Artist';
-  const albumArtwork = catalogMatch?.thumbnail || NOIR_TRACK_ARTWORK_FALLBACK;
-
   useEffect(() => {
     let isMounted = true;
-    async function loadAlbumTracks() {
+    async function loadAlbumData() {
       setLoading(true);
       try {
-        const res = await youtubeApi.search(`${albumTitle} ${albumArtist} full album audio`);
+        const details = await saavnApi.getAlbumDetails(decodedId);
+        if (isMounted && details && Array.isArray(details.tracks) && details.tracks.length > 0) {
+          setAlbumMeta({
+            id: details.id,
+            title: details.title,
+            artist: details.artist,
+            artwork: details.image,
+            year: details.year
+          });
+          setAlbumTracks(details.tracks);
+          return;
+        }
+
+        // Check if query matches a known track in mock catalog
+        const cleanLower = decodedId.toLowerCase().replace(/[-_]+/g, ' ');
+        const mockMatches = MOCK_TRACKS.filter(t => 
+          (t.album && t.album.toLowerCase().includes(cleanLower)) ||
+          t.title.toLowerCase().includes(cleanLower) ||
+          t.id === decodedId
+        );
+
         if (isMounted) {
-          if (res.results && res.results.length > 0) {
-            setAlbumTracks(res.results);
+          if (mockMatches.length > 0) {
+            const first = mockMatches[0];
+            setAlbumMeta({
+              id: decodedId,
+              title: first.album || decodedId,
+              artist: first.artist || 'Featured Artist',
+              artwork: first.thumbnail,
+              year: first.releaseYear || ''
+            });
+            setAlbumTracks(mockMatches);
           } else {
-            const matches = MOCK_TRACKS.filter(t => t.album === albumTitle || t.artist === albumArtist);
-            setAlbumTracks(matches.length > 0 ? matches : MOCK_TRACKS.slice(0, 6));
+            // Clean fallback using the requested ID without fabricating unrelated album
+            setAlbumMeta({
+              id: decodedId,
+              title: decodedId.replace(/[-_]+/g, ' '),
+              artist: 'Featured Artist',
+              artwork: '',
+              year: ''
+            });
+            setAlbumTracks([]);
           }
         }
-      } catch {
+      } catch (err) {
+        console.warn('Failed to load album data for:', decodedId, err);
         if (isMounted) {
-          setAlbumTracks(MOCK_TRACKS.slice(0, 6));
+          setAlbumMeta({
+            id: decodedId,
+            title: decodedId.replace(/[-_]+/g, ' '),
+            artist: 'Featured Artist',
+            artwork: '',
+            year: ''
+          });
+          setAlbumTracks([]);
         }
       } finally {
         if (isMounted) setLoading(false);
       }
     }
 
-    loadAlbumTracks();
+    loadAlbumData();
     return () => { isMounted = false; };
-  }, [albumTitle, albumArtist]);
+  }, [decodedId]);
+
+  const albumTitle = albumMeta?.title || decodedId.replace(/[-_]+/g, ' ') || 'Album';
+  const albumArtist = albumMeta?.artist || 'Featured Artist';
+  const albumArtwork = albumMeta?.artwork || getTrackFallbackArtwork(albumTitle, albumArtist);
 
   const totalDuration = albumTracks.reduce((acc, t) => acc + (t.duration || 200), 0);
   const totalMinutes = Math.floor(totalDuration / 60);
@@ -83,7 +121,10 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
             fontSize: '0.85rem',
             color: 'var(--text-secondary)',
             padding: '4px 8px',
-            borderRadius: 'var(--radius-sm)'
+            borderRadius: 'var(--radius-sm)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer'
           }}
         >
           <ChevronLeft size={16} />
@@ -114,14 +155,15 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
             overflow: 'hidden',
             flexShrink: 0,
             boxShadow: 'var(--shadow-md)',
-            border: '1px solid var(--border-medium)'
+            border: '1px solid var(--border-medium)',
+            backgroundColor: 'var(--bg-surface)'
           }}
         >
           <img
             src={albumArtwork}
             alt={albumTitle}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={handleArtworkError}
+            onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(albumTitle, albumArtist))}
           />
         </div>
 
@@ -141,12 +183,22 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
             >
               {albumArtist}
             </span>
-            <span>•</span>
-            <span>{albumTracks.length} tracks</span>
+            {albumTracks.length > 0 && (
+              <>
+                <span>•</span>
+                <span>{albumTracks.length} {albumTracks.length === 1 ? 'track' : 'tracks'}</span>
+              </>
+            )}
             {totalMinutes > 0 && (
               <>
                 <span>•</span>
                 <span>{totalMinutes} min</span>
+              </>
+            )}
+            {albumMeta?.year && (
+              <>
+                <span>•</span>
+                <span>{albumMeta.year}</span>
               </>
             )}
           </div>
@@ -167,7 +219,9 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: 'var(--shadow-sm)'
+            boxShadow: 'var(--shadow-sm)',
+            border: 'none',
+            cursor: albumTracks.length === 0 ? 'not-allowed' : 'pointer'
           }}
           title="Play Album"
         >
@@ -187,7 +241,8 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
             alignItems: 'center',
             gap: '8px',
             fontSize: '0.85rem',
-            fontWeight: 600
+            fontWeight: 600,
+            cursor: albumTracks.length === 0 ? 'not-allowed' : 'pointer'
           }}
         >
           <Shuffle size={16} />
@@ -201,7 +256,7 @@ export default function AlbumPage({ onOpenAddToPlaylist }) {
           <TrackList
             tracks={albumTracks}
             onOpenAddToPlaylist={onOpenAddToPlaylist}
-            emptyMessage={`No tracks found for ${albumTitle}.`}
+            emptyMessage={loading ? 'Loading album tracks...' : `No tracks found for ${albumTitle}.`}
           />
         </div>
       </section>

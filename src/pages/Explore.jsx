@@ -17,6 +17,12 @@ import { useLibrary } from '../context/LibraryContext';
 import { usePlayer } from '../context/PlayerContext';
 import { normalizeTrackTitle } from '../services/playbackUtils';
 import { saavnApi } from '../services/saavnApi';
+import { FEATURED_ARTISTS_POOL } from '../services/homeRecommendations';
+import { 
+  getTrackFallbackArtwork, 
+  getArtistFallbackAvatar, 
+  handleArtworkError 
+} from '../services/artworkUtils';
 
 const normalizeLabel = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const normalizeExploreTrackTitle = (title) => normalizeTrackTitle(String(title || '')
@@ -85,7 +91,7 @@ const buildAlbumCards = (tracks) => {
     const key = normalizeLabel(title);
     if (!title || !key || ['single', 'unknownalbum'].includes(key)) continue;
     const album = albums.get(key) || {
-      id: key,
+      id: track.albumId || key,
       title,
       artist: track.artist || 'Various Artists',
       image: track.thumbnail || '',
@@ -104,7 +110,9 @@ const artistsFromTracks = (tracks) => {
     const name = String(track.artist || '').split(',')[0].trim();
     const key = normalizeLabel(name);
     if (name && key && !artists.has(key)) {
-      artists.set(key, { id: key, name, image: track.thumbnail || '', role: 'Artist' });
+      const poolArtist = FEATURED_ARTISTS_POOL.find(a => normalizeLabel(a.name) === key);
+      const artistImage = poolArtist?.image || getArtistFallbackAvatar(name);
+      artists.set(key, { id: key, name, image: artistImage, role: 'Artist' });
     }
   }
   return [...artists.values()].slice(0, 10);
@@ -169,11 +177,6 @@ function ArtworkFallback({ children, visible = false }) {
   return <span className="explore-artwork-fallback" style={{ display: visible ? 'flex' : 'none' }} aria-hidden="true">{children}</span>;
 }
 
-function handleArtworkError(event) {
-  event.currentTarget.style.display = 'none';
-  const fallback = event.currentTarget.nextElementSibling;
-  if (fallback?.classList.contains('explore-artwork-fallback')) fallback.style.display = 'flex';
-}
 
 export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
   const navigate = useNavigate();
@@ -265,7 +268,10 @@ export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
         .filter(artist => artist?.id && artist?.name)
         .filter((artist, index, list) => list.findIndex(item => normalizeLabel(item.name) === normalizeLabel(artist.name)) === index)
         .slice(0, 10);
-      setPopularArtists(apiArtists.length > 0 ? apiArtists : artistsFromTracks([...liveTrending, ...latestTracks]));
+      const combinedArtists = apiArtists.length >= 6
+        ? apiArtists.slice(0, 10)
+        : [...apiArtists, ...FEATURED_ARTISTS_POOL.filter(p => !apiArtists.some(a => normalizeLabel(a.name) === normalizeLabel(p.name))).slice(0, 10 - apiArtists.length)];
+      setPopularArtists(combinedArtists.length > 0 ? combinedArtists : artistsFromTracks([...liveTrending, ...latestTracks]));
       if (artistsResult.status === 'rejected' || !artistsResponse) nextErrors.artists = 'Popular artists could not be loaded.';
 
       const playlistsResponse = playlistsResult.status === 'fulfilled' ? playlistsResult.value : null;
@@ -414,7 +420,7 @@ export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
                 aria-label={`Explore ${artist.name}`}
               >
                 <span className="explore-artist-artwork">
-                  {artist.image ? <><img src={artist.image} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Users size={24} /></ArtworkFallback></> : <ArtworkFallback visible><Users size={24} /></ArtworkFallback>}
+                  {artist.image ? <><img src={artist.image} alt="" loading="lazy" onError={(e) => handleArtworkError(e, getArtistFallbackAvatar(artist.name))} /><ArtworkFallback><Users size={24} /></ArtworkFallback></> : <ArtworkFallback visible><Users size={24} /></ArtworkFallback>}
                 </span>
                 <strong>{artist.name}</strong>
                 <span>{artist.role || 'Artist'}</span>
@@ -444,7 +450,7 @@ export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
                 aria-label={`Play ${album.title} by ${album.artist}`}
               >
                 <span className="explore-entity-artwork">
-                  {album.image ? <><img src={album.image} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Disc3 size={25} /></ArtworkFallback></> : <ArtworkFallback visible><Disc3 size={25} /></ArtworkFallback>}
+                  {album.image ? <><img src={album.image} alt="" loading="lazy" onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(album.title, album.artist))} /><ArtworkFallback><Disc3 size={25} /></ArtworkFallback></> : <ArtworkFallback visible><Disc3 size={25} /></ArtworkFallback>}
                   <span className="explore-play-overlay">
                     {openingPlaylistId === `album-${album.id}` ? <span className="explore-mini-spinner" /> : <Play size={18} fill="currentColor" />}
                   </span>
@@ -477,7 +483,7 @@ export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
                 aria-label={`Play playlist ${playlist.title}`}
               >
                 <span className="explore-entity-artwork">
-                  {playlist.image ? <><img src={playlist.image} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></> : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
+                  {playlist.image ? <><img src={playlist.image} alt="" loading="lazy" onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(playlist.title, 'Playlist'))} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></> : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
                   <span className="explore-play-overlay">
                     {openingPlaylistId === playlist.id ? <span className="explore-mini-spinner" /> : <Play size={18} fill="currentColor" />}
                   </span>
@@ -499,7 +505,7 @@ export default function Explore({ onOpenAddToPlaylist, onOpenSpotifyImport }) {
                 >
                   <span className="explore-entity-artwork">
                     {playlist.coverUrl || playlist.tracks?.[0]?.thumbnail
-                      ? <><img src={playlist.coverUrl || playlist.tracks[0].thumbnail} alt="" loading="lazy" onError={handleArtworkError} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></>
+                      ? <><img src={playlist.coverUrl || playlist.tracks[0].thumbnail} alt="" loading="lazy" onError={(e) => handleArtworkError(e, getTrackFallbackArtwork(playlist.name, 'Playlist'))} /><ArtworkFallback><Music2 size={25} /></ArtworkFallback></>
                       : <ArtworkFallback visible><Music2 size={25} /></ArtworkFallback>}
                     <span className="explore-play-overlay"><ArrowRight size={18} /></span>
                   </span>

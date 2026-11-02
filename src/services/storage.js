@@ -37,12 +37,20 @@ const DEFAULT_PLAYLISTS = [
   }
 ];
 
+const sanitizeTrackArtwork = (t) => {
+  if (!t) return t;
+  if (typeof t.thumbnail === 'string' && t.thumbnail.includes('unsplash.com')) {
+    return { ...t, thumbnail: '' };
+  }
+  return t;
+};
+
 export const storage = {
   getLikedSongs: (userId = 'guest') => {
     try {
       const scopedKey = `${KEYS.LIKED_SONGS}_${userId}`;
       const data = localStorage.getItem(scopedKey) || (userId === 'guest' ? localStorage.getItem(KEYS.LIKED_SONGS) : null);
-      return data ? JSON.parse(data) : [];
+      return data ? JSON.parse(data).map(sanitizeTrackArtwork) : [];
     } catch (e) {
       console.error('Error reading liked songs from localStorage', e);
       return [];
@@ -105,7 +113,7 @@ export const storage = {
         localStorage.setItem(scopedKey, JSON.stringify(sanitized));
         if (userId === 'guest') localStorage.setItem(KEYS.RECENTLY_PLAYED, JSON.stringify(sanitized));
       }
-      return sanitized;
+      return sanitized.map(sanitizeTrackArtwork);
     } catch (e) {
       console.error('Error reading recently played', e);
       return [];
@@ -186,7 +194,7 @@ export const storage = {
   getRecentSearches: () => {
     try {
       const data = localStorage.getItem(KEYS.RECENT_SEARCHES);
-      return data ? JSON.parse(data) : [];
+      return data ? JSON.parse(data).map(sanitizeTrackArtwork) : [];
     } catch {
       return [];
     }
@@ -232,7 +240,7 @@ export const storage = {
       const data = localStorage.getItem(KEYS.RECENT_SEARCH_TRACKS);
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(sanitizeTrackArtwork);
       }
       // Fallback to recently played tracks
       const played = storage.getRecentlyPlayed();
