@@ -49,23 +49,23 @@ export default function ImportSpotifyModal({
     e?.preventDefault();
     const targetUrl = url.trim();
     if (!targetUrl) {
-      setError('Please paste a Spotify playlist link or ID.');
+      setError('Please paste a Spotify playlist, album, or track link.');
       return;
     }
 
     setIsLoading(true);
     setError('');
-    setStatusText('Extracting playlist tracks from Spotify...');
+    setStatusText('Extracting metadata from Spotify...');
 
     try {
-      setStatusText('Setting up queue & 320kbps audio streams...');
       const result = await importAndStreamSpotify(targetUrl, {
         playTrack,
         importSpotifyPlaylist,
         setPlaylists,
         showToast,
         navigate,
-        user
+        user,
+        onProgress: (status) => setStatusText(status)
       });
 
       if (onImported && result?.playlist?.id) {
@@ -74,7 +74,7 @@ export default function ImportSpotifyModal({
       onClose();
     } catch (err) {
       console.error('Spotify import error:', err);
-      setError(err.message || 'Failed to import playlist. Please check the URL and make sure it is public.');
+      setError(err.message || 'Failed to import Spotify content. Please check the URL and make sure it is public.');
       setIsLoading(false);
       setStatusText('');
     }
@@ -159,10 +159,10 @@ export default function ImportSpotifyModal({
           </div>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
-              Import Spotify Playlist
+              Import from Spotify
             </h2>
             <p style={{ fontSize: '0.82rem', color: '#A1A1AA', margin: '4px 0 0' }}>
-              Instant extraction & high-quality 320kbps playback
+              Import public playlists, albums & tracks into NOIR
             </p>
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function ImportSpotifyModal({
               marginBottom: '8px'
             }}
           >
-            Spotify Playlist Link or ID
+            Spotify Playlist, Album, or Track Link
           </label>
 
           <div style={{ position: 'relative', width: '100%' }}>
@@ -193,7 +193,7 @@ export default function ImportSpotifyModal({
                 if (error) setError('');
               }}
               disabled={isLoading}
-              placeholder="https://open.spotify.com/playlist/..."
+              placeholder="https://open.spotify.com/playlist/..., album, or track"
               style={{
                 width: '100%',
                 padding: '12px 16px',
@@ -246,7 +246,7 @@ export default function ImportSpotifyModal({
           >
             <Sparkles size={16} style={{ color: '#1DB954', flexShrink: 0 }} />
             <span>
-              Works with any public Spotify link. Zero setup or API keys needed.
+              Supports public Spotify playlists, albums, and tracks.
             </span>
           </div>
 
@@ -288,7 +288,7 @@ export default function ImportSpotifyModal({
               }}
             >
               <Loader2 size={18} className="brand-logo-spin" style={{ color: '#1DB954', flexShrink: 0 }} />
-              <span>{statusText || 'Processing Spotify playlist...'}</span>
+              <span>{statusText || 'Processing Spotify music...'}</span>
             </div>
           )}
 

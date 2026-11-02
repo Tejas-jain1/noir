@@ -8,7 +8,7 @@ import { createSingleTrackQueue } from '../services/playbackUtils';
 import { parseSpotifyPlaylistId } from '../services/spotifyPlaylistUtils';
 import TrackList from '../components/TrackList';
 import SearchSuggestions from '../components/SearchSuggestions';
-import { importAndStreamSpotify } from '../services/spotifyImport';
+import { importAndStreamSpotify, isSpotifyUrl } from '../services/spotifyImport';
 import { NOIR_TRACK_ARTWORK_FALLBACK, getTrackFallbackArtwork, handleArtworkError } from '../services/artworkUtils';
 import { 
   Search, 
@@ -52,7 +52,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
 
   const handleSpotifyAutoImport = async (rawUrl) => {
     try {
-      showToast?.('Detected Spotify playlist! Importing...', 'info', 3000);
+      showToast?.('Detected Spotify link! Importing...', 'info', 3000);
       await importAndStreamSpotify(rawUrl, {
         playTrack,
         importSpotifyPlaylist,
@@ -260,11 +260,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
 
   const handleInputChange = (e) => {
     const val = e.target.value;
-    if (
-      val.includes('open.spotify.com/playlist') ||
-      val.startsWith('spotify:playlist:') ||
-      val.includes('spotify.com/embed/playlist')
-    ) {
+    if (isSpotifyUrl(val)) {
       setQuery('');
       setSearchParams({});
       setIsDropdownOpen(false);
@@ -381,12 +377,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
             onChange={handleInputChange}
             onPaste={(event) => {
               const pastedValue = event.clipboardData?.getData('text')?.trim() || '';
-              if (
-                pastedValue.includes('open.spotify.com/playlist') ||
-                pastedValue.startsWith('spotify:playlist:') ||
-                pastedValue.includes('spotify.com/embed/playlist') ||
-                parseSpotifyPlaylistId(pastedValue)
-              ) {
+              if (isSpotifyUrl(pastedValue)) {
                 event.preventDefault();
                 setQuery('');
                 setSearchParams({});

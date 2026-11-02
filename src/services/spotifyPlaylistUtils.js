@@ -26,27 +26,58 @@ const artistSimilarity = (sourceArtists, candidateArtist) => {
   return Math.max(0, ...source.map(name => tokenSimilarity(name, candidate)));
 };
 
+/**
+ * Universal Spotify URL and URI parser for playlists, albums, and tracks
+ */
+export const parseSpotifyUrl = (value) => {
+  const input = String(value || '').trim();
+  if (!input) return null;
+
+  const uriMatch = input.match(/^spotify:(playlist|album|track):([a-zA-Z0-9]{10,40})$/i);
+  if (uriMatch) {
+    return { type: uriMatch[1].toLowerCase(), id: uriMatch[2] };
+  }
+
+  // If full web URL, strictly enforce valid Spotify hostname
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      const url = new URL(input);
+      const hostname = url.hostname.toLowerCase();
+      if (!['open.spotify.com', 'www.spotify.com', 'spotify.com'].includes(hostname)) {
+        return null;
+      }
+      const segments = url.pathname.split('/').filter(Boolean);
+      const entityIndex = segments.findIndex(s => ['playlist', 'album', 'track'].includes(s.toLowerCase()));
+      if (entityIndex >= 0 && segments[entityIndex + 1]) {
+        const type = segments[entityIndex].toLowerCase();
+        const id = segments[entityIndex + 1].split('?')[0].split('#')[0];
+        if (/^[a-zA-Z0-9]{10,40}$/.test(id)) {
+          return { type, id };
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  // Bare ID (default to playlist if 10-40 alphanumeric chars)
+  const bareMatch = input.match(/^([a-zA-Z0-9]{10,40})(?:[?#].*)?$/);
+  if (bareMatch) {
+    return { type: 'playlist', id: bareMatch[1] };
+  }
+
+  return null;
+};
+
 export const parseSpotifyPlaylistId = (value) => {
   const input = String(value || '').trim();
   if (!input) return '';
 
-  const uriMatch = input.match(/^spotify:playlist:([a-zA-Z0-9]{10,40})$/i);
-  if (uriMatch) return uriMatch[1];
-
-  const bareMatch = input.match(/^([a-zA-Z0-9]{10,40})(?:[?#].*)?$/);
-  if (bareMatch) return bareMatch[1];
-
-  try {
-    const url = new URL(input);
-    const hostname = url.hostname.toLowerCase();
-    if (!['open.spotify.com', 'www.spotify.com', 'spotify.com'].includes(hostname)) return '';
-    const segments = url.pathname.split('/').filter(Boolean);
-    const playlistIndex = segments.findIndex(segment => segment.toLowerCase() === 'playlist');
-    const id = playlistIndex >= 0 ? segments[playlistIndex + 1] : '';
-    return /^[a-zA-Z0-9]{10,40}$/.test(id || '') ? id : '';
-  } catch {
-    return '';
+  const parsed = parseSpotifyUrl(input);
+  if (parsed && parsed.type === 'playlist') {
+    return parsed.id;
   }
+
+  return '';
 };
 
 export const formatSpotifyDuration = (durationMs) => {
@@ -92,11 +123,17 @@ export const collectSpotifyPlaylistPages = async (playlistId, fetchPage) => {
 
 export const findSpotifySaavnMatch = (spotifyTrack, candidates) => {
   const title = String(spotifyTrack?.title || '').trim();
-  const artists = Array.isArray(spotifyTrack?.artists) ? spotifyTrack.artists : [];
+  const artists = (Array.isArray(spotifyTrack?.artists) && spotifyTrack.artists.length > 0)
+    ? spotifyTrack.artists
+    : (spotifyTrack?.artist ? String(spotifyTrack.artist).split(',').map(s => s.trim()).filter(Boolean) : []);
+
   if (!title || artists.length === 0 || !Array.isArray(candidates)) return null;
 
   const normalizedTitle = normalizeTrackTitle(title);
   if (!normalizedTitle) return null;
+
+  const spotifyDurSec = Math.round((Number(spotifyTrack?.durationMs) || (Number(spotifyTrack?.duration) * 1000) || 0) / 1000);
+  const isOriginal = !/\b(remix|live|acoustic|cover|tribute|karaoke|instrumental|mashup)\b/i.test(title);
 
   let best = null;
   let bestScore = 0;
@@ -104,10 +141,25 @@ export const findSpotifySaavnMatch = (spotifyTrack, candidates) => {
     if (!candidate?.id || !candidate?.audioUrl || candidate.source !== 'saavn_cdn' || !candidate?.title) continue;
     const candidateTitle = normalizeTrackTitle(candidate.title);
     if (!candidateTitle) continue;
+
     const titleScore = candidateTitle === normalizedTitle ? 1 : tokenSimilarity(title, candidate.title);
     const artistScore = artistSimilarity(artists, candidate.artist);
-    const score = titleScore * 0.72 + artistScore * 0.28;
-    if (titleScore >= 0.72 && artistScore >= 0.45 && score >= 0.70 && score > bestScore) {
+    let score = titleScore * 0.72 + artistScore * 0.28;
+
+    // Reject / penalize variants (remix, live, cover) if original studio version was requested
+    const candIsVariant = /\b(remix|live|acoustic|cover|tribute|karaoke|instrumental|mashup)\b/i.test(candidate.title);
+    if (isOriginal && candIsVariant) {
+      score -= 0.35;
+    }
+
+    // Proximity bonus if duration is known and within 10 seconds
+    if (spotifyDurSec > 30 && candidate.duration > 0) {
+      const durDiff = Math.abs(spotifyDurSec - candidate.duration);
+      if (durDiff <= 10) score += 0.08;
+      else if (durDiff > 90) score -= 0.20;
+    }
+
+    if (titleScore >= 0.70 && artistScore >= 0.40 && score >= 0.65 && score > bestScore) {
       best = candidate;
       bestScore = score;
     }
@@ -151,12 +203,14 @@ export const spotifyPlaylistItemToTrack = (entry, index, playlistArtwork = '') =
 
 export const createImportedSpotifyTrack = (sourceTrack, match, position, fallbackArtwork = '') => {
   const source = sourceTrack || {};
-  const spotifyId = String(source.spotifyTrackId || source.id || '').trim();
+  const spotifyId = String(source.spotifyTrackId || source.spotifyId || source.id || '').trim();
   const title = String(source.title || '').trim();
-  const artists = Array.isArray(source.artists) ? source.artists.filter(Boolean) : [];
+  const artists = (Array.isArray(source.artists) && source.artists.length > 0)
+    ? source.artists.filter(Boolean)
+    : (source.artist ? String(source.artist).split(',').map(s => s.trim()).filter(Boolean) : []);
   const artist = artists.join(', ');
-  const durationMs = Math.max(0, Number(source.durationMs) || 0);
-  const artwork = source.artwork || fallbackArtwork || '';
+  const durationMs = Math.max(0, Number(source.durationMs) || (Number(source.duration) * 1000) || 0);
+  const artwork = source.artwork || source.thumbnail || source.cover || fallbackArtwork || '';
   const isUnavailable = Boolean(source.unavailable || !title || !artist);
   const status = isUnavailable ? 'unavailable' : match ? 'matched' : 'unmatched';
 
@@ -170,11 +224,13 @@ export const createImportedSpotifyTrack = (sourceTrack, match, position, fallbac
     durationMs,
     durationFormatted: formatSpotifyDuration(durationMs),
     spotifyTrackId: spotifyId,
-    spotifyUrl: String(source.spotifyUrl || ''),
+    spotifyUrl: String(source.spotifyUrl || (spotifyId ? `https://open.spotify.com/track/${spotifyId}` : '')),
     matchStatus: status,
     isPlayable: status === 'matched',
     catalogTrackId: match?.id || '',
-    unavailableReason: isUnavailable ? String(source.unavailableReason || 'Spotify did not provide usable track metadata.') : '',
+    unavailableReason: isUnavailable 
+      ? String(source.unavailableReason || 'Spotify did not provide usable track metadata.') 
+      : (status === 'unmatched' ? 'Not found in NOIR catalog' : ''),
     saavnTitle: match?.title || '',
     saavnArtist: match?.artist || '',
     source: 'spotify_import',
