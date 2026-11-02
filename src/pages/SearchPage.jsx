@@ -48,6 +48,7 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
   const { userPreferences, likedSongs, isLiked, toggleLike, importSpotifyPlaylist, setPlaylists, showToast, user } = useLibrary();
 
   const debounceSuggestTimerRef = useRef(null);
+  const suggestRequestIdRef = useRef(0);
 
   const handleSpotifyAutoImport = async (rawUrl) => {
     try {
@@ -139,6 +140,13 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
           scoreA += (matchedA / qTokens.length) * 25;
           scoreB += (matchedB / qTokens.length) * 25;
         }
+
+        // 5. Down-rank compilation albums so original soundtrack/studio releases rank first
+        const compilationTerms = ['best of', 'compilation', 'hits of', 'greatest hits', 'collection', 'vol.', 'volume', 'mashup'];
+        const isCompA = compilationTerms.some(term => albumA.includes(term));
+        const isCompB = compilationTerms.some(term => albumB.includes(term));
+        if (isCompA && !isCompB) scoreA -= 20;
+        if (isCompB && !isCompA) scoreB -= 20;
       }
 
       // Small personalization tie-breakers (capped so query relevance always leads)
@@ -213,9 +221,11 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
     }
   };
 
-  // Live autocomplete suggestions for typo tolerance
+  // Live autocomplete suggestions with stale request cancellation
   useEffect(() => {
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      suggestRequestIdRef.current += 1;
       setSuggestions(null);
       setIsSuggestLoading(false);
       return;
@@ -224,16 +234,24 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
     setIsSuggestLoading(true);
     if (debounceSuggestTimerRef.current) clearTimeout(debounceSuggestTimerRef.current);
 
+    const requestId = ++suggestRequestIdRef.current;
+
     debounceSuggestTimerRef.current = setTimeout(async () => {
       try {
-        const data = await saavnApi.getAutocomplete(query.trim());
-        setSuggestions(data);
+        const data = await saavnApi.getAutocomplete(trimmed);
+        if (suggestRequestIdRef.current === requestId) {
+          setSuggestions(data);
+        }
       } catch (err) {
-        console.warn('Autocomplete fetch error:', err);
+        if (suggestRequestIdRef.current === requestId) {
+          console.warn('Autocomplete fetch error:', err);
+        }
       } finally {
-        setIsSuggestLoading(false);
+        if (suggestRequestIdRef.current === requestId) {
+          setIsSuggestLoading(false);
+        }
       }
-    }, 180);
+    }, 200);
 
     return () => {
       if (debounceSuggestTimerRef.current) clearTimeout(debounceSuggestTimerRef.current);
@@ -375,6 +393,10 @@ export default function SearchPage({ onOpenSettings, onOpenAddToPlaylist, onOpen
                 setIsDropdownOpen(false);
                 handleSpotifyAutoImport(pastedValue);
               }
+            }}
+            onClick={() => {
+              setIsDropdownOpen(true);
+              setRecentSearches(storage.getRecentSearches());
             }}
             onFocus={() => {
               setIsDropdownOpen(true);
