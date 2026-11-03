@@ -25,7 +25,6 @@ import {
   getNextQueuedTrack,
   getNextRepeatMode,
   getPreviousQueueIndex,
-  isRadioTrack,
   shuffleQueuePreservingCurrent
 } from '../services/playbackUtils';
 
@@ -82,28 +81,6 @@ export function PlayerProvider({ children }) {
   const [recommendationContext, setRecommendationContext] = useState(null);
   const [autoplayEnabled, setAutoplayEnabled] = useState(() => storage.getAutoplayEnabled('guest'));
 
-  // Dedicated Radio Mode & Station state
-  const [isRadio, setIsRadio] = useState(() => {
-    try {
-      const recent = storage.getRecentlyPlayed();
-      return recent && recent.length > 0 ? isRadioTrack(recent[0]) : false;
-    } catch {
-      return false;
-    }
-  });
-  const [radioStation, setRadioStation] = useState(() => {
-    try {
-      const recent = storage.getRecentlyPlayed();
-      const track = recent && recent.length > 0 ? recent[0] : null;
-      return track && isRadioTrack(track)
-        ? { title: track.title, artist: track.artist, album: track.album || 'Lo-Fi Radio Station' }
-        : null;
-    } catch {
-      return null;
-    }
-  });
-  const [playbackSource, setPlaybackSource] = useState('track');
-
   useEffect(() => {
     setAutoplayEnabled(storage.getAutoplayEnabled(user?.id || 'guest'));
   }, [user?.id]);
@@ -118,37 +95,16 @@ export function PlayerProvider({ children }) {
 
   // References
   const audioRef = useRef(null);
-  const isTransitioningTrackRef = useRef(false);
   const userIdRef = useRef(user?.id || 'guest');
-  const stateRef = useRef({
-    currentTrack,
-    queue,
-    queueIndex,
-    repeatMode,
-    shuffle,
-    preShuffleQueue,
-    isRadio,
-    radioStation,
-    playbackSource
-  });
+  const stateRef = useRef({ currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue });
   const nextTrackRef = useRef(null);
   const prevTrackRef = useRef(null);
   const seekToRef = useRef(null);
 
   // Keep stateRef updated for callbacks
   useEffect(() => {
-    stateRef.current = {
-      currentTrack,
-      queue,
-      queueIndex,
-      repeatMode,
-      shuffle,
-      preShuffleQueue,
-      isRadio,
-      radioStation,
-      playbackSource
-    };
-  }, [currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue, isRadio, radioStation, playbackSource]);
+    stateRef.current = { currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue };
+  }, [currentTrack, queue, queueIndex, repeatMode, shuffle, preShuffleQueue]);
 
   useEffect(() => {
     userIdRef.current = user?.id || 'guest';
@@ -186,22 +142,21 @@ export function PlayerProvider({ children }) {
     ? findCurrentLyricIndex(lyricsData.syncedLyrics, currentTime)
     : -1;
 
-    // Handle Audio Error: immediate microtask recovery prevents frozen setTimeout on locked mobile devices
+  // Handle Audio Error
   const handleAudioError = useCallback(() => {
     setIsBuffering(false);
-    isTransitioningTrackRef.current = false;
+    setIsPlaying(false);
     const track = stateRef.current.currentTrack;
-    showToast(`Playback error for "${track?.title || 'current track'}". Playing next...`, 'error', 3000);
-    queueMicrotask(() => {
+    showToast(`Playback error for "${track?.title || 'current track'}". Playing next...`, 'error', 3500);
+    setTimeout(() => {
       if (nextTrackRef.current) nextTrackRef.current('error');
-    });
+    }, 1200);
   }, [showToast]);
 
   // Safe Audio Playback Trigger
   const startAudioPlayback = useCallback((audioUrl) => {
     const audio = audioRef.current;
     if (!audio || !audioUrl) {
-      isTransitioningTrackRef.current = false;
       setIsBuffering(false);
       setIsPlaying(false);
       return;
@@ -219,57 +174,30 @@ export function PlayerProvider({ children }) {
       if (promise !== undefined) {
         promise
           .then(() => {
-            isTransitioningTrackRef.current = false;
             setIsPlaying(true);
             setIsBuffering(false);
-            setMediaSessionPlaybackState('playing');
           })
           .catch((err) => {
             setIsBuffering(false);
             if (err.name === 'NotAllowedError') {
-              isTransitioningTrackRef.current = false;
               setIsPlaying(false);
-              setMediaSessionPlaybackState('paused');
               console.warn('Playback deferred until user interaction.');
             } else if (err.name !== 'AbortError') {
-              isTransitioningTrackRef.current = false;
               console.warn('Audio play request failed:', err);
               setIsPlaying(false);
-              setMediaSessionPlaybackState('paused');
             }
           });
       }
     } catch (e) {
       console.error('Audio play error:', e);
-      isTransitioningTrackRef.current = false;
       setIsBuffering(false);
       setIsPlaying(false);
-      setMediaSessionPlaybackState('paused');
     }
   }, [isMuted, volume]);
 
   // Core Play Track Function
   const playTrack = useCallback((track, newQueue = null, playOptions = {}) => {
     if (!track) return;
-
-    // 1. Radio Mode State Determination
-    const isRadioMode = isRadioTrack(track, playOptions);
-    if (isRadioMode) {
-      setIsRadio(true);
-      setRadioStation(playOptions.radioStation || {
-        title: track.title,
-        artist: track.artist,
-        album: track.album || 'Lo-Fi Radio Station'
-      });
-      setPlaybackSource('radio');
-    } else {
-      // Immediately exit Radio mode, reset station metadata and source when playing a normal song
-      setIsRadio(false);
-      setRadioStation(null);
-      setPlaybackSource(playOptions.playbackSource || (playOptions.searchQuery ? 'search' : 'track'));
-    }
-
-    isTransitioningTrackRef.current = true;
 
     if (!playOptions.preserveRecommendationContext) {
       setRecommendationContext(createRecommendationContext(track, playOptions.searchQuery || ''));
@@ -280,10 +208,6 @@ export function PlayerProvider({ children }) {
     setDuration(track.duration || 200);
     setIsBuffering(true);
     addToRecent(track);
-
-    // Keep MediaSession updated immediately with current track to maintain OS notification
-    updateMediaSessionMetadata(track);
-    setMediaSessionPlaybackState('playing');
 
     // Use the account active when playback started so an auth switch cannot
     // attribute this track to a different user's listening history.
@@ -325,13 +249,7 @@ export function PlayerProvider({ children }) {
     }
 
     // Queue updates
-    if (playOptions.explicitQueueIndex !== undefined) {
-      setQueueIndex(playOptions.explicitQueueIndex);
-      if (newQueue && Array.isArray(newQueue)) {
-        setQueue(newQueue);
-        setPreShuffleQueue(null);
-      }
-    } else if (newQueue && Array.isArray(newQueue)) {
+    if (newQueue && Array.isArray(newQueue)) {
       setQueue(newQueue);
       setPreShuffleQueue(null);
       const index = newQueue.findIndex(t => t.id === track.id);
@@ -358,48 +276,16 @@ export function PlayerProvider({ children }) {
           track.audioUrl = resolvedUrl;
           startAudioPlayback(resolvedUrl);
         } else {
-          isTransitioningTrackRef.current = false;
           setIsBuffering(false);
           setIsPlaying(false);
           showToast(`Stream currently unavailable for "${track.title}"`, 'error');
-          queueMicrotask(() => {
+          setTimeout(() => {
             if (nextTrackRef.current) nextTrackRef.current('error');
-          });
+          }, 1200);
         }
-      }).catch(() => {
-        isTransitioningTrackRef.current = false;
-        setIsBuffering(false);
-        setIsPlaying(false);
-        queueMicrotask(() => {
-          if (nextTrackRef.current) nextTrackRef.current('error');
-        });
       });
     }
   }, [addToRecent, startAudioPlayback, showToast, activeUserId]);
-
-  // Start Lo-Fi Radio station with explicit radio state
-  const playRadio = useCallback((stationOrTrack = null, stationQueue = null) => {
-    const radioTrack = stationOrTrack || {
-      id: 'jfKfPfyJRdk',
-      title: 'synthwave radio 🌌 - chill beats to relax/game to',
-      artist: 'Lofi Girl',
-      album: 'Chill Wave Radio',
-      duration: 3600,
-      genre: 'Synthwave / Lo-Fi',
-      audioUrl: 'https://aac.saavncdn.com/080/707ac927188f2f31ee89b38b66df8cd0_320.mp4',
-      thumbnail: 'https://c.saavncdn.com/674/Synthwave-Radio-Retrowave-Unknown-2025-20251001074509-500x500.jpg',
-      isRadio: true
-    };
-    playTrack(radioTrack, stationQueue || [radioTrack], {
-      isRadio: true,
-      playbackSource: 'radio',
-      radioStation: {
-        title: radioTrack.title,
-        artist: radioTrack.artist,
-        album: radioTrack.album || 'Lo-Fi Radio Station'
-      }
-    });
-  }, [playTrack]);
 
   // Choose a radio-style recommendation without changing the active vibe context.
   const playPersonalizedNextTrack = useCallback(async () => {
@@ -487,27 +373,16 @@ export function PlayerProvider({ children }) {
     if (next) {
       const nextIndex = queueIndex + 1;
       setQueueIndex(nextIndex);
-      isTransitioningTrackRef.current = true;
-      playTrack(next, queue, {
-        explicitQueueIndex: nextIndex,
-        isRadio: isRadioTrack(next),
-        playbackSource: isRadioTrack(next) ? 'radio' : 'track'
-      });
+      playTrack(next);
     } else {
-      // Reached end of queue: continue playing from personalized autoplay if enabled
+      // Reached end of queue: continue playing from liked songs or interested artists
       const playedPersonalized = autoplayEnabled ? await playPersonalizedNextTrack() : false;
       if (stateRef.current.currentTrack?.id !== activeTrack?.id) return;
       if (!playedPersonalized) {
         if (repeatMode === 'all') {
           setQueueIndex(0);
-          isTransitioningTrackRef.current = true;
-          playTrack(queue[0], queue, {
-            explicitQueueIndex: 0,
-            isRadio: isRadioTrack(queue[0]),
-            playbackSource: isRadioTrack(queue[0]) ? 'radio' : 'track'
-          });
+          playTrack(queue[0]);
         } else {
-          isTransitioningTrackRef.current = false;
           if (audioRef.current) audioRef.current.pause();
           setIsPlaying(false);
         }
@@ -547,12 +422,7 @@ export function PlayerProvider({ children }) {
     const prev = queue[prevIndex];
     if (prev) {
       setQueueIndex(prevIndex);
-      isTransitioningTrackRef.current = true;
-      playTrack(prev, queue, {
-        explicitQueueIndex: prevIndex,
-        isRadio: isRadioTrack(prev),
-        playbackSource: isRadioTrack(prev) ? 'radio' : 'track'
-      });
+      playTrack(prev);
     }
   }, [currentTime, playTrack]);
 
@@ -640,56 +510,13 @@ export function PlayerProvider({ children }) {
     seekToRef.current = seekTo;
   }, [nextTrack, prevTrack, seekTo]);
 
-  // Proactively pre-resolve stream URL for the upcoming track in the queue
-  // Ensures seamless synchronous transition when the current track ends on mobile.
-  useEffect(() => {
-    if (!currentTrack || !queue || queue.length === 0) return;
-    const nextItem = getNextQueuedTrack(queue, queueIndex);
-    if (!nextItem || nextItem.audioUrl) return;
-
-    let isMounted = true;
-    saavnApi.resolveAudioUrl(nextItem).then((resolvedUrl) => {
-      if (isMounted && resolvedUrl) {
-        nextItem.audioUrl = resolvedUrl;
-        setQueue((prevQueue) =>
-          prevQueue.map((item) =>
-            item.id === nextItem.id ? { ...item, audioUrl: resolvedUrl } : item
-          )
-        );
-      }
-    }).catch(() => {});
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentTrack?.id, queueIndex, queue]);
-
   // Media Session API Setup for Lock Screen / Notification Center
   useEffect(() => {
     if (currentTrack) {
       updateMediaSessionMetadata(currentTrack);
       setMediaSessionActionHandlers({
-        play: () => {
-          const audio = audioRef.current;
-          if (audio) {
-            if (!audio.src) {
-              playTrack(currentTrack);
-            } else {
-              audio.play().then(() => {
-                setIsPlaying(true);
-                setMediaSessionPlaybackState('playing');
-              }).catch(() => {});
-            }
-          }
-        },
-        pause: () => {
-          const audio = audioRef.current;
-          if (audio) {
-            audio.pause();
-          }
-          setIsPlaying(false);
-          setMediaSessionPlaybackState('paused');
-        },
+        play: () => togglePlay(),
+        pause: () => pause(),
         previousTrack: () => prevTrackRef.current && prevTrackRef.current(),
         nextTrack: () => nextTrackRef.current && nextTrackRef.current(),
         seekTo: (details) => {
@@ -713,7 +540,7 @@ export function PlayerProvider({ children }) {
   useEffect(() => {
     setMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
     updateMediaSessionPositionState({ duration, position: currentTime });
-  }, [isPlaying, duration]);
+  }, [isPlaying, duration, currentTime]);
 
   // Fisher-Yates shuffle with pre-shuffle restoration
   const toggleShuffle = useCallback(() => {
@@ -810,10 +637,6 @@ export function PlayerProvider({ children }) {
         repeatMode,
         queue,
         queueIndex,
-        isRadio,
-        radioStation,
-        playbackSource,
-        playRadio,
         recommendationContext,
         autoplayEnabled,
         isMobilePlayerOpen,
@@ -856,23 +679,15 @@ export function PlayerProvider({ children }) {
           const d = e.currentTarget.duration;
           if (d && !isNaN(d) && d > 0) {
             setDuration(Math.round(d));
-            updateMediaSessionPositionState({ duration: Math.round(d), position: 0 });
           }
         }}
         onWaiting={() => setIsBuffering(true)}
         onCanPlay={() => setIsBuffering(false)}
         onPlaying={() => {
-          isTransitioningTrackRef.current = false;
           setIsBuffering(false);
           setIsPlaying(true);
-          setMediaSessionPlaybackState('playing');
         }}
-        onPause={() => {
-          if (!isTransitioningTrackRef.current) {
-            setIsPlaying(false);
-            setMediaSessionPlaybackState('paused');
-          }
-        }}
+        onPause={() => setIsPlaying(false)}
         onEnded={handleTrackEnded}
         onError={handleAudioError}
       />

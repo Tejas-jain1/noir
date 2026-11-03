@@ -1,35 +1,3 @@
-export const isRadioTrack = (track, options = {}) => {
-  if (options && (options.isRadio === true || options.playbackSource === 'radio')) return true;
-  if (options && options.isRadio === false) return false;
-  if (!track) return false;
-  if (track.isRadio === true || track.playbackSource === 'radio' || track.type === 'radio') return true;
-  if (track.isRadio === false) return false;
-
-  const title = String(track.title || '').toLowerCase();
-  const artist = String(track.artist || '').toLowerCase();
-  const album = String(track.album || '').toLowerCase();
-  const genre = String(track.genre || '').toLowerCase();
-
-  // Explicit check for Lo-Fi Radio station patterns
-  if (
-    title.includes('radio') &&
-    (title.includes('lofi') ||
-      title.includes('lo-fi') ||
-      title.includes('chill') ||
-      title.includes('synthwave') ||
-      artist.includes('lofi') ||
-      album.includes('radio'))
-  ) {
-    return true;
-  }
-
-  if (genre.includes('radio') || (genre.includes('lo-fi') && title.includes('radio'))) {
-    return true;
-  }
-
-  return false;
-};
-
 export const normalizeTrackTitle = (title = '') => String(title ?? '')
   .normalize('NFKD')
   .replace(/[\u0300-\u036f]/g, '')

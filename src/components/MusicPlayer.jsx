@@ -38,8 +38,6 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     shuffle,
     repeatMode,
     queue,
-    isRadio,
-    radioStation,
     togglePlay,
     seekTo,
     nextTrack,
@@ -213,38 +211,11 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                letterSpacing: '-0.01em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
+                letterSpacing: '-0.01em'
               }}
               title={currentTrack.title}
             >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {currentTrack.title}
-              </span>
-              {isRadio && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '1px 6px',
-                    borderRadius: 'var(--radius-full)',
-                    backgroundColor: 'rgba(147, 51, 234, 0.25)',
-                    border: '1px solid var(--accent-solid)',
-                    color: 'var(--accent-solid)',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    flexShrink: 0
-                  }}
-                >
-                  <Radio size={10} />
-                  <span>Radio</span>
-                </span>
-              )}
+              {currentTrack.title}
             </div>
             <div
               style={{
@@ -257,7 +228,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
               }}
               title={currentTrack.artist}
             >
-              {isRadio ? (radioStation?.album || currentTrack.album || currentTrack.artist) : currentTrack.artist}
+              {currentTrack.artist}
             </div>
           </div>
 
@@ -362,7 +333,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
             }}
             title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
           >
-            <Sparkles size={17} />
+            <Radio size={17} />
           </button>
 
           {/* Mobile 3-Dots More Options Button */}
@@ -480,7 +451,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
               }}
               title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
             >
-              <Sparkles size={18} />
+              <Radio size={18} />
             </button>
           </div>
 

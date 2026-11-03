@@ -209,9 +209,7 @@ export const MOCK_TRACKS = [
     "plays": "180M",
     "releaseYear": "2023",
     "album": "Chill Wave Radio",
-    "audioUrl": "https://aac.saavncdn.com/080/707ac927188f2f31ee89b38b66df8cd0_320.mp4",
-    "isRadio": true,
-    "playbackSource": "radio"
+    "audioUrl": "https://aac.saavncdn.com/080/707ac927188f2f31ee89b38b66df8cd0_320.mp4"
   },
   {
     "id": "RxabLA7UQ9k",

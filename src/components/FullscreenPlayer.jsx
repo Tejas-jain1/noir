@@ -32,8 +32,6 @@ export default function FullscreenPlayer() {
     isMuted,
     shuffle,
     repeatMode,
-    isRadio,
-    radioStation,
     autoplayEnabled,
     togglePlay,
     seekTo,
@@ -118,49 +116,30 @@ export default function FullscreenPlayer() {
           </button>
 
           <div style={{ textAlign: 'center', minWidth: 0, padding: '0 12px' }}>
-            {isRadio ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                  <Radio size={12} style={{ color: 'var(--accent-solid)' }} />
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.12em',
-                      color: 'var(--accent-solid)',
-                      fontWeight: 700,
-                      display: 'block'
-                    }}
-                  >
-                    Playing From
-                  </span>
-                </div>
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontSize: '0.85rem',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: '240px'
-                  }}
-                >
-                  {radioStation?.title || currentTrack.album || 'Lo-Fi Radio Station'}
-                </div>
-              </>
-            ) : (
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.15em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)'
-                }}
-              >
-                NOIR
-              </span>
-            )}
+            <span
+              style={{
+                fontSize: '0.68rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                color: 'var(--text-muted)',
+                fontWeight: 600,
+                display: 'block'
+              }}
+            >
+              Playing From
+            </span>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '240px'
+              }}
+            >
+              {currentTrack.album || currentTrack.title || 'NOIR Soundscape'}
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -225,33 +204,6 @@ export default function FullscreenPlayer() {
                 objectFit: 'cover'
               }}
             />
-
-            {/* Radio Station Indicator Badge */}
-            {isRadio && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '12px',
-                  right: '12px',
-                  backgroundColor: 'rgba(147, 51, 234, 0.88)',
-                  backdropFilter: 'blur(8px)',
-                  padding: '4px 10px',
-                  borderRadius: 'var(--radius-full)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  color: '#ffffff',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
-                }}
-              >
-                <Radio size={12} />
-                <span>Radio Station</span>
-              </div>
-            )}
 
             {/* Overlay Visualizer Badge */}
             <div
@@ -521,8 +473,8 @@ export default function FullscreenPlayer() {
                 }}
                 title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
               >
-                <Sparkles size={14} />
-                <span>Autoplay</span>
+                <Radio size={14} />
+                <span>Radio</span>
               </button>
             </div>
 
