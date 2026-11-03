@@ -1,4 +1,4 @@
-import { normalizeTrackTitle } from './playbackUtils.js';
+import { isRadioTrack, normalizeTrackTitle } from './playbackUtils.js';
 
 const GENRES = {
   'hip-hop': {
@@ -184,6 +184,17 @@ const collectGenreSignals = (track, searchQuery = '') => {
     if (definition.aliases.some(alias => includesPhrase(descriptiveText, alias))) addSignal(signals, id, 'inferred');
   }
 
+  // Infer genre from track language and primary artist profile if metadata genre is empty
+  if (signals.size === 0) {
+    const language = String(track?.language || '').trim().toLowerCase();
+    if (language === 'hindi') addSignal(signals, 'bollywood', 'inferred');
+    else if (language === 'punjabi') addSignal(signals, 'punjabi', 'inferred');
+
+    const artistText = normalizeMusicText(track?.artist || '');
+    const isBollywoodArtist = /(?:shreya ghoshal|udit narayan|arijit singh|sonu nigam|lata mangeshkar|kishore kumar|alka yagnik|sunidhi chauhan|pritam|kumar sanu|neha kakkar|badshah|jubin nautiyal|anuv jain)/i.test(artistText);
+    if (isBollywoodArtist) addSignal(signals, 'bollywood', 'inferred');
+  }
+
   return [...signals.values()];
 };
 
@@ -232,6 +243,8 @@ const inferEnergy = (track, genres, moods) => {
 export const classifyTrackVibe = (track = {}, searchQuery = '') => {
   const genres = collectGenreSignals(track, searchQuery);
   const moods = collectMoodSignals(track, searchQuery);
+  const rawArtist = typeof track.artist === 'string' ? track.artist.trim() : '';
+  const primaryArtist = rawArtist ? rawArtist.split(/[,/|;&]| feat\.? | ft\.? /i)[0].trim() : '';
   return {
     genres,
     moods,
@@ -239,7 +252,8 @@ export const classifyTrackVibe = (track = {}, searchQuery = '') => {
     moodIds: moods.map(signal => signal.id),
     energy: inferEnergy(track, genres, moods),
     language: typeof track.language === 'string' ? track.language.trim().toLowerCase() : '',
-    artist: typeof track.artist === 'string' ? track.artist.trim() : '',
+    artist: rawArtist,
+    primaryArtist,
     title: typeof track.title === 'string' ? track.title.trim() : '',
     album: typeof track.album === 'string' ? track.album.trim() : ''
   };
@@ -313,7 +327,14 @@ export const buildAutoplaySearchTiers = (context, { userPreferences = {}, recent
   const artistQueries = [];
   const addArtistQuery = (artist) => {
     if (typeof artist !== 'string' || !artist.trim()) return;
-    artistQueries.push(makeQuery(`${artist.trim()} ${vibeSuffix || 'songs'}`, genreIds, moodIds));
+    const cleanArtist = artist.trim();
+    artistQueries.push(makeQuery(`${cleanArtist} ${vibeSuffix || 'songs'}`, genreIds, moodIds));
+
+    // When artist is a composite string (e.g. "Shreya Ghoshal, Udit Narayan"), also search primary artist
+    const parts = cleanArtist.split(/[,/|;&]+/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1 && parts[0]) {
+      artistQueries.push(makeQuery(`${parts[0]} ${vibeSuffix || 'songs'}`, genreIds, moodIds));
+    }
   };
   addArtistQuery(context?.artist);
   (userPreferences?.artists || []).slice(0, 3).forEach(addArtistQuery);
@@ -355,6 +376,24 @@ export const scoreRecommendationCandidate = (track, context, {
   likedTracks = [],
   recentTracks = []
 } = {}) => {
+  // Unrelated Radio stations must never score or be recommended for normal music
+  if (!isRadioTrack(context) && isRadioTrack(track)) {
+    return {
+      track,
+      score: -1000,
+      genreMatch: false,
+      relatedGenreMatch: false,
+      moodMatch: false,
+      queryGenreMatch: false,
+      queryMoodMatch: false,
+      artistMatch: false,
+      genreConflict: true,
+      moodConflict: true,
+      hasVibeMatch: false,
+      verifiedGenreMatch: false,
+      verifiedMoodMatch: false
+    };
+  }
   const candidate = classifyTrackVibe(track);
   const targetGenres = context?.genreIds || context?.genres?.map(signal => signal.id) || [];
   const targetMoods = context?.moodIds || context?.moods?.map(signal => signal.id) || [];
@@ -471,7 +510,8 @@ export const rankRecommendationCandidates = (candidates, context, options = {}) 
       typeof track.title === 'string' &&
       track.title.trim() &&
       !excludedIds.has(track.id) &&
-      !excludedTitles.has(normalizeTrackTitle(track.title))
+      !excludedTitles.has(normalizeTrackTitle(track.title)) &&
+      (isRadioTrack(context) || !isRadioTrack(track))
     ))
     .map(entry => ({
       ...scoreRecommendationCandidate(entry.track, context, { ...options, retrievedFor: entry.retrievedFor }),

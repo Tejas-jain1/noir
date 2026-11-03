@@ -38,6 +38,8 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
     shuffle,
     repeatMode,
     queue,
+    isRadio,
+    radioStation,
     togglePlay,
     seekTo,
     nextTrack,
@@ -211,11 +213,31 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                letterSpacing: '-0.01em'
+                letterSpacing: '-0.01em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
               }}
               title={currentTrack.title}
             >
-              {currentTrack.title}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentTrack.title}</span>
+              {isRadio && (
+                <span
+                  style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    padding: '1px 5px',
+                    borderRadius: '9999px',
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--accent-solid)',
+                    border: '1px solid var(--border-medium)',
+                    flexShrink: 0
+                  }}
+                >
+                  Radio
+                </span>
+              )}
             </div>
             <div
               style={{
@@ -333,7 +355,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
             }}
             title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
           >
-            <Radio size={17} />
+            <Sparkles size={17} />
           </button>
 
           {/* Mobile 3-Dots More Options Button */}
@@ -451,7 +473,7 @@ export default function MusicPlayer({ onOpenQueue, onOpenAddToPlaylist }) {
               }}
               title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
             >
-              <Radio size={18} />
+              <Sparkles size={18} />
             </button>
           </div>
 

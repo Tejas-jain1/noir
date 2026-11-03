@@ -33,6 +33,8 @@ export default function FullscreenPlayer() {
     shuffle,
     repeatMode,
     autoplayEnabled,
+    isRadio,
+    radioStation,
     togglePlay,
     seekTo,
     nextTrack,
@@ -116,30 +118,46 @@ export default function FullscreenPlayer() {
           </button>
 
           <div style={{ textAlign: 'center', minWidth: 0, padding: '0 12px' }}>
-            <span
-              style={{
-                fontSize: '0.68rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                color: 'var(--text-muted)',
-                fontWeight: 600,
-                display: 'block'
-              }}
-            >
-              Playing From
-            </span>
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '240px'
-              }}
-            >
-              {currentTrack.album || currentTrack.title || 'NOIR Soundscape'}
-            </div>
+            {isRadio ? (
+              <>
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    color: 'var(--accent-solid)',
+                    fontWeight: 700,
+                    display: 'block'
+                  }}
+                >
+                  Playing From Radio
+                </span>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '240px'
+                  }}
+                >
+                  {radioStation?.title || currentTrack.album || 'Lo-Fi Radio Station'}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                NOIR
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -473,8 +491,8 @@ export default function FullscreenPlayer() {
                 }}
                 title={`Autoplay ${autoplayEnabled ? 'on' : 'off'}`}
               >
-                <Radio size={14} />
-                <span>Radio</span>
+                <Sparkles size={14} />
+                <span>Autoplay</span>
               </button>
             </div>
 
