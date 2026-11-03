@@ -26,7 +26,11 @@ import {
   isRadioTrack,
   getNextRepeatMode,
   getPreviousQueueIndex,
-  shuffleQueuePreservingCurrent
+  shuffleQueuePreservingCurrent,
+  getUpcomingQueueCount,
+  shouldReplenishQueue,
+  filterEligibleRecommendationTracks,
+  normalizeTrackTitle
 } from '../services/playbackUtils';
 
 const PlayerContext = createContext();
@@ -120,6 +124,12 @@ export function PlayerProvider({ children }) {
   const audioRef = useRef(null);
   const isTransitioningTrackRef = useRef(false);
   const isPrefetchingAutoplayRef = useRef(false);
+  const targetBufferRef = useRef(5);
+  const isReplenishingQueueRef = useRef(false);
+  const recommendationPoolRef = useRef([]);
+  const activeReplenishTrackIdRef = useRef(null);
+  const queryTierIndexRef = useRef(0);
+  const replenishFailCountRef = useRef(0);
   const userIdRef = useRef(user?.id || 'guest');
   const stateRef = useRef({
     currentTrack,
@@ -327,6 +337,14 @@ export function PlayerProvider({ children }) {
       }).catch(() => {});
     }
 
+    // Continuous Queue Target Buffer & Replenish Refs Initialization
+    if (track.id !== activeReplenishTrackIdRef.current) {
+      activeReplenishTrackIdRef.current = track.id;
+      queryTierIndexRef.current = 0;
+      replenishFailCountRef.current = 0;
+      recommendationPoolRef.current = [];
+    }
+
     // Queue updates with Radio/Normal Queue Isolation
     if (playOptions.explicitQueueIndex !== undefined) {
       setQueueIndex(playOptions.explicitQueueIndex);
@@ -335,27 +353,34 @@ export function PlayerProvider({ children }) {
         const sanitized = isRadioMode ? newQueue : newQueue.filter(t => !isRadioTrack(t));
         setQueue(sanitized);
         setPreShuffleQueue(null);
+        targetBufferRef.current = Math.max(5, sanitized.length - 1 - playOptions.explicitQueueIndex);
       }
     } else if (newQueue && Array.isArray(newQueue)) {
       const sanitized = isRadioMode ? newQueue : newQueue.filter(t => !isRadioTrack(t));
       setQueue(sanitized);
       setPreShuffleQueue(null);
       const index = sanitized.findIndex(t => t.id === track.id);
-      setQueueIndex(index !== -1 ? index : 0);
+      const targetIdx = index !== -1 ? index : 0;
+      setQueueIndex(targetIdx);
+      targetBufferRef.current = Math.max(5, sanitized.length - 1 - targetIdx);
     } else {
       setQueue(prev => {
         // If switching from radio to normal song, completely reset queue to current track
         if (!isRadioMode && prev.some(isRadioTrack)) {
           setQueueIndex(0);
+          targetBufferRef.current = 5;
           return [track];
         }
         const existingIdx = prev.findIndex(t => t.id === track.id);
         if (existingIdx !== -1) {
           setQueueIndex(existingIdx);
+          targetBufferRef.current = Math.max(5, prev.length - 1 - existingIdx);
           return prev;
         }
+        const newQueue = [...prev, track];
         setQueueIndex(prev.length);
-        return [...prev, track];
+        targetBufferRef.current = Math.max(5, newQueue.length - 1 - prev.length);
+        return newQueue;
       });
     }
 
@@ -687,13 +712,12 @@ export function PlayerProvider({ children }) {
     seekToRef.current = seekTo;
   }, [nextTrack, prevTrack, seekTo]);
 
-  // Proactively pre-resolve stream URL for the upcoming track in the queue
-  // Ensures seamless synchronous transition when the current track ends on mobile screen-off.
+  // 1. Proactively pre-resolve stream URL for the upcoming track in the queue
+  // Ensures seamless synchronous transition when current track ends on mobile screen-off.
   useEffect(() => {
     if (!currentTrack || !queue || queue.length === 0) return;
     const nextItem = getNextQueuedTrack(queue, queueIndex);
 
-    // 1. Pre-resolve URL for known next track in queue
     if (nextItem && !nextItem.audioUrl) {
       let isMounted = true;
       saavnApi.resolveAudioUrl(nextItem).then((resolvedUrl) => {
@@ -708,37 +732,124 @@ export function PlayerProvider({ children }) {
       }).catch(() => {});
       return () => { isMounted = false; };
     }
+  }, [currentTrack?.id, queueIndex, queue]);
 
-    // 2. Pre-fetch Autoplay recommendation before reaching end of queue
-    if (!nextItem && autoplayEnabled && !isPrefetchingAutoplayRef.current && !isRadioTrack(currentTrack)) {
-      isPrefetchingAutoplayRef.current = true;
-      const context = recommendationContext || createRecommendationContext(currentTrack);
-      const tiers = buildAutoplaySearchTiers(context, {
-        userPreferences: userPreferences || {},
-        recentTracks: recentlyPlayed || []
-      });
+  // 2. Spotify-Style Continuous Queue / Infinite Autoplay Replenisher
+  // Whenever a track moves from "UP NEXT" to "NOW PLAYING", automatically fetches and appends
+  // a new relevant track to maintain the queue buffer in real time without waiting for queue to empty.
+  useEffect(() => {
+    if (!autoplayEnabled || isRadio || isReplenishingQueueRef.current) return;
+    if (!currentTrack || !currentTrack.id || isRadioTrack(currentTrack)) return;
 
-      const firstTier = tiers.find(t => t.queries.length > 0);
-      if (firstTier && firstTier.queries[0]) {
-        saavnApi.search(firstTier.queries[0].query).then(res => {
-          const playable = getRealPlayableSaavnTracks(res);
-          const ranked = rankRecommendationCandidates(playable, context, {
-            excludedTracks: queue,
-            skippedTracks: storage.getSkippedTracks(user?.id || 'guest'),
-            userPreferences: userPreferences || {}
-          });
-          const picked = selectRecommendationForTier(ranked, firstTier.id, context);
-          if (picked?.track && !queue.some(t => t.id === picked.track.id)) {
-            setQueue(prev => appendQueueTrack(prev, picked.track));
-          }
-        }).catch(() => {}).finally(() => {
-          isPrefetchingAutoplayRef.current = false;
+    const targetBuffer = targetBufferRef.current || 5;
+    const upcomingCount = getUpcomingQueueCount(queue, queueIndex);
+
+    if (upcomingCount >= targetBuffer) return;
+    if (replenishFailCountRef.current >= 3) return;
+
+    const needed = targetBuffer - upcomingCount;
+    let isCancelled = false;
+
+    const replenish = async () => {
+      isReplenishingQueueRef.current = true;
+      try {
+        const skipped = storage.getSkippedTracks(user?.id || 'guest');
+        const rankingContext = recommendationContext || createRecommendationContext(currentTrack);
+
+        // A. Check recommendation pool first
+        const validFromPool = filterEligibleRecommendationTracks(recommendationPoolRef.current, {
+          queue,
+          currentTrack,
+          recentlyPlayed,
+          skippedTracks: skipped
         });
-      } else {
-        isPrefetchingAutoplayRef.current = false;
+
+        if (validFromPool.length > 0) {
+          const toAdd = validFromPool.slice(0, needed);
+          recommendationPoolRef.current = validFromPool.slice(needed);
+          if (!isCancelled && toAdd.length > 0) {
+            setQueue(prev => {
+              const existingIds = new Set(prev.flatMap(t => [t.id, t.saavnId]).filter(Boolean));
+              const existingTitles = new Set(prev.map(t => normalizeTrackTitle(t.title)).filter(Boolean));
+              const uniqueToAdd = toAdd.filter(t => !existingIds.has(t.id) && !existingTitles.has(normalizeTrackTitle(t.title)));
+              return uniqueToAdd.length > 0 ? [...prev, ...uniqueToAdd] : prev;
+            });
+            replenishFailCountRef.current = 0;
+          }
+          isReplenishingQueueRef.current = false;
+          return;
+        }
+
+        // B. Fetch next recommendations from JioSaavn using context and search tiers
+        const tiers = buildAutoplaySearchTiers(rankingContext, {
+          userPreferences: userPreferences || {},
+          recentTracks: recentlyPlayed || []
+        });
+
+        const allQueries = tiers.flatMap(t => t.queries).filter(q => q && q.query);
+        if (allQueries.length === 0) {
+          replenishFailCountRef.current += 1;
+          isReplenishingQueueRef.current = false;
+          return;
+        }
+
+        const queryObj = allQueries[queryTierIndexRef.current % allQueries.length];
+        queryTierIndexRef.current += 1;
+
+        const searchRes = await saavnApi.search(queryObj.query);
+        if (isCancelled) return;
+
+        const playable = getRealPlayableSaavnTracks(searchRes);
+        const ranked = rankRecommendationCandidates(playable, rankingContext, {
+          excludedTracks: [...queue, ...(recentlyPlayed || [])],
+          skippedTracks: skipped,
+          userPreferences: userPreferences || {}
+        });
+
+        const eligible = filterEligibleRecommendationTracks(
+          ranked.filter(r => r.score > 0 && !isRadioTrack(r.track)).map(r => r.track),
+          { queue, currentTrack, recentlyPlayed, skippedTracks: skipped }
+        );
+
+        if (eligible.length > 0) {
+          const toAdd = eligible.slice(0, needed);
+          recommendationPoolRef.current = eligible.slice(needed);
+          if (!isCancelled && toAdd.length > 0) {
+            setQueue(prev => {
+              const existingIds = new Set(prev.flatMap(t => [t.id, t.saavnId]).filter(Boolean));
+              const existingTitles = new Set(prev.map(t => normalizeTrackTitle(t.title)).filter(Boolean));
+              const uniqueToAdd = toAdd.filter(t => !existingIds.has(t.id) && !existingTitles.has(normalizeTrackTitle(t.title)));
+              return uniqueToAdd.length > 0 ? [...prev, ...uniqueToAdd] : prev;
+            });
+            replenishFailCountRef.current = 0;
+          }
+        } else {
+          replenishFailCountRef.current += 1;
+        }
+      } catch (err) {
+        console.warn('Continuous queue replenish warning:', err);
+        replenishFailCountRef.current += 1;
+      } finally {
+        isReplenishingQueueRef.current = false;
       }
-    }
-  }, [currentTrack?.id, queueIndex, queue, autoplayEnabled, recommendationContext, user?.id, userPreferences, recentlyPlayed]);
+    };
+
+    replenish();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    currentTrack?.id,
+    queueIndex,
+    queue.length,
+    autoplayEnabled,
+    isRadio,
+    recommendationContext,
+    user?.id,
+    userPreferences,
+    recentlyPlayed
+  ]);
 
   // Media Session API Setup for Lock Screen / Notification Center
   useEffect(() => {

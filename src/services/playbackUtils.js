@@ -125,3 +125,67 @@ export const searchForAutoplayCandidate = async (search, query, options, onError
     return null;
   }
 };
+
+export const getUpcomingQueueCount = (queue, queueIndex) => {
+  if (!Array.isArray(queue) || queue.length === 0) return 0;
+  const currentIdx = typeof queueIndex === 'number' && queueIndex >= 0 ? queueIndex : 0;
+  return Math.max(0, queue.length - 1 - currentIdx);
+};
+
+export const shouldReplenishQueue = ({
+  queue,
+  queueIndex,
+  targetBuffer = 5,
+  autoplayEnabled = true,
+  isRadio = false
+} = {}) => {
+  if (!autoplayEnabled || isRadio) return false;
+  const upcoming = getUpcomingQueueCount(queue, queueIndex);
+  return upcoming < targetBuffer;
+};
+
+export const filterEligibleRecommendationTracks = (
+  candidates,
+  { queue = [], currentTrack = null, recentlyPlayed = [], skippedTracks = [] } = {}
+) => {
+  const currentTitle = normalizeTrackTitle(currentTrack?.title);
+  const queuedTracks = Array.isArray(queue) ? queue : [];
+  const recentTracks = Array.isArray(recentlyPlayed) ? recentlyPlayed : [];
+  const skippedList = Array.isArray(skippedTracks) ? skippedTracks : [];
+
+  const excludedIds = new Set(
+    [...queuedTracks, ...recentTracks, ...skippedList]
+      .flatMap(track => [track?.id, track?.saavnId])
+      .filter(Boolean)
+  );
+
+  const excludedTitles = new Set(
+    [...queuedTracks, ...recentTracks, ...skippedList]
+      .map(track => normalizeTrackTitle(track?.title))
+      .filter(Boolean)
+  );
+
+  if (currentTitle) excludedTitles.add(currentTitle);
+  if (currentTrack?.id) excludedIds.add(currentTrack.id);
+  if (currentTrack?.saavnId) excludedIds.add(currentTrack.saavnId);
+
+  const seenBatchIds = new Set();
+  const seenBatchTitles = new Set();
+
+  return (Array.isArray(candidates) ? candidates : []).filter(track => {
+    if (!track || !track.id || typeof track.title !== 'string') return false;
+    if (isRadioTrack(track)) return false;
+
+    const normalizedTitle = normalizeTrackTitle(track.title);
+    if (!normalizedTitle) return false;
+
+    if (excludedIds.has(track.id) || (track.saavnId && excludedIds.has(track.saavnId))) return false;
+    if (excludedTitles.has(normalizedTitle)) return false;
+
+    if (seenBatchIds.has(track.id) || seenBatchTitles.has(normalizedTitle)) return false;
+
+    seenBatchIds.add(track.id);
+    seenBatchTitles.add(normalizedTitle);
+    return true;
+  });
+};
