@@ -33,6 +33,9 @@ import {
   normalizeTrackTitle
 } from '../services/playbackUtils';
 
+// Module-level cache for resolved CDN audio URLs to guarantee immediate lookup during background transitions
+const resolvedAudioUrlCache = new Map();
+
 const PlayerContext = createContext();
 
 export function PlayerProvider({ children }) {
@@ -143,6 +146,7 @@ export function PlayerProvider({ children }) {
     playbackSource,
     autoplayEnabled
   });
+  const playTrackRef = useRef(null);
   const nextTrackRef = useRef(null);
   const prevTrackRef = useRef(null);
   const seekToRef = useRef(null);
@@ -284,6 +288,12 @@ export function PlayerProvider({ children }) {
 
     isTransitioningTrackRef.current = true;
 
+    // Synchronously update stateRef so any background event immediately sees active track
+    stateRef.current.currentTrack = track;
+    if (playOptions.explicitQueueIndex !== undefined) {
+      stateRef.current.queueIndex = playOptions.explicitQueueIndex;
+    }
+
     if (!playOptions.preserveRecommendationContext) {
       setRecommendationContext(createRecommendationContext(track, playOptions.searchQuery || ''));
     }
@@ -385,13 +395,19 @@ export function PlayerProvider({ children }) {
     }
 
     // Direct playback if audioUrl exists
-    if (track.audioUrl) {
-      startAudioPlayback(track.audioUrl);
+    const existingUrl = track.audioUrl || resolvedAudioUrlCache.get(track.id) || (track.saavnId && resolvedAudioUrlCache.get(track.saavnId));
+    if (existingUrl) {
+      track.audioUrl = existingUrl;
+      resolvedAudioUrlCache.set(track.id, existingUrl);
+      if (track.saavnId) resolvedAudioUrlCache.set(track.saavnId, existingUrl);
+      startAudioPlayback(existingUrl);
     } else {
       // Dynamically resolve 320kbps CDN stream from JioSaavn
       saavnApi.resolveAudioUrl(track).then((resolvedUrl) => {
         if (resolvedUrl) {
           track.audioUrl = resolvedUrl;
+          resolvedAudioUrlCache.set(track.id, resolvedUrl);
+          if (track.saavnId) resolvedAudioUrlCache.set(track.saavnId, resolvedUrl);
           startAudioPlayback(resolvedUrl);
         } else {
           isTransitioningTrackRef.current = false;
@@ -402,7 +418,8 @@ export function PlayerProvider({ children }) {
             if (nextTrackRef.current) nextTrackRef.current('error');
           });
         }
-      }).catch(() => {
+      }).catch((err) => {
+        console.warn('[MediaSession] Audio stream resolution failed:', err);
         isTransitioningTrackRef.current = false;
         setIsBuffering(false);
         setIsPlaying(false);
@@ -512,9 +529,9 @@ export function PlayerProvider({ children }) {
     return false;
   }, [libraryOwnerId, likedSongs, userPreferences, playlists, recentlyPlayed, recommendationContext, user?.id, playTrack, showToast]);
 
-  // Next Track Logic
+  // Next Track Logic: Synchronous execution on lock-screen controls guarantees zero gap
   const nextTrack = useCallback(async (reason = 'manual') => {
-    const { queue, queueIndex, repeatMode, currentTrack: activeTrack, isRadio: currentlyRadio } = stateRef.current;
+    const { queue, queueIndex, repeatMode, currentTrack: activeTrack } = stateRef.current;
     if (!queue || queue.length === 0) return;
     if (reason === 'manual' && activeTrack?.id) {
       storage.addSkippedTrack(activeTrack, user?.id || 'guest');
@@ -523,19 +540,48 @@ export function PlayerProvider({ children }) {
     const next = getNextQueuedTrack(queue, queueIndex);
     if (next) {
       const nextIndex = queueIndex + 1;
-      setQueueIndex(nextIndex);
       isTransitioningTrackRef.current = true;
-      playTrack(next, queue, {
-        explicitQueueIndex: nextIndex,
-        isRadio: isRadioTrack(next),
-        playbackSource: isRadioTrack(next) ? 'radio' : 'track'
-      });
+
+      // Update stateRef immediately to avoid stale closures during rapid lock-screen taps
+      stateRef.current.queueIndex = nextIndex;
+      stateRef.current.currentTrack = next;
+
+      setQueueIndex(nextIndex);
+      setCurrentTrack(next);
+      setCurrentTime(0);
+      setDuration(next.duration || 200);
+
+      const audioUrl = next.audioUrl || resolvedAudioUrlCache.get(next.id) || (next.saavnId && resolvedAudioUrlCache.get(next.saavnId));
+      const audio = audioRef.current;
+
+      if (audioUrl && audio) {
+        next.audioUrl = audioUrl;
+        audio.src = audioUrl;
+        audio.currentTime = 0;
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => console.warn('[MediaSession] Next track play warning:', err));
+        }
+        updateMediaSessionMetadata(next);
+        setMediaSessionPlaybackState('playing');
+        updateMediaSessionPositionState({ duration: next.duration || 200, position: 0 });
+        addToRecent(next);
+        if (activeUserId) supabaseService.recordHistory(next, activeUserId);
+      } else {
+        playTrack(next, queue, {
+          explicitQueueIndex: nextIndex,
+          isRadio: isRadioTrack(next),
+          playbackSource: isRadioTrack(next) ? 'radio' : 'track'
+        });
+      }
     } else {
       // Reached end of queue: continue playing from personalized autoplay if enabled
       const playedPersonalized = autoplayEnabled ? await playPersonalizedNextTrack() : false;
       if (stateRef.current.currentTrack?.id !== activeTrack?.id) return;
       if (!playedPersonalized) {
         if (repeatMode === 'all') {
+          stateRef.current.queueIndex = 0;
+          stateRef.current.currentTrack = queue[0];
           setQueueIndex(0);
           isTransitioningTrackRef.current = true;
           playTrack(queue[0], queue, {
@@ -551,18 +597,21 @@ export function PlayerProvider({ children }) {
         }
       }
     }
-  }, [autoplayEnabled, user?.id, playTrack, playPersonalizedNextTrack]);
+  }, [autoplayEnabled, user?.id, playTrack, playPersonalizedNextTrack, addToRecent, activeUserId]);
 
   // Handle Track Ended Logic: Synchronous chaining ensures unbroken background playback on locked mobile devices
   const handleTrackEnded = useCallback(() => {
-    const { queue, queueIndex, repeatMode, currentTrack: activeTrack } = stateRef.current;
+    const { queue, queueIndex, repeatMode } = stateRef.current;
     const audio = audioRef.current;
     if (!audio) return;
 
     // 1. Repeat One
     if (repeatMode === 'one') {
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => console.warn('[MediaSession] Repeat one play error:', err));
+      }
       return;
     }
 
@@ -571,24 +620,66 @@ export function PlayerProvider({ children }) {
     if (next) {
       const nextIndex = queueIndex + 1;
       isTransitioningTrackRef.current = true;
-      setQueueIndex(nextIndex);
 
-      if (next.audioUrl) {
-        audio.src = next.audioUrl;
+      // Update stateRef immediately to avoid stale closures during background track advance
+      stateRef.current.queueIndex = nextIndex;
+      stateRef.current.currentTrack = next;
+
+      setQueueIndex(nextIndex);
+      setCurrentTrack(next);
+      setCurrentTime(0);
+      setDuration(next.duration || 200);
+
+      const resolvedUrl = next.audioUrl || resolvedAudioUrlCache.get(next.id) || (next.saavnId && resolvedAudioUrlCache.get(next.saavnId));
+
+      if (resolvedUrl) {
+        next.audioUrl = resolvedUrl;
+        audio.src = resolvedUrl;
         audio.currentTime = 0;
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {
-            console.warn('Background play continuation warning:', err);
+            console.warn('[MediaSession] Background play continuation warning:', err);
           });
         }
         updateMediaSessionMetadata(next);
         setMediaSessionPlaybackState('playing');
-        setCurrentTrack(next);
-        setCurrentTime(0);
-        setDuration(next.duration || 200);
+        updateMediaSessionPositionState({ duration: next.duration || 200, position: 0 });
         addToRecent(next);
         if (activeUserId) supabaseService.recordHistory(next, activeUserId);
+        return;
+      }
+
+      // Lookahead fallback: find next pre-resolved track if this track is delayed
+      let lookaheadIndex = -1;
+      for (let i = nextIndex + 1; i < Math.min(queue.length, nextIndex + 5); i++) {
+        const candidate = queue[i];
+        const candidateUrl = candidate?.audioUrl || resolvedAudioUrlCache.get(candidate?.id) || (candidate?.saavnId && resolvedAudioUrlCache.get(candidate?.saavnId));
+        if (candidateUrl) {
+          lookaheadIndex = i;
+          break;
+        }
+      }
+
+      if (lookaheadIndex !== -1) {
+        const readyTrack = queue[lookaheadIndex];
+        stateRef.current.queueIndex = lookaheadIndex;
+        stateRef.current.currentTrack = readyTrack;
+        setQueueIndex(lookaheadIndex);
+        setCurrentTrack(readyTrack);
+        const readyUrl = readyTrack.audioUrl || resolvedAudioUrlCache.get(readyTrack.id) || (readyTrack.saavnId && resolvedAudioUrlCache.get(readyTrack.saavnId));
+        readyTrack.audioUrl = readyUrl;
+        audio.src = readyUrl;
+        audio.currentTime = 0;
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => console.warn('[MediaSession] Lookahead play warning:', err));
+        }
+        updateMediaSessionMetadata(readyTrack);
+        setMediaSessionPlaybackState('playing');
+        updateMediaSessionPositionState({ duration: readyTrack.duration || 200, position: 0 });
+        addToRecent(readyTrack);
+        if (activeUserId) supabaseService.recordHistory(readyTrack, activeUserId);
         return;
       }
 
@@ -603,11 +694,16 @@ export function PlayerProvider({ children }) {
     }
   }, [playTrack, addToRecent, activeUserId]);
 
-  // Previous Track
+  // Previous Track: checks physical audio element position to avoid stale React closures
   const prevTrack = useCallback(() => {
-    if (currentTime > 3 && audioRef.current) {
-      audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    const currentAudioTime = audio ? audio.currentTime : 0;
+
+    // If more than 3 seconds in, rewind to beginning
+    if (currentAudioTime > 3 && audio) {
+      audio.currentTime = 0;
       setCurrentTime(0);
+      updateMediaSessionPositionState({ duration: stateRef.current.currentTrack?.duration || 200, position: 0 });
       return;
     }
 
@@ -615,9 +711,12 @@ export function PlayerProvider({ children }) {
     if (!queue || queue.length === 0) return;
 
     const prevIndex = getPreviousQueueIndex(queue, queueIndex);
-
     const prev = queue[prevIndex];
     if (prev) {
+      // Update stateRef immediately to avoid stale closures during rapid lock-screen taps
+      stateRef.current.queueIndex = prevIndex;
+      stateRef.current.currentTrack = prev;
+
       setQueueIndex(prevIndex);
       isTransitioningTrackRef.current = true;
       playTrack(prev, queue, {
@@ -626,7 +725,7 @@ export function PlayerProvider({ children }) {
         playbackSource: isRadioTrack(prev) ? 'radio' : 'track'
       });
     }
-  }, [currentTime, playTrack]);
+  }, [playTrack]);
 
   // Seek Function
   const seekTo = useCallback((seconds) => {
@@ -707,31 +806,38 @@ export function PlayerProvider({ children }) {
 
   // Keep refs updated for event listeners & Media Session
   useEffect(() => {
+    playTrackRef.current = playTrack;
     nextTrackRef.current = nextTrack;
     prevTrackRef.current = prevTrack;
     seekToRef.current = seekTo;
-  }, [nextTrack, prevTrack, seekTo]);
+  }, [playTrack, nextTrack, prevTrack, seekTo]);
 
-  // 1. Proactively pre-resolve stream URL for the upcoming track in the queue
+  // 1. Proactively pre-resolve stream URLs for upcoming tracks in the queue (5-track rolling lookahead buffer)
   // Ensures seamless synchronous transition when current track ends on mobile screen-off.
   useEffect(() => {
     if (!currentTrack || !queue || queue.length === 0) return;
-    const nextItem = getNextQueuedTrack(queue, queueIndex);
+    let isMounted = true;
 
-    if (nextItem && !nextItem.audioUrl) {
-      let isMounted = true;
-      saavnApi.resolveAudioUrl(nextItem).then((resolvedUrl) => {
+    // Resolve up to 5 upcoming tracks in queue ahead of time
+    const upcomingWindow = queue.slice(queueIndex + 1, queueIndex + 6);
+    for (const upcomingItem of upcomingWindow) {
+      if (!upcomingItem || upcomingItem.audioUrl || resolvedAudioUrlCache.has(upcomingItem.id)) continue;
+
+      saavnApi.resolveAudioUrl(upcomingItem).then((resolvedUrl) => {
         if (isMounted && resolvedUrl) {
-          nextItem.audioUrl = resolvedUrl;
+          upcomingItem.audioUrl = resolvedUrl;
+          resolvedAudioUrlCache.set(upcomingItem.id, resolvedUrl);
+          if (upcomingItem.saavnId) resolvedAudioUrlCache.set(upcomingItem.saavnId, resolvedUrl);
           setQueue((prevQueue) =>
             prevQueue.map((item) =>
-              item.id === nextItem.id ? { ...item, audioUrl: resolvedUrl } : item
+              item.id === upcomingItem.id ? { ...item, audioUrl: resolvedUrl } : item
             )
           );
         }
       }).catch(() => {});
-      return () => { isMounted = false; };
     }
+
+    return () => { isMounted = false; };
   }, [currentTrack?.id, queueIndex, queue]);
 
   // 2. Spotify-Style Continuous Queue / Infinite Autoplay Replenisher
@@ -851,56 +957,90 @@ export function PlayerProvider({ children }) {
     recentlyPlayed
   ]);
 
-  // Media Session API Setup for Lock Screen / Notification Center
+  // Media Session API: Action handlers registered ONCE on mount with stable delegates
+  // Prevents Android NotificationManager from dropping action bindings or freezing when screen is OFF.
+  useEffect(() => {
+    setMediaSessionActionHandlers({
+      play: () => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        if (audio.src && audio.src !== 'about:blank') {
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              setIsPlaying(true);
+              setMediaSessionPlaybackState('playing');
+            }).catch((err) => {
+              console.error('[MediaSession] Lock-screen play failed:', err);
+              setIsPlaying(false);
+              setMediaSessionPlaybackState('paused');
+            });
+          }
+        } else if (stateRef.current.currentTrack) {
+          if (playTrackRef.current) {
+            playTrackRef.current(stateRef.current.currentTrack);
+          }
+        }
+      },
+      pause: () => {
+        const audio = audioRef.current;
+        if (audio) {
+          try {
+            audio.pause();
+          } catch (err) {
+            console.error('[MediaSession] Lock-screen pause error:', err);
+          }
+        }
+        setIsPlaying(false);
+        setMediaSessionPlaybackState('paused');
+      },
+      stop: () => {
+        const audio = audioRef.current;
+        if (audio) {
+          try { audio.pause(); } catch {}
+        }
+        setIsPlaying(false);
+        setMediaSessionPlaybackState('none');
+      },
+      previousTrack: () => {
+        if (prevTrackRef.current) prevTrackRef.current();
+      },
+      nextTrack: () => {
+        if (nextTrackRef.current) nextTrackRef.current('media-session-lockscreen');
+      },
+      seekTo: (details) => {
+        if (details && typeof details.seekTime === 'number' && seekToRef.current) {
+          seekToRef.current(details.seekTime);
+        }
+      },
+      seekBackward: (details) => {
+        const audio = audioRef.current;
+        const currentPos = audio ? audio.currentTime : 0;
+        const offset = details?.seekOffset || 10;
+        if (seekToRef.current) seekToRef.current(Math.max(0, currentPos - offset));
+      },
+      seekForward: (details) => {
+        const audio = audioRef.current;
+        const currentPos = audio ? audio.currentTime : 0;
+        const trackDuration = audio?.duration || stateRef.current.currentTrack?.duration || 200;
+        const offset = details?.seekOffset || 10;
+        if (seekToRef.current) seekToRef.current(Math.min(trackDuration, currentPos + offset));
+      }
+    });
+  }, []);
+
+  // Update Media Session Metadata when current track changes
   useEffect(() => {
     if (currentTrack) {
       updateMediaSessionMetadata(currentTrack);
-      setMediaSessionActionHandlers({
-        play: () => {
-          const audio = audioRef.current;
-          if (audio) {
-            if (!audio.src) {
-              playTrack(currentTrack);
-            } else {
-              audio.play().then(() => {
-                setIsPlaying(true);
-                setMediaSessionPlaybackState('playing');
-              }).catch(() => {});
-            }
-          }
-        },
-        pause: () => {
-          const audio = audioRef.current;
-          if (audio) {
-            audio.pause();
-          }
-          setIsPlaying(false);
-          setMediaSessionPlaybackState('paused');
-        },
-        previousTrack: () => prevTrackRef.current && prevTrackRef.current(),
-        nextTrack: () => nextTrackRef.current && nextTrackRef.current(),
-        seekTo: (details) => {
-          if (details.seekTime !== undefined && seekToRef.current) {
-            seekToRef.current(details.seekTime);
-          }
-        },
-        seekBackward: (details) => {
-          const offset = details.seekOffset || 10;
-          if (seekToRef.current) seekToRef.current(Math.max(0, currentTime - offset));
-        },
-        seekForward: (details) => {
-          const offset = details.seekOffset || 10;
-          if (seekToRef.current) seekToRef.current(Math.min(duration, currentTime + offset));
-        }
-      });
+      updateMediaSessionPositionState({ duration: currentTrack.duration || 200, position: 0 });
     }
   }, [currentTrack]);
 
   // Update Media Session Playback State
   useEffect(() => {
     setMediaSessionPlaybackState(isPlaying ? 'playing' : 'paused');
-    updateMediaSessionPositionState({ duration, position: currentTime });
-  }, [isPlaying, duration]);
+  }, [isPlaying]);
 
   // Fisher-Yates shuffle with pre-shuffle restoration
   const toggleShuffle = useCallback(() => {
@@ -1054,11 +1194,16 @@ export function PlayerProvider({ children }) {
           setIsPlaying(true);
           setMediaSessionPlaybackState('playing');
         }}
-        onPause={() => {
-          if (!isTransitioningTrackRef.current) {
+        onPause={(e) => {
+          if (!isTransitioningTrackRef.current && !e.currentTarget.ended) {
             setIsPlaying(false);
             setMediaSessionPlaybackState('paused');
           }
+        }}
+        onSeeked={(e) => {
+          const d = e.currentTarget.duration || duration || 200;
+          const p = e.currentTarget.currentTime || 0;
+          updateMediaSessionPositionState({ duration: d, position: p });
         }}
         onEnded={handleTrackEnded}
         onError={handleAudioError}

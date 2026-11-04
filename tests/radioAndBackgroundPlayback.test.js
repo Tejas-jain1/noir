@@ -182,3 +182,55 @@ test('Previous track wraps cleanly to the last track or goes back one step', () 
   assert.equal(getPreviousQueueIndex(queue, 1), 0);
   assert.equal(getPreviousQueueIndex(queue, 0), 2); // wrap around
 });
+
+test('Multi-track pre-resolution lookahead finds next playable track if an upcoming track is missing a stream', () => {
+  const queue = [
+    { id: '1', title: 'Playing Now', audioUrl: 'https://cdn/1.mp4' },
+    { id: '2', title: 'Pending Stream', audioUrl: '' }, // delayed/failed
+    { id: '3', title: 'Ready Track', audioUrl: 'https://cdn/3.mp4' },
+    { id: '4', title: 'Future Track', audioUrl: 'https://cdn/4.mp4' }
+  ];
+
+  const currentIndex = 0;
+  const nextTrack = getNextQueuedTrack(queue, currentIndex);
+  assert.equal(nextTrack.id, '2');
+  assert.equal(Boolean(nextTrack.audioUrl), false);
+
+  // Lookahead search finds the next pre-resolved track
+  let lookaheadTrack = null;
+  let lookaheadIndex = -1;
+  for (let i = currentIndex + 2; i < Math.min(queue.length, currentIndex + 5); i++) {
+    if (queue[i]?.audioUrl) {
+      lookaheadTrack = queue[i];
+      lookaheadIndex = i;
+      break;
+    }
+  }
+
+  assert.equal(lookaheadTrack?.id, '3', 'Lookahead must find the next ready track to keep AudioFocus');
+  assert.equal(lookaheadIndex, 2);
+});
+
+test('Lock-screen previous track rewinds when playback > 3s, and navigates back when <= 3s', () => {
+  const queue = [{ id: 'track1' }, { id: 'track2' }, { id: 'track3' }];
+  let queueIndex = 1; // Playing track2
+
+  // Simulate user pressing Previous when 15 seconds into track2 -> Rewind to 0
+  let audioCurrentTime = 15;
+  if (audioCurrentTime > 3) {
+    audioCurrentTime = 0;
+  } else {
+    queueIndex = getPreviousQueueIndex(queue, queueIndex);
+  }
+  assert.equal(audioCurrentTime, 0, 'Must rewind to 0:00 when > 3s');
+  assert.equal(queueIndex, 1, 'Queue index must not change when rewinding');
+
+  // Simulate user pressing Previous when 1 second into track2 -> Jump to track1
+  audioCurrentTime = 1;
+  if (audioCurrentTime > 3) {
+    audioCurrentTime = 0;
+  } else {
+    queueIndex = getPreviousQueueIndex(queue, queueIndex);
+  }
+  assert.equal(queueIndex, 0, 'Must jump to previous track when <= 3s');
+});

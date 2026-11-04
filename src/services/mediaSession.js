@@ -11,16 +11,27 @@ export function isMediaSessionSupported() {
 export function updateMediaSessionMetadata(track) {
   if (!isMediaSessionSupported() || !track) return;
 
-  const artwork = track.thumbnail
-    ? [
-        { src: track.thumbnail, sizes: '96x96', type: 'image/jpeg' },
-        { src: track.thumbnail, sizes: '128x128', type: 'image/jpeg' },
-        { src: track.thumbnail, sizes: '192x192', type: 'image/jpeg' },
-        { src: track.thumbnail, sizes: '256x256', type: 'image/jpeg' },
-        { src: track.thumbnail, sizes: '384x384', type: 'image/jpeg' },
-        { src: track.thumbnail, sizes: '512x512', type: 'image/jpeg' }
-      ]
-    : [];
+  const artwork = [];
+  if (track.thumbnail) {
+    try {
+      const src = typeof track.thumbnail === 'string' && track.thumbnail.startsWith('http')
+        ? track.thumbnail
+        : (typeof window !== 'undefined' && track.thumbnail ? new URL(track.thumbnail, window.location.origin).href : '');
+
+      if (src) {
+        artwork.push(
+          { src, sizes: '96x96' },
+          { src, sizes: '128x128' },
+          { src, sizes: '192x192' },
+          { src, sizes: '256x256' },
+          { src, sizes: '384x384' },
+          { src, sizes: '512x512' }
+        );
+      }
+    } catch {
+      // Ignore artwork URL parse errors
+    }
+  }
 
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -40,6 +51,7 @@ export function setMediaSessionActionHandlers(handlers = {}) {
   const actions = [
     ['play', handlers.play],
     ['pause', handlers.pause],
+    ['stop', handlers.stop],
     ['previoustrack', handlers.previousTrack],
     ['nexttrack', handlers.nextTrack],
     ['seekto', handlers.seekTo],
@@ -49,7 +61,7 @@ export function setMediaSessionActionHandlers(handlers = {}) {
 
   for (const [action, handler] of actions) {
     try {
-      if (handler) {
+      if (typeof handler === 'function') {
         navigator.mediaSession.setActionHandler(action, handler);
       } else {
         navigator.mediaSession.setActionHandler(action, null);
@@ -63,7 +75,9 @@ export function setMediaSessionActionHandlers(handlers = {}) {
 export function setMediaSessionPlaybackState(state) {
   if (!isMediaSessionSupported()) return;
   try {
-    navigator.mediaSession.playbackState = state; // 'playing' | 'paused' | 'none'
+    if (navigator.mediaSession.playbackState !== state) {
+      navigator.mediaSession.playbackState = state; // 'playing' | 'paused' | 'none'
+    }
   } catch {
     // Ignore
   }
@@ -75,14 +89,17 @@ export function updateMediaSessionPositionState({ duration = 0, position = 0, pl
   try {
     const validDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
     if (validDuration > 0) {
-      const validPosition = Number.isFinite(position) ? Math.max(0, Math.min(validDuration, position)) : 0;
+      const validPosition = Number.isFinite(position)
+        ? Math.max(0, Math.min(validDuration, position))
+        : 0;
       navigator.mediaSession.setPositionState({
         duration: validDuration,
         position: validPosition,
         playbackRate: playbackRate > 0 ? playbackRate : 1
       });
     }
-  } catch {
-    // Position state might throw if position > duration during seek transitions
+  } catch (err) {
+    // Chromium throws TypeError if position > duration or playbackState is 'none'
+    console.debug('[MediaSession] setPositionState ignored:', err);
   }
 }
